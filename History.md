@@ -92,3 +92,13 @@
 ## Regla histórica
 
 Cada cambio relevante debe registrar qué se decidió, por qué, qué se verificó y qué queda pendiente.
+
+## 8 de septiembre de 2026 — Fase 2: presentación WPF y MVVM
+
+- Se reemplazó la ventana WPF vacía por la pantalla principal de configuración, acción final, estado y acciones de prueba y ejecución.
+- Se agregó `CommunityToolkit.Mvvm` 8.4.2 para mantener propiedades observables y comandos fuera del code-behind.
+- Se centralizaron colores y estilos XAML para facilitar consistencia, escalado y mantenimiento.
+- La aplicación inicia con configuración incompleta; la automatización real permanece deshabilitada hasta cumplir sus requisitos y el botón de prueba requiere modo de prueba y configuración válida.
+- Se agregaron pruebas unitarias para el estado inicial seguro, el bloqueo durante una ejecución y las condiciones de visibilidad del modo de prueba.
+- Se verificó estáticamente que los archivos XAML son XML válido y que el diff no contiene errores de espacios. La restauración de paquetes, compilación y ejecución de pruebas quedan pendientes en Visual Studio.
+- Esta fase no agregó persistencia, credenciales, Playwright, acceso a PAM, Outlook ni envío de correo; no produjo efectos externos.

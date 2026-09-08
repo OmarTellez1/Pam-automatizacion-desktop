@@ -1,7 +1,242 @@
-﻿<Window x:Class="PamAutomation.App.MainWindow"
+<Window x:Class="PamAutomation.App.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="MainWindow" Height="450" Width="800">
+        xmlns:viewModels="clr-namespace:PamAutomation.App.ViewModels"
+        Title="PAM Automation" Width="1120" Height="760" MinWidth="920" MinHeight="650"
+        WindowStartupLocation="CenterScreen" Background="{StaticResource AppBackgroundBrush}"
+        FontFamily="Segoe UI" TextOptions.TextFormattingMode="Display">
+    <Window.DataContext>
+        <viewModels:MainWindowViewModel />
+    </Window.DataContext>
+
     <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <Border Padding="42,28,42,24" Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,0,0,1">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel>
+                    <TextBlock Style="{StaticResource EyebrowTextStyle}" Text="PAM AUTOMATION" />
+                    <TextBlock Margin="0,5,0,0" Style="{StaticResource PageTitleTextStyle}"
+                               Text="Preparar una solicitud PAM" />
+                    <TextBlock Margin="0,7,0,0" Style="{StaticResource BodyTextStyle}"
+                               Text="Configura cada sección antes de iniciar. La aplicación no ejecutará acciones incompletas." />
+                </StackPanel>
+                <Border Grid.Column="1" Margin="24,0,0,0" VerticalAlignment="Center">
+                    <Border.Style>
+                        <Style TargetType="Border" BasedOn="{StaticResource PendingBadgeStyle}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsConfigurationComplete}" Value="True">
+                                    <Setter Property="Background" Value="{StaticResource SuccessSoftBrush}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <StackPanel Orientation="Horizontal">
+                        <Ellipse Width="7" Height="7" Margin="0,0,7,0">
+                            <Ellipse.Style>
+                                <Style TargetType="Ellipse">
+                                    <Setter Property="Fill" Value="{StaticResource PendingTextBrush}" />
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsConfigurationComplete}" Value="True">
+                                            <Setter Property="Fill" Value="{StaticResource SuccessBrush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Ellipse.Style>
+                        </Ellipse>
+                        <TextBlock Text="{Binding ConfigurationSummaryText}">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock" BasedOn="{StaticResource PendingBadgeTextStyle}">
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsConfigurationComplete}" Value="True">
+                                            <Setter Property="Foreground" Value="{StaticResource SuccessBrush}" />
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </Border>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel Margin="42,30,42,28">
+                <TextBlock Style="{StaticResource SectionTitleTextStyle}" Text="Configuración" />
+                <TextBlock Margin="0,5,0,18" Style="{StaticResource BodyTextStyle}"
+                           Text="Los datos sensibles se almacenarán de forma protegida cuando se implemente su configuración." />
+
+                <UniformGrid Columns="3">
+                    <Border Margin="0,0,8,0" MinHeight="232" Style="{StaticResource CardStyle}">
+                        <Grid>
+                            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <Border Width="32" Height="32" Background="{StaticResource PrimarySoftBrush}" CornerRadius="8">
+                                    <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{StaticResource PrimaryBrush}" FontWeight="Bold" Text="1" />
+                                </Border>
+                                <TextBlock Grid.Column="1" Margin="11,5,8,0" Foreground="{StaticResource TextPrimaryBrush}" FontSize="16" FontWeight="SemiBold" Text="Credenciales" />
+                                <Border Grid.Column="2">
+                                    <Border.Style>
+                                        <Style TargetType="Border" BasedOn="{StaticResource PendingBadgeStyle}">
+                                            <Style.Triggers><DataTrigger Binding="{Binding AreCredentialsConfigured}" Value="True"><Setter Property="Background" Value="{StaticResource SuccessSoftBrush}" /></DataTrigger></Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <TextBlock>
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock" BasedOn="{StaticResource PendingBadgeTextStyle}">
+                                                <Setter Property="Text" Value="Pendiente" />
+                                                <Style.Triggers><DataTrigger Binding="{Binding AreCredentialsConfigured}" Value="True"><Setter Property="Text" Value="Configurado" /><Setter Property="Foreground" Value="{StaticResource SuccessBrush}" /></DataTrigger></Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </Border>
+                            </Grid>
+                            <TextBlock Grid.Row="1" Margin="0,18" Style="{StaticResource BodyTextStyle}"
+                                       Text="Usuario, contraseña y semilla TOTP protegidos para el acceso al portal." />
+                            <Button Grid.Row="2" AutomationProperties.Name="Configurar credenciales PAM"
+                                    Command="{Binding ConfigureCredentialsCommand}" Content="{Binding CredentialsActionText}"
+                                    Style="{StaticResource SecondaryButtonStyle}" />
+                        </Grid>
+                    </Border>
+
+                    <Border Margin="8,0" MinHeight="232" Style="{StaticResource CardStyle}">
+                        <Grid>
+                            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <Border Width="32" Height="32" Background="{StaticResource PrimarySoftBrush}" CornerRadius="8">
+                                    <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{StaticResource PrimaryBrush}" FontWeight="Bold" Text="2" />
+                                </Border>
+                                <TextBlock Grid.Column="1" Margin="11,5,8,0" Foreground="{StaticResource TextPrimaryBrush}" FontSize="16" FontWeight="SemiBold" Text="Solicitud" />
+                                <Border Grid.Column="2">
+                                    <Border.Style>
+                                        <Style TargetType="Border" BasedOn="{StaticResource PendingBadgeStyle}">
+                                            <Style.Triggers><DataTrigger Binding="{Binding IsRequestConfigured}" Value="True"><Setter Property="Background" Value="{StaticResource SuccessSoftBrush}" /></DataTrigger></Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <TextBlock>
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock" BasedOn="{StaticResource PendingBadgeTextStyle}">
+                                                <Setter Property="Text" Value="Pendiente" />
+                                                <Style.Triggers><DataTrigger Binding="{Binding IsRequestConfigured}" Value="True"><Setter Property="Text" Value="Configurado" /><Setter Property="Foreground" Value="{StaticResource SuccessBrush}" /></DataTrigger></Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </Border>
+                            </Grid>
+                            <TextBlock Grid.Row="1" Margin="0,18" Style="{StaticResource BodyTextStyle}"
+                                       Text="Parámetros y justificación que se utilizarán para crear la solicitud PAM." />
+                            <Button Grid.Row="2" AutomationProperties.Name="Configurar solicitud PAM"
+                                    Command="{Binding ConfigureRequestCommand}" Content="{Binding RequestActionText}"
+                                    Style="{StaticResource SecondaryButtonStyle}" />
+                        </Grid>
+                    </Border>
+
+                    <Border Margin="8,0,0,0" MinHeight="232" Style="{StaticResource CardStyle}">
+                        <Grid>
+                            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                            <Grid>
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                                <Border Width="32" Height="32" Background="{StaticResource PrimarySoftBrush}" CornerRadius="8">
+                                    <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{StaticResource PrimaryBrush}" FontWeight="Bold" Text="3" />
+                                </Border>
+                                <TextBlock Grid.Column="1" Margin="11,5,8,0" Foreground="{StaticResource TextPrimaryBrush}" FontSize="16" FontWeight="SemiBold" Text="Correo" />
+                                <Border Grid.Column="2">
+                                    <Border.Style>
+                                        <Style TargetType="Border" BasedOn="{StaticResource PendingBadgeStyle}">
+                                            <Style.Triggers><DataTrigger Binding="{Binding IsMailConfigured}" Value="True"><Setter Property="Background" Value="{StaticResource SuccessSoftBrush}" /></DataTrigger></Style.Triggers>
+                                        </Style>
+                                    </Border.Style>
+                                    <TextBlock>
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock" BasedOn="{StaticResource PendingBadgeTextStyle}">
+                                                <Setter Property="Text" Value="Pendiente" />
+                                                <Style.Triggers><DataTrigger Binding="{Binding IsMailConfigured}" Value="True"><Setter Property="Text" Value="Configurado" /><Setter Property="Foreground" Value="{StaticResource SuccessBrush}" /></DataTrigger></Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </Border>
+                            </Grid>
+                            <TextBlock Grid.Row="1" Margin="0,18" Style="{StaticResource BodyTextStyle}"
+                                       Text="Destinatario, asunto y contenido enviados desde Outlook clásico." />
+                            <Button Grid.Row="2" AutomationProperties.Name="Configurar correo"
+                                    Command="{Binding ConfigureMailCommand}" Content="{Binding MailActionText}"
+                                    Style="{StaticResource SecondaryButtonStyle}" />
+                        </Grid>
+                    </Border>
+                </UniformGrid>
+
+                <Border Margin="0,22,0,0" Style="{StaticResource CardStyle}">
+                    <Grid>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SectionTitleTextStyle}" Text="Acción final" />
+                            <TextBlock Margin="0,5,24,0" Style="{StaticResource BodyTextStyle}"
+                                       Text="Decide si Outlook debe preparar el correo después de completar la solicitud." />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Orientation="Horizontal">
+                            <TextBlock Margin="0,0,12,0" VerticalAlignment="Center" Foreground="{StaticResource TextSecondaryBrush}" FontWeight="SemiBold">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Text" Value="No enviar correo" />
+                                        <Style.Triggers><DataTrigger Binding="{Binding SendEmailAtEnd}" Value="True"><Setter Property="Text" Value="Enviar correo al finalizar" /></DataTrigger></Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                            <ToggleButton AutomationProperties.Name="Enviar correo al finalizar"
+                                          IsChecked="{Binding SendEmailAtEnd}" IsEnabled="{Binding AreControlsEnabled}"
+                                          Style="{StaticResource MailToggleStyle}" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <ProgressBar Margin="0,22,0,0" IsIndeterminate="True">
+                    <ProgressBar.Style>
+                        <Style TargetType="ProgressBar" BasedOn="{StaticResource RunProgressBarStyle}">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers><DataTrigger Binding="{Binding IsRunning}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers>
+                        </Style>
+                    </ProgressBar.Style>
+                </ProgressBar>
+
+                <Grid Margin="0,22,0,0">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                    <TextBlock MaxWidth="570" VerticalAlignment="Center" HorizontalAlignment="Left"
+                               Style="{StaticResource BodyTextStyle}" Text="{Binding StatusMessage}" />
+                    <StackPanel Grid.Column="1" Orientation="Horizontal">
+                        <Button Margin="0,0,12,0" AutomationProperties.Name="Ejecutar prueba segura"
+                                Command="{Binding StartTestCommand}" Content="Ejecutar prueba">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource TestButtonStyle}">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                    <Style.Triggers><DataTrigger Binding="{Binding IsTestActionVisible}" Value="True"><Setter Property="Visibility" Value="Visible" /></DataTrigger></Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                        <Button MinWidth="190" AutomationProperties.Name="Iniciar automatización PAM"
+                                Command="{Binding StartAutomationCommand}" Content="Iniciar automatización"
+                                IsEnabled="{Binding CanStartAutomation}" Style="{StaticResource PrimaryButtonStyle}" />
+                    </StackPanel>
+                </Grid>
+            </StackPanel>
+        </ScrollViewer>
+
+        <Border Grid.Row="2" Padding="42,12" Background="{StaticResource SurfaceBrush}"
+                BorderBrush="{StaticResource BorderBrush}" BorderThickness="0,1,0,0">
+            <Grid>
+                <TextBlock Style="{StaticResource CaptionTextStyle}" Text="Los resultados de ejecución se mantendrán solamente en memoria." />
+                <TextBlock HorizontalAlignment="Right" Style="{StaticResource CaptionTextStyle}" Text="Windows · x64" />
+            </Grid>
+        </Border>
     </Grid>
 </Window>

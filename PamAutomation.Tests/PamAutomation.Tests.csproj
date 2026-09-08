@@ -9,6 +9,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\PamAutomation.App\PamAutomation.App.csproj" />
     <ProjectReference Include="..\PamAutomation.Core\PamAutomation.Core.csproj" />
   </ItemGroup>
 

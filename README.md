@@ -6,9 +6,9 @@ Aplicación de escritorio Windows para automatizar BeyondInsight Password Safe d
 
 La raíz oficial del repositorio es `C:\pam automatizacion dotnet\PamAutomation`.
 
-La solución `PamAutomation.slnx` contiene la aplicación WPF `PamAutomation.App` y los proyectos base `PamAutomation.Core`, `PamAutomation.Browser`, `PamAutomation.Outlook`, `PamAutomation.Infrastructure` y `PamAutomation.Tests`. La ventana principal todavía está vacía y aún no existe implementación funcional de PAM, TOTP, configuración, Outlook o solicitudes.
+La solución `PamAutomation.slnx` contiene la aplicación WPF `PamAutomation.App` y los proyectos base `PamAutomation.Core`, `PamAutomation.Browser`, `PamAutomation.Outlook`, `PamAutomation.Infrastructure` y `PamAutomation.Tests`. La fase 2 incorpora una pantalla principal WPF con MVVM, recursos visuales centralizados y estados seguros de configuración y ejecución. Aún no existe implementación funcional de PAM, TOTP, persistencia, Outlook o solicitudes.
 
-`PamAutomation.Tests` utiliza MSTest con Microsoft Testing Platform e incluye una prueba mínima para comprobar su descubrimiento en Test Explorer. La estructura está pendiente de su primera compilación Release y ejecución de pruebas desde Visual Studio.
+`PamAutomation.Tests` utiliza MSTest con Microsoft Testing Platform e incluye pruebas del estado de presentación. La estructura base de la fase 1 fue compilada y ejecutada correctamente por el usuario en Visual Studio. Los cambios de la fase 2 quedan pendientes de restauración, compilación Release y ejecución de pruebas en el IDE.
 
 La compilación y las pruebas se administrarán exclusivamente desde Visual Studio. No se presupone disponibilidad de `dotnet` o `msbuild` en la línea de comandos.
 
@@ -133,6 +133,7 @@ La primera versión ejecutará Edge de forma visible tanto para la validación d
 ## Decisiones de implementación confirmadas
 
 - Framework de pruebas: MSTest con Microsoft Testing Platform, integrado con Test Explorer de Visual Studio.
+- Presentación: MVVM con CommunityToolkit.Mvvm; los estados y comandos se mantienen fuera del code-behind.
 - Solución: `PamAutomation.slnx`.
 - Navegador: Edge instalado, `Channel = "msedge"`, contexto temporal y ejecución visible en la primera versión.
 - Protección contra correo duplicado: estado en memoria durante la ejecución y consulta de Enviados, Bandeja de salida y Borradores de Outlook antes de enviar; no se crearán archivos locales `last-email` o `delivery-state`.
@@ -140,4 +141,4 @@ La primera versión ejecutará Edge de forma visible tanto para la validación d
 
 ## Próximo paso
 
-Abrir `PamAutomation.slnx` en Visual Studio, restaurar las dependencias, compilar en `Release | x64` y ejecutar la prueba MSTest desde Test Explorer. No comenzar una fase funcional hasta que ambas validaciones terminen correctamente.
+Abrir `PamAutomation.slnx` en Visual Studio, restaurar las dependencias, compilar en `Release | x64`, ejecutar todas las pruebas desde Test Explorer y abrir la ventana principal para revisar su escala y distribución. La siguiente fase funcional será la configuración no secreta y sus validaciones; no debe iniciarse hasta que estas comprobaciones terminen correctamente.

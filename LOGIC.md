@@ -2,7 +2,7 @@
 
 ## Estado
 
-Este documento describe la lógica objetivo de la aplicación nueva. Ya existe la estructura base de proyectos, pero la implementación funcional todavía no existe.
+Este documento describe la lógica objetivo de la aplicación nueva. Ya existen la estructura base y el estado de presentación de la ventana principal, pero la implementación funcional todavía no existe.
 
 ## Capas
 
@@ -14,6 +14,14 @@ Este documento describe la lógica objetivo de la aplicación nueva. Ya existe l
 - Tests: unitarias, simulaciones del portal y pruebas controladas de integración.
 
 La lógica de negocio no debe vivir en el code-behind de las ventanas WPF.
+
+## Estado de presentación
+
+La ventana principal utiliza MVVM mediante `CommunityToolkit.Mvvm`. El ViewModel expone el estado de cada configuración, los comandos visibles y las condiciones para habilitar acciones; el code-behind se limita a inicializar la ventana.
+
+La aplicación comienza en estado incompleto y seguro. `Iniciar automatización` solo puede habilitarse cuando credenciales y solicitud estén configuradas y, si la acción final incluye correo, exista también una configuración de correo válida. Mientras una ejecución esté activa, los controles y comandos de configuración quedan deshabilitados.
+
+El botón de prueba permanece separado del botón real. Solo es visible cuando `testModeEnabled` está activo y toda la configuración requerida es válida. En esta fase los botones de configuración y ejecución únicamente informan que la función aún no está implementada; no abren Edge u Outlook, no escriben configuración y no producen efectos externos.
 
 ## Persistencia y configuración
 
