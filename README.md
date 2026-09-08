@@ -4,7 +4,13 @@ Aplicación de escritorio Windows para automatizar BeyondInsight Password Safe d
 
 ## Estado actual
 
-Este repositorio contiene inicialmente solo documentación de diseño. Todavía no se han creado la solución .NET, la aplicación WPF ni los proyectos de código.
+La raíz oficial del repositorio es `C:\pam automatizacion dotnet\PamAutomation`.
+
+La solución `PamAutomation.slnx` contiene la aplicación WPF `PamAutomation.App` y los proyectos base `PamAutomation.Core`, `PamAutomation.Browser`, `PamAutomation.Outlook`, `PamAutomation.Infrastructure` y `PamAutomation.Tests`. La ventana principal todavía está vacía y aún no existe implementación funcional de PAM, TOTP, configuración, Outlook o solicitudes.
+
+`PamAutomation.Tests` utiliza MSTest con Microsoft Testing Platform e incluye una prueba mínima para comprobar su descubrimiento en Test Explorer. La estructura está pendiente de su primera compilación Release y ejecución de pruebas desde Visual Studio.
+
+La compilación y las pruebas se administrarán exclusivamente desde Visual Studio. No se presupone disponibilidad de `dotnet` o `msbuild` en la línea de comandos.
 
 ## Objetivo
 
@@ -21,6 +27,8 @@ La aplicación permitirá:
 - Mostrar Request ID y resultados durante la ejecución.
 - Enviar opcionalmente mediante Outlook clásico.
 - Distribuirse como aplicación Windows autocontenida.
+
+El modo de prueba estará deshabilitado por defecto mediante `testModeEnabled`. El usuario podrá cambiarlo con `Habilitar modo de prueba` dentro de una sección avanzada de Configuración de solicitud, sin editar manualmente el JSON. Cuando se habilite, su botón solo será visible si las configuraciones necesarias están completas. Si el usuario elige enviar por correo un resultado de prueba, el único destinatario permitido será `tellezoe@hitss.com`; no se utilizarán Para ni CC configurados y se exigirá confirmación explícita.
 
 ## Documentación
 
@@ -80,7 +88,7 @@ Windows o Playwright pueden crear archivos internos momentáneos en `%TEMP%` dur
 
 El repositorio de desarrollo sí podrá generar información técnica para que el desarrollador analice fallos. Esos archivos estarán en la raíz del repositorio y no formarán parte de la instalación ni de la publicación para usuarios:
 
-    C:\pam automatizacion dotnet\
+    C:\pam automatizacion dotnet\PamAutomation\
     ├── results\
     ├── logs\
     ├── artifacts\
@@ -120,6 +128,16 @@ La aplicación seguirá requiriendo deliberadamente Windows, Microsoft Edge inst
 
 La automatización utilizará la opción 1: abrirá el Edge instalado mediante Playwright y creará un contexto temporal de automatización. No seleccionará, reutilizará ni modificará perfiles existentes, cookies, extensiones o sesiones del usuario. No utilizará LaunchPersistentContext, userDataDir ni conexión CDP a un navegador existente. La aplicación no debe mostrar una ventana de incógnito; el aislamiento es interno de Playwright.
 
+La primera versión ejecutará Edge de forma visible tanto para la validación de credenciales como para las automatizaciones reales. Se conservarán del flujo anterior sus reglas funcionales y validaciones del portal, pero no la reutilización de perfiles de Chrome ni su ejecución headless. Un modo headless solo podrá evaluarse posteriormente mediante una decisión documentada y pruebas equivalentes.
+
+## Decisiones de implementación confirmadas
+
+- Framework de pruebas: MSTest con Microsoft Testing Platform, integrado con Test Explorer de Visual Studio.
+- Solución: `PamAutomation.slnx`.
+- Navegador: Edge instalado, `Channel = "msedge"`, contexto temporal y ejecución visible en la primera versión.
+- Protección contra correo duplicado: estado en memoria durante la ejecución y consulta de Enviados, Bandeja de salida y Borradores de Outlook antes de enviar; no se crearán archivos locales `last-email` o `delivery-state`.
+- Editor de correo: `RichTextBox` y `FlowDocument` como editor nativo, con un subconjunto explícito de formato y un convertidor C# propio a HTML saneado. El contenido enriquecido y las imágenes se persistirán únicamente dentro de `mail-settings.dat` protegido con DPAPI.
+
 ## Próximo paso
 
-Antes de escribir código, Codex debe analizar la documentación nueva y la aplicación anterior como referencia de solo lectura, informar contradicciones y proponer un plan por fases.
+Abrir `PamAutomation.slnx` en Visual Studio, restaurar las dependencias, compilar en `Release | x64` y ejecutar la prueba MSTest desde Test Explorer. No comenzar una fase funcional hasta que ambas validaciones terminen correctamente.

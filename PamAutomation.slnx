@@ -1,3 +1,29 @@
 <Solution>
-  <Project Path="PamAutomation.App/PamAutomation.App.csproj" />
+  <Configurations>
+    <Platform Name="x64" />
+  </Configurations>
+
+  <Project Path="PamAutomation.App/PamAutomation.App.csproj">
+    <Platform Project="x64" />
+  </Project>
+
+  <Project Path="PamAutomation.Browser/PamAutomation.Browser.csproj">
+    <Platform Project="x64" />
+  </Project>
+
+  <Project Path="PamAutomation.Core/PamAutomation.Core.csproj">
+    <Platform Project="x64" />
+  </Project>
+
+  <Project Path="PamAutomation.Infrastructure/PamAutomation.Infrastructure.csproj">
+    <Platform Project="x64" />
+  </Project>
+
+  <Project Path="PamAutomation.Outlook/PamAutomation.Outlook.csproj">
+    <Platform Project="x64" />
+  </Project>
+
+  <Project Path="PamAutomation.Tests/PamAutomation.Tests.csproj">
+    <Platform Project="x64" />
+  </Project>
 </Solution>

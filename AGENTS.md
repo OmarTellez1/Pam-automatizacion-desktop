@@ -4,6 +4,8 @@
 
 Este repositorio es una aplicación nueva construida desde cero para Windows. La aplicación anterior está en C:\pam automatizacion y solo es referencia de lectura.
 
+La raíz oficial del repositorio es `C:\pam automatizacion dotnet\PamAutomation` y la solución utiliza el formato moderno `PamAutomation.slnx`.
+
 Antes de analizar, modificar o crear código, leer completamente:
 
 - CODEX_BUILD_SPEC.md
@@ -56,4 +58,4 @@ HTML, CSS y JavaScript no forman parte de la interfaz propia. Playwright puede i
 
 ## Validación
 
-No inventar comandos de prueba. Primero inspeccionar la solución y ejecutar los comandos definidos por el proyecto. Las pruebas reales contra PAM y Outlook requieren autorización explícita.
+La compilación, ejecución y administración de pruebas se realizarán mediante Visual Studio y su IDE; no asumir que `dotnet` o `msbuild` están disponibles en `PATH` ni crear scripts auxiliares. Primero inspeccionar la solución y ejecutar desde Visual Studio las configuraciones definidas por el proyecto. Las pruebas reales contra PAM y Outlook requieren autorización explícita.

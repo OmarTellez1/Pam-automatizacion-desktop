@@ -2,7 +2,7 @@
 
 ## Estado
 
-Este documento describe la lógica objetivo de la aplicación nueva. La implementación todavía no existe.
+Este documento describe la lógica objetivo de la aplicación nueva. Ya existe la estructura base de proyectos, pero la implementación funcional todavía no existe.
 
 ## Capas
 
@@ -37,6 +37,7 @@ Sus propiedades serán equivalentes a la configuración actual:
 - startDate equivale a PAM_START_DATE, persistida como fecha ISO.
 - startTime equivale a PAM_START_TIME.
 - timeZone debe ser America/Guayaquil.
+- testModeEnabled habilita el modo de prueba y será `false` por defecto.
 
 La configuración de correo se guardará en:
 
@@ -52,7 +53,7 @@ La única persistencia propia de la aplicación será:
 
 No persistir `results`, `logs`, `artifacts`, `temp`, `last-run`, `last-email` ni `delivery-state`. El resultado de una ejecución se representará mediante un modelo en memoria que contenga Request ID, conflictos, estado y errores. La interfaz lo mostrará mientras la aplicación permanezca abierta.
 
-Si la acción final es correo, la aplicación debe preparar, validar y enviar el mensaje dentro de la misma ejecución. La protección contra duplicados debe funcionar durante esa ejecución; no se conservará un historial local después de cerrar la aplicación.
+Si la acción final es correo, la aplicación debe preparar, validar y enviar el mensaje dentro de la misma ejecución. La protección inmediata contra duplicados utilizará el estado en memoria de la ejecución. Antes de enviar, también se consultarán Enviados, Bandeja de salida y Borradores de Outlook para detectar un mensaje con el mismo asunto y el mismo conjunto exacto de Request ID. De este modo se conserva protección entre reinicios sin crear `last-email`, `delivery-state` ni otro historial local.
 
 No habrá auditoría local ni debugging persistente por defecto. Un modo de diagnóstico futuro, si se necesita, deberá activarse explícitamente y exportar manualmente la información a una ubicación seleccionada por el desarrollador o soporte. No debe formar parte del almacenamiento normal.
 
@@ -94,6 +95,8 @@ Playwright .NET debe lanzar el Edge instalado mediante el canal msedge.
 
 No se debe incluir Chromium. La aplicación debe utilizar la opción 1: lanzar el Edge instalado mediante el canal msedge y crear un contexto temporal de Playwright. No debe seleccionar, reutilizar ni modificar el perfil existente del usuario, sus cookies, extensiones o sesiones. No utilizar LaunchPersistentContext, userDataDir ni conexión CDP a un navegador existente. El aislamiento es interno de Playwright y no debe presentarse como una ventana de incógnito.
 
+La primera versión utilizará Edge visible para la comprobación de credenciales y la automatización real. Se conservará el comportamiento funcional validado de la aplicación anterior, no su uso de Chrome, perfiles existentes o ejecución headless. Cualquier modo headless futuro requerirá una decisión explícita y la misma cobertura de seguridad e integración.
+
 Los locators se refieren al DOM HTML del portal externo. La interfaz propia no utilizará HTML, CSS ni JavaScript. Priorizar roles, labels y atributos estables; CSS o XPath solo como último recurso.
 
 ## Solicitudes
@@ -102,6 +105,8 @@ La aplicación debe separar claramente:
 
 - Modo prueba: llena y valida formularios, descarta cada formulario y nunca pulsa Submit Request.
 - Modo real: requiere confirmación y crea solicitudes.
+
+El usuario podrá cambiar `testModeEnabled` mediante `Habilitar modo de prueba` en una sección avanzada de Configuración de solicitud; no necesitará editar el JSON. `Iniciar prueba` solo será visible cuando esa opción sea verdadera y la configuración de credenciales y solicitud esté completa. Si la acción final es correo, también deberá existir una configuración de correo válida, pero los destinatarios guardados no se usarán: el correo de prueba se enviará exclusivamente a `tellezoe@hitss.com`, sin CC, con asunto prefijado por `[PRUEBA]` y después de una confirmación que muestre el destinatario exacto.
 
 El modo real debe recorrer todas las cuentas de Favorites, todas las páginas y las solicitudes Pending relevantes. Debe validar sistema, aplicación, cuenta, familia, fecha, hora, duración y razón antes de cada envío.
 
@@ -112,6 +117,14 @@ El conflicto PSPortal.Requests.Policies.RemoteAppAccesssAlreadyAvailable se regi
 Outlook clásico se integrará mediante COM. Debe verificarse la cuenta exacta por SmtpAddress, asignarse SendUsingAccount antes de Send() y crearse un mensaje nuevo por ejecución.
 
 La integración COM debe ejecutarse en STA, liberar referencias y no enviar mensajes durante pruebas automáticas.
+
+Las pruebas unitarias e integraciones automatizadas nunca enviarán correo. El envío de un correo de modo de prueba es una acción manual distinta, autorizada desde la interfaz y limitada a `tellezoe@hitss.com`.
+
+## Editor enriquecido de correo
+
+La interfaz utilizará `RichTextBox` y `FlowDocument` como modelo nativo de edición. Solo se admitirán capacidades declaradas y testeadas: párrafos, negrita, cursiva, subrayado, listas, tablas, imágenes pegadas y el marcador `{{REQUEST_IDS}}`. Un convertidor C# propio recorrerá el `FlowDocument` y generará un subconjunto permitido de HTML para Outlook; no se aceptará HTML arbitrario ni se afirmará compatibilidad completa.
+
+El documento y sus imágenes se guardarán dentro de `mail-settings.dat` protegido con DPAPI CurrentUser. Las imágenes necesarias para adjuntos CID solo podrán materializarse como temporales durante la preparación del mensaje y deberán eliminarse al finalizar. Antes de desarrollar el editor completo se validará un prototipo de ida y vuelta, tablas, imágenes, marcador, saneamiento y renderizado en Outlook clásico.
 
 ## Seguridad
 
@@ -139,5 +152,7 @@ Todas las dependencias externas deben tener interfaces sustituibles:
 - Sistema de archivos.
 - Automatización PAM.
 - Outlook.
+
+El framework elegido es MSTest sobre Microsoft Testing Platform. Las pruebas se descubrirán y ejecutarán desde Test Explorer de Visual Studio. Las pruebas COM que necesiten apartamento STA utilizarán el soporte STA de MSTest y permanecerán separadas de las pruebas unitarias.
 
 Las pruebas unitarias no deben abrir Edge, PAM ni Outlook. Las pruebas de integración visibles pueden utilizar credenciales reales y el contexto temporal de Playwright cuando exista autorización explícita; deben conservar los mismos controles de seguridad y no deben crear solicitudes ni enviar correos sin una autorización adicional.

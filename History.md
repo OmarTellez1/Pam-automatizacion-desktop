@@ -15,8 +15,7 @@
 ## Decisiones pendientes
 
 - Confirmar si la API oficial de BeyondTrust puede cubrir alguna parte del flujo sin sustituir Playwright.
-- Elegir MSTest o xUnit.
-- Validar el editor nativo de contenido enriquecido para correo sin JavaScript.
+- Validar mediante un prototipo el editor nativo de contenido enriquecido y su conversión limitada a HTML para Outlook.
 - Definir MSI o MSIX como formato final de distribución.
 - Confirmar políticas corporativas de Edge y Outlook clásico.
 
@@ -65,6 +64,30 @@
 - La aplicación publicada no persistirá logs, resultados, artefactos ni temporales en la PC de los usuarios.
 - El repositorio de desarrollo sí podrá crear `results`, `logs`, `artifacts` y `temp` en su raíz para facilitar el análisis de fallos.
 - Esas carpetas serán exclusivas de desarrollo, estarán excluidas de Git, no se incluirán en el instalador y no contendrán secretos.
+
+## 8 de septiembre de 2026 — Alineación de la solución y decisiones iniciales
+
+- Se confirmó que la raíz oficial es `C:\pam automatizacion dotnet\PamAutomation`.
+- Se confirmó que la solución existente utiliza `PamAutomation.slnx`; no se requiere convertirla a `.sln`.
+- Se actualizó el estado documental: ya existe `PamAutomation.App`, un proyecto WPF mínimo para `net10.0-windows`; todavía faltan los demás proyectos y toda la implementación funcional.
+- Se estableció que la compilación y las pruebas se operarán desde Visual Studio, sin depender de `dotnet` o `msbuild` en `PATH`.
+- Se eligió MSTest con Microsoft Testing Platform por su integración directa con Visual Studio y su soporte para pruebas STA necesarias alrededor de Outlook COM.
+- Se definió `testModeEnabled`, falso por defecto, como opción no sensible para habilitar el botón de prueba. El usuario podrá cambiarla desde una sección avanzada de Configuración de solicitud y el botón requerirá configuración válida.
+- Se autorizó el envío manual de correos del modo de prueba únicamente a `tellezoe@hitss.com`, sin CC, con confirmación explícita y asunto `[PRUEBA]`.
+- Se decidió conservar las reglas funcionales comprobadas del flujo anterior, pero utilizar Edge visible y un contexto temporal en la primera versión; no se reutilizarán perfiles y no se habilitará headless inicialmente.
+- Se decidió evitar persistencia local de resultados y huellas de correo. La protección contra duplicados combinará estado en memoria con consulta de Enviados, Bandeja de salida y Borradores de Outlook.
+- Se seleccionó `RichTextBox`/`FlowDocument` con un convertidor C# limitado a HTML saneado como dirección del editor. La viabilidad de tablas, imágenes CID y fidelidad de ida y vuelta sigue pendiente de un prototipo antes de implementar el editor completo.
+- En esta actualización solo se modificó documentación; no se cambió código, no se compiló, no se accedió a PAM y no se abrió ni utilizó Outlook.
+
+## 8 de septiembre de 2026 — Fase 1: estructura base
+
+- Se agregaron a `PamAutomation.slnx` los proyectos Core, Browser, Outlook, Infrastructure y Tests junto al proyecto WPF existente.
+- App referencia Browser, Core, Infrastructure y Outlook. Browser, Infrastructure y Outlook referencian únicamente Core. Tests referencia inicialmente Core.
+- Se configuró MSTest SDK 4.1.0 con Microsoft Testing Platform y una prueba mínima de descubrimiento para Test Explorer.
+- Se eliminaron `using` y espacios vacíos innecesarios de la plantilla WPF, sin agregar comportamiento funcional.
+- No se agregaron Playwright, Outlook Interop, Credential Manager, DPAPI, TOTP ni lógica PAM.
+- La compilación Release y la ejecución de la prueba quedan pendientes en Visual Studio porque esta sesión no expuso acceso a aplicaciones nativas de Windows y las reglas del proyecto prohíben sustituir el IDE con comandos de terminal.
+- No se accedió a PAM, no se utilizaron credenciales reales, no se crearon solicitudes y no se enviaron correos.
 
 ## Regla histórica
 

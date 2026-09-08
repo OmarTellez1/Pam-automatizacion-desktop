@@ -1,4 +1,4 @@
-> Documento canónico para C:\pam automatizacion dotnet. La aplicación anterior en C:\pam automatizacion es únicamente referencia de lectura.
+> Documento canónico para C:\pam automatizacion dotnet\PamAutomation. La aplicación anterior en C:\pam automatizacion es únicamente referencia de lectura.
 
 # Especificación para construir la aplicación con Codex
 
@@ -72,6 +72,8 @@ Channel = "msedge"
 
 Playwright .NET debe controlar el Edge instalado externamente. La aplicación debe comprobar al inicio que Edge existe y mostrar un mensaje claro si no está disponible.
 
+La primera versión ejecutará Edge de forma visible para la comprobación de credenciales y las automatizaciones reales. Se conservarán las reglas funcionales y validaciones comprobadas en la aplicación anterior, pero no su uso de Chrome, perfiles existentes o ejecución headless. Un modo headless futuro requerirá autorización explícita, una decisión documentada y pruebas de seguridad e integración equivalentes.
+
 ## Interfaz de usuario
 
 La interfaz debe ser equivalente en calidad visual a la aplicación actual, pero implementada de forma nativa con WPF y XAML.
@@ -116,6 +118,8 @@ La pantalla inicial debe mostrar:
 
 La aplicación debe bloquear un segundo inicio mientras exista una automatización activa.
 
+El botón `Iniciar prueba` estará gobernado por la propiedad no sensible `testModeEnabled` de `app-settings.json`, cuyo valor predeterminado será `false`. El usuario podrá cambiarla mediante `Habilitar modo de prueba` dentro de una sección avanzada de Configuración de solicitud, sin editar manualmente el archivo JSON. El botón solo será visible cuando esa propiedad sea verdadera y las configuraciones de credenciales y solicitud sean válidas. Si la acción final es correo, también se exigirá una configuración de correo válida.
+
 ## Credenciales y seguridad
 
 No utilizar `.env` para guardar secretos en la versión C#.
@@ -140,12 +144,13 @@ La configuración general se guardará en `app-settings.json` con `schemaVersion
 - `startDate`, equivalente a `PAM_START_DATE`, persistida como fecha ISO.
 - `startTime`, equivalente a `PAM_START_TIME`.
 - `timeZone`, con valor `America/Guayaquil`.
+- `testModeEnabled`, con valor predeterminado `false`.
 
 La configuración de correo se guardará en `mail-settings.dat` y se protegerá con DPAPI `CurrentUser`. Contendrá remitente, destinatarios Para, destinatarios CC, asunto y HTML enriquecido con el marcador `{{REQUEST_IDS}}`.
 
 No crear ni mantener carpetas persistentes de `results`, `logs`, `artifacts` o `temp` en `%PROGRAMDATA%`, `%LOCALAPPDATA%` ni junto al ejecutable. Los resultados de la ejecución deben mantenerse en memoria y mostrarse en la interfaz mientras la aplicación esté abierta.
 
-Si la acción final es correo, el mensaje debe prepararse, validarse y enviarse dentro de la misma ejecución. No utilizar `last-run`, `last-email` ni `delivery-state` persistentes. Si la aplicación se cierra inesperadamente, no se requiere recuperación ni historial local.
+Si la acción final es correo, el mensaje debe prepararse, validarse y enviarse dentro de la misma ejecución. No utilizar `last-run`, `last-email` ni `delivery-state` persistentes. La protección inmediata contra duplicados se mantendrá en memoria y, antes del envío, se consultarán Enviados, Bandeja de salida y Borradores de Outlook buscando el mismo asunto y el mismo conjunto exacto de Request ID. Outlook actúa como fuente externa de confirmación; la aplicación no crea historial local. Si la aplicación se cierra inesperadamente, no se requiere recuperación local.
 
 No habrá auditoría local ni debugging persistente en el uso normal. Un diagnóstico futuro deberá activarse explícitamente y exportarse manualmente a una ruta elegida por soporte o desarrollo.
 
@@ -271,6 +276,14 @@ El modo de prueba debe:
 - Nunca pulsar `Submit Request`.
 - Finalizar con `submitted = 0`.
 
+Cuando la acción final sea correo, el envío del resultado de prueba será una acción manual permitida con estas restricciones obligatorias:
+
+- Enviar únicamente a `tellezoe@hitss.com`.
+- No utilizar otros destinatarios configurados y dejar CC vacío.
+- Prefijar el asunto con `[PRUEBA]`.
+- Mostrar el destinatario exacto y solicitar confirmación explícita inmediatamente antes del envío.
+- Mantener prohibido el envío desde pruebas unitarias o integraciones automatizadas.
+
 La lista simulada autorizada debe ser exactamente:
 
 ```text
@@ -363,7 +376,7 @@ Al preparar el correo, reemplazar el marcador por los Request ID actuales, uno p
 
 Conservar el contenido enriquecido configurado por el usuario, incluyendo tablas y motivos de acceso.
 
-Como no se permite JavaScript ni WebView2, la edición enriquecida debe resolverse con controles nativos WPF. Validar primero un prototipo de:
+Como no se permite JavaScript ni WebView2, la edición enriquecida se resolverá con `RichTextBox` y `FlowDocument` como modelo nativo. Un convertidor propio escrito en C# recorrerá el documento y emitirá únicamente un subconjunto permitido y saneado de HTML para Outlook. No se admitirá entrada de HTML arbitrario. Validar primero un prototipo de:
 
 - Texto con formato.
 - Tablas.
@@ -371,8 +384,9 @@ Como no se permite JavaScript ni WebView2, la edición enriquecida debe resolver
 - Conversión a HTML.
 - Imágenes inline con Content-ID.
 - Saneamiento del HTML.
+- Persistencia y recuperación del documento y sus imágenes dentro de `mail-settings.dat` protegido con DPAPI.
 
-No fingir que un `RichTextBox` convierte HTML completo sin limitaciones. Si la conversión no conserva correctamente tablas o imágenes, detenerse y documentar una decisión técnica antes de continuar.
+El subconjunto inicial incluirá párrafos, negrita, cursiva, subrayado, listas, tablas, imágenes pegadas y `{{REQUEST_IDS}}`. No fingir que un `RichTextBox` convierte HTML completo sin limitaciones. Si la conversión no conserva correctamente tablas o imágenes, detenerse y documentar una decisión técnica antes de continuar. Los archivos temporales necesarios para adjuntos CID deben eliminarse al finalizar la operación.
 
 El HTML final no puede contener:
 
@@ -387,7 +401,7 @@ El HTML final no puede contener:
 Crear una solución similar a:
 
 ```text
-PamAutomation.sln
+PamAutomation.slnx
 ├── PamAutomation.App
 │   ├── WPF
 │   ├── Views
@@ -440,7 +454,7 @@ Dependencias principales:
 - `Microsoft.Extensions.Logging`.
 - `Microsoft.Office.Interop.Outlook` o referencia COM oficial a Outlook Object Library.
 - `System.Security.Cryptography.ProtectedData` si se utiliza DPAPI mediante paquete.
-- MSTest o xUnit para pruebas.
+- MSTest con Microsoft Testing Platform para pruebas y Test Explorer de Visual Studio.
 
 Usar primero las APIs incluidas en .NET:
 
@@ -507,16 +521,7 @@ Las pruebas COM reales deben:
 
 ## Empaquetado
 
-Publicar para Windows x64 como aplicación autocontenida:
-
-```powershell
-dotnet publish `
-  -c Release `
-  -r win-x64 `
-  --self-contained true `
-  -p:PublishSingleFile=true `
-  -p:PublishTrimmed=false
-```
+Publicar desde Visual Studio para Windows x64 como aplicación autocontenida, configurando el perfil de publicación con `Release`, runtime `win-x64`, `self-contained = true`, archivo único y trimming deshabilitado. La compilación, las pruebas y la publicación se operarán mediante el IDE; no dependerán de `dotnet` o `msbuild` disponibles en `PATH` ni de scripts PowerShell.
 
 No activar trimming ni Native AOT durante la primera versión porque COM, reflexión y algunas dependencias pueden presentar incompatibilidades.
 
@@ -615,7 +620,7 @@ El proyecto estará terminado únicamente cuando:
 - Inicie en un equipo sin .NET, Node.js, Python o PowerShell instalado.
 - Contenga dentro del ejecutable toda la lógica necesaria de la aplicación, dejando como requisitos externos únicamente Windows, Edge, red/VPN y Outlook clásico cuando se utilice correo.
 - Detecte correctamente Edge instalado.
-- Realice login visible y desatendido contra el entorno autorizado.
+- Realice login visible y automatizado contra el entorno autorizado.
 - Genere el TOTP usando la hora del portal.
 - Ejecute correctamente el modo de prueba sin crear solicitudes.
 - Ejecute correctamente el modo real bajo confirmación explícita.
@@ -637,6 +642,9 @@ Para decisiones de implementación, consultar prioritariamente documentación of
 - [Navegadores y canales de Playwright .NET](https://playwright.dev/dotnet/docs/browsers)
 - [Outlook MailItem.SendUsingAccount](https://learn.microsoft.com/en-us/office/vba/api/outlook.mailitem.sendusingaccount)
 - [Outlook MailItem.Send](https://learn.microsoft.com/en-us/office/vba/api/outlook.mailitem.send%28method%29)
+- [Introducción a MSTest](https://learn.microsoft.com/en-us/dotnet/core/testing/unit-testing-mstest-intro)
+- [Configuración de MSTest SDK](https://learn.microsoft.com/en-us/dotnet/core/testing/unit-testing-mstest-sdk)
+- [Guardar y cargar contenido de RichTextBox en WPF](https://learn.microsoft.com/en-us/dotnet/desktop/wpf/controls/how-to-save-load-and-print-richtextbox-content)
 
 No sustituir documentación oficial por suposiciones del modelo.
 
@@ -651,7 +659,7 @@ C:\pam automatizacion
 está escrita en JavaScript/Node.js y debe tratarse como una referencia funcional e histórica. La nueva aplicación se construirá desde cero en:
 
 ```text
-C:\pam automatizacion dotnet
+C:\pam automatizacion dotnet\PamAutomation
 ```
 
 La aplicación anterior no debe modificarse durante la construcción de la nueva versión.
@@ -694,11 +702,11 @@ Si una fuente contradice a otra, Codex debe detenerse, describir la contradicci�
 
 ## Archivos que Codex debe leer antes de implementar
 
-En el nuevo proyecto, ubicado en `C:\pam automatizacion dotnet`, deben existir como mínimo:
+En el nuevo proyecto, ubicado en `C:\pam automatizacion dotnet\PamAutomation`, deben existir como mínimo:
 
 ```text
-C:\pam automatizacion dotnet\AGENTS.md
-C:\pam automatizacion dotnet\CODEX_BUILD_SPEC.md
+C:\pam automatizacion dotnet\PamAutomation\AGENTS.md
+C:\pam automatizacion dotnet\PamAutomation\CODEX_BUILD_SPEC.md
 ```
 
 Antes de modificar código, Codex debe leer completamente esos dos archivos.
@@ -727,12 +735,12 @@ Estamos construyendo desde cero una nueva aplicación Windows en C# y .NET.
 
 El nuevo proyecto está ubicado en:
 
-C:\pam automatizacion dotnet
+C:\pam automatizacion dotnet\PamAutomation
 
 Lee completamente estos archivos del nuevo proyecto antes de hacer cualquier otra cosa:
 
-- C:\pam automatizacion dotnet\AGENTS.md
-- C:\pam automatizacion dotnet\CODEX_BUILD_SPEC.md
+- C:\pam automatizacion dotnet\PamAutomation\AGENTS.md
+- C:\pam automatizacion dotnet\PamAutomation\CODEX_BUILD_SPEC.md
 
 Existe una aplicación anterior en:
 
@@ -807,7 +815,7 @@ Añade una prueba simulada y un diagnóstico claro cuando Edge no esté instalad
 
 - Codex debe inspeccionar el estado actual antes de modificar archivos.
 - Cada tarea debe tener un alcance pequeño y una lista explícita de archivos permitidos.
-- Codex debe compilar y ejecutar las pruebas relacionadas con cada cambio.
+- Codex debe compilar y ejecutar desde Visual Studio las pruebas relacionadas con cada cambio.
 - No aceptar frases como “debería funcionar” sin evidencia de compilación o pruebas.
 - Si una prueba falla, reparar únicamente la causa demostrada.
 - No permitir que Codex avance automáticamente a otra fase después de una tarea incompleta.
