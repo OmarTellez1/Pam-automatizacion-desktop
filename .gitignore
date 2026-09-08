@@ -1,0 +1,13 @@
+.vs/
+**/bin/
+**/obj/
+*.csproj.user
+*.suo
+
+results/
+logs/
+artifacts/
+temp/
+
+.env
+.env.*

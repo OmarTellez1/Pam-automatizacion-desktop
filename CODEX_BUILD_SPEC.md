@@ -1,0 +1,837 @@
+> Documento canónico para C:\pam automatizacion dotnet. La aplicación anterior en C:\pam automatizacion es únicamente referencia de lectura.
+
+# Especificación para construir la aplicación con Codex
+
+## Instrucción principal
+
+Construir esta aplicación desde cero utilizando únicamente C# y .NET para la aplicación de escritorio, la lógica de negocio, la automatización del navegador, la integración con Outlook, la configuración, las pruebas y el empaquetado.
+
+No utilizar JavaScript, TypeScript, Node.js, Electron, Python, Java, PowerShell, Selenium ni WebView2 como parte de la aplicación.
+
+XAML está permitido únicamente como lenguaje declarativo de interfaz para WPF. La interfaz debe ser nativa de Windows y la lógica debe estar implementada en C#.
+
+La aplicación debe ser autocontenida respecto de .NET y entregarse como un ejecutable Windows x64, preferiblemente dentro de un instalador firmado. Debe incluir dentro de la aplicación toda la lógica necesaria para configuración, TOTP, Playwright, solicitudes PAM, resultados en memoria y Outlook COM. No debe exigir instalar .NET, Node.js, Python ni PowerShell en el equipo final.
+
+La aplicación utilizará deliberadamente dependencias externas instaladas por la empresa: Windows, Microsoft Edge, conectividad al portal PAM y Outlook clásico cuando se habilite el correo. Edge y Outlook no se incluirán dentro del ejecutable.
+
+No incluir Chromium ni descargar navegadores durante la ejecución.
+
+## Objetivo del proyecto
+
+Crear una aplicación de escritorio Windows para automatizar de forma controlada el acceso a BeyondInsight Password Safe en `https://10.30.17.117`.
+
+La aplicación debe:
+
+1. Permitir configurar las credenciales PAM.
+2. Generar códigos TOTP a partir de una clave Base32 de Microsoft Authenticator.
+3. Iniciar sesión en BeyondInsight mediante Playwright .NET.
+4. Utilizar Microsoft Edge instalado localmente como navegador automatizado.
+5. Entrar en `Accounts > Browse By Category > Favorites`.
+6. Crear o recuperar solicitudes PAM para las cuentas favoritas.
+7. Ejecutar pruebas sin crear solicitudes reales.
+8. Crear solicitudes reales únicamente después de confirmación explícita.
+9. Leer y validar solicitudes en estado `Pending`.
+10. Enviar opcionalmente el resultado mediante Outlook clásico.
+11. Mostrar los Request ID y los conflictos en la interfaz.
+12. Mantener resultados en memoria sin crear archivos operativos persistentes.
+13. Funcionar como un ejecutable Windows autocontenido.
+
+La aplicación será de uso interno, exclusivamente para Windows y con conectividad a la red o VPN donde se encuentra el portal PAM.
+
+## Decisión tecnológica obligatoria
+
+### Plataforma
+
+- C#.
+- .NET 10 LTS, salvo que el entorno corporativo obligue a utilizar otra versión soportada.
+- WPF para la interfaz nativa de escritorio.
+- XAML para definir layout, estilos, plantillas y controles visuales.
+- Arquitectura MVVM, preferiblemente con `CommunityToolkit.Mvvm`.
+
+### Automatización de navegador
+
+- `Microsoft.Playwright` para .NET.
+- Utilizar la opción 1: el canal instalado de Microsoft Edge:
+
+```csharp
+Channel = "msedge"
+```
+
+- Edge es un requisito de instalación de la aplicación.
+- Chrome puede añadirse posteriormente como compatibilidad opcional, pero no debe ser necesario para la primera versión.
+- No incluir navegadores Playwright en el instalador.
+- No descargar navegadores durante la ejecución.
+- No utilizar coordenadas de pantalla.
+- No utilizar automatización visual.
+- Crear un contexto temporal de Playwright después de lanzar Edge.
+- No seleccionar, reutilizar ni modificar perfiles existentes, cookies, extensiones o sesiones del usuario.
+- No utilizar LaunchPersistentContext, userDataDir ni conexión CDP a un navegador existente.
+- El aislamiento es interno de Playwright y no debe presentarse al usuario como una ventana de incógnito.
+- Preferir un contexto Playwright aislado por ejecución.
+- Cerrar siempre browser, context y page mediante `await using` o bloques equivalentes.
+
+Playwright .NET debe controlar el Edge instalado externamente. La aplicación debe comprobar al inicio que Edge existe y mostrar un mensaje claro si no está disponible.
+
+## Interfaz de usuario
+
+La interfaz debe ser equivalente en calidad visual a la aplicación actual, pero implementada de forma nativa con WPF y XAML.
+
+Debe incluir:
+
+- Ventana principal limpia y centrada.
+- Acción principal azul y visualmente destacada para iniciar la automatización.
+- Acción de prueba separada y visible únicamente cuando esté habilitada.
+- Botones secundarios de configuración.
+- Estados visuales para configuración completa o incompleta.
+- Indicador de progreso o spinner durante una ejecución.
+- Indicador de éxito o error al finalizar.
+- Diálogos modales para confirmaciones, resultados y errores.
+- Desactivación de todos los controles mientras una automatización está activa.
+- Soporte de escalado DPI y redimensionamiento razonable.
+- Colores, espaciado, radios, tipografía e iconos centralizados en recursos XAML.
+- Accesibilidad básica mediante nombres, navegación por teclado y contraste suficiente.
+
+La interfaz no debe contener JavaScript ni HTML para funcionar. El HTML únicamente puede existir como contenido de correo generado por C#.
+
+### Pantallas principales
+
+1. Inicio.
+2. Configuración de credenciales PAM.
+3. Configuración de cuenta Outlook.
+4. Configuración de solicitud.
+5. Configuración de correo.
+6. Resultado de la automatización.
+7. Diálogo de confirmación para el modo real.
+
+### Controles de configuración
+
+La pantalla inicial debe mostrar:
+
+- `Configurar credenciales` o `Editar credenciales`.
+- `Configurar solicitud` o `Editar solicitud`.
+- `Configurar envío de correo` o `Editar envío de correo`.
+- Toggle entre `Mostrar IDs al final` y `Enviar correo al final`.
+- `Iniciar prueba`, solo cuando la configuración lo permita.
+- `Iniciar automatización` como acción principal.
+
+La aplicación debe bloquear un segundo inicio mientras exista una automatización activa.
+
+## Credenciales y seguridad
+
+No utilizar `.env` para guardar secretos en la versión C#.
+
+No utilizar archivos `.env` para ninguna configuración de la aplicación nueva. El reemplazo será:
+
+    %LOCALAPPDATA%\PamAutomation\config\app-settings.json
+    %LOCALAPPDATA%\PamAutomation\config\mail-settings.dat
+
+
+Las credenciales PAM se almacenarán en Windows Credential Manager, asociadas al usuario actual de Windows:
+
+- Usuario PAM.
+- Contraseña PAM.
+- Semilla TOTP de Microsoft Authenticator.
+
+La configuración general se guardará en `app-settings.json` con `schemaVersion` e incluirá:
+
+- `finalAction`, equivalente a `PAM_FINAL_ACTION`.
+- `requestReason`, equivalente a `PAM_REQUEST_REASON`.
+- `sessionHours`, equivalente a `PAM_SESSION_HOURS`.
+- `startDate`, equivalente a `PAM_START_DATE`, persistida como fecha ISO.
+- `startTime`, equivalente a `PAM_START_TIME`.
+- `timeZone`, con valor `America/Guayaquil`.
+
+La configuración de correo se guardará en `mail-settings.dat` y se protegerá con DPAPI `CurrentUser`. Contendrá remitente, destinatarios Para, destinatarios CC, asunto y HTML enriquecido con el marcador `{{REQUEST_IDS}}`.
+
+No crear ni mantener carpetas persistentes de `results`, `logs`, `artifacts` o `temp` en `%PROGRAMDATA%`, `%LOCALAPPDATA%` ni junto al ejecutable. Los resultados de la ejecución deben mantenerse en memoria y mostrarse en la interfaz mientras la aplicación esté abierta.
+
+Si la acción final es correo, el mensaje debe prepararse, validarse y enviarse dentro de la misma ejecución. No utilizar `last-run`, `last-email` ni `delivery-state` persistentes. Si la aplicación se cierra inesperadamente, no se requiere recuperación ni historial local.
+
+No habrá auditoría local ni debugging persistente en el uso normal. Un diagnóstico futuro deberá activarse explícitamente y exportarse manualmente a una ruta elegida por soporte o desarrollo.
+
+Esta regla aplica al ejecutable publicado y utilizado por los compañeros. El repositorio de desarrollo sí debe permitir evidencias técnicas para investigar errores. Durante desarrollo, pruebas e integración controlada, se podrán crear únicamente en la raíz del repositorio:
+
+```text
+results\
+logs\
+artifacts\
+temp\
+```
+
+Estas carpetas deben estar excluidas de Git, no deben copiarse al instalador ni distribuirse con el ejecutable. Solo pueden contener resultados y diagnóstico técnico sin secretos. No guardar contraseñas, semilla TOTP, código TOTP, cookies, tokens ni perfiles de navegador. El código debe distinguir el perfil de desarrollo del perfil publicado para evitar que el ejecutable instalado escriba en esas carpetas.
+
+Todas las escrituras deben ser atómicas. Las configuraciones deben poder migrarse mediante `schemaVersion`. No escribir archivos de usuario dentro de `Program Files` ni junto al ejecutable.
+
+Guardar la información sensible mediante Windows Credential Manager o DPAPI (`ProtectedData`). La contraseña PAM y la semilla TOTP deben almacenarse cifradas y nunca deben aparecer en:
+
+- Logs.
+- Excepciones mostradas al usuario.
+- Capturas de pantalla.
+- Resultados JSON.
+- Mensajes de diagnóstico.
+- Código fuente.
+- Commits.
+
+La aplicación debe solicitar:
+
+- Usuario PAM.
+- Contraseña PAM.
+- Clave Base32 de enrolamiento de Microsoft Authenticator.
+- Cuenta remitente de Outlook.
+
+La clave Base32 no es el código temporal de seis dígitos. La interfaz debe explicarlo claramente.
+
+Durante una edición de credenciales, los campos vacíos deben conservar el valor existente. Nunca devolver los secretos guardados a la interfaz en texto plano.
+
+## Restricción de red
+
+La automatización solo puede interactuar con:
+
+```text
+https://10.30.17.117
+```
+
+El código debe validar el origen de todas las URLs de navegación y bloquear cualquier origen distinto.
+
+La excepción de certificado HTTPS debe limitarse al contexto Playwright de PAM. No desactivar la validación TLS global del proceso.
+
+No guardar cookies ni sesiones persistentes de PAM salvo que exista una decisión de seguridad documentada.
+
+## Autenticación y TOTP
+
+La autenticación debe implementarse como un servicio aislado y testeable.
+
+Requisitos:
+
+- Implementar RFC 6238 con HMAC-SHA1 y códigos de seis dígitos.
+- Usar la hora HTTP del portal PAM obtenida desde el encabezado `Date`.
+- No compensar el desfase modificando el reloj de Windows.
+- No volver silenciosamente al reloj local si el portal no entrega una hora válida.
+- Detener la autenticación con un error específico cuando no exista una hora HTTP válida.
+- Esperar una ventana segura antes de introducir el TOTP.
+- Exigir al menos ocho segundos de vigencia antes del envío.
+- Si PAM rechaza explícitamente el código, esperar el siguiente intervalo y reintentar una sola vez.
+- No reintentar automáticamente fallos de conexión, timeouts o errores de confirmación.
+- Esperar que desaparezca el mensaje de rechazo anterior sin utilizar estados de Playwright inválidos.
+- Confirmar el login esperando que aparezca `Return to dashboard`.
+
+La autenticación debe diferenciar:
+
+1. Rechazo de usuario o contraseña.
+2. Rechazo del TOTP.
+3. Fallo de conexión o certificado.
+4. Falta de confirmación final del portal.
+
+Nunca escribir el código TOTP en consola o logs.
+
+## Configuración de solicitudes
+
+Persistir:
+
+- Fecha de inicio.
+- Hora de inicio.
+- Duración entre 1 y 8 horas.
+- Razón del acceso.
+
+Reglas:
+
+- Utilizar la zona horaria `America/Guayaquil`.
+- La fecha se muestra con año vigente y lectura completa.
+- No permitir fechas anteriores al día actual de Ecuador.
+- No permitir días inexistentes de cada mes.
+- No permitir horas pasadas antes de iniciar la automatización.
+- Mantener la hora técnica en formato de 24 horas para Playwright.
+- Mostrar la hora al usuario en formato local de 12 horas si se considera más usable.
+- Mantener `Days` en cero.
+- Escribir la duración únicamente en `Hours`.
+- Validar fecha, hora, duración y razón antes de comenzar.
+
+Antes de cada `Submit Request`:
+
+- Esperar que el formulario termine de inicializarse.
+- Exigir que `Application Session` permanezca seleccionado.
+- Comprobar fecha dos veces.
+- Comprobar hora dos veces.
+- Comprobar días, horas y minutos.
+- Comprobar la razón.
+- Verificar que el calendario conserve la fecha durante un intervalo estable.
+- Bloquear el envío si PAM restablece algún valor.
+
+Si alguno de estos controles falla, no pulsar `Submit Request`.
+
+## Modo de prueba
+
+El modo de prueba debe:
+
+- Entrar en Favorites.
+- Recorrer todas las cuentas encontradas.
+- Llenar cada formulario.
+- Validar los campos.
+- Descartar el formulario.
+- Nunca pulsar `Submit Request`.
+- Finalizar con `submitted = 0`.
+
+La lista simulada autorizada debe ser exactamente:
+
+```text
+137288, 137287, 137286, 137284, 137283, 137282, 137281,
+137280, 137278, 137276, 137275, 137274, 137273, 137271
+```
+
+La lista debe mantenerse en una única constante del dominio de pruebas y nunca mezclarse con la lógica real.
+
+## Modo real
+
+El modo real debe:
+
+- Requerir confirmación explícita antes de iniciar.
+- Entrar en Favorites.
+- Contar las cuentas dinámicamente.
+- Recorrer todas las páginas.
+- Crear o recuperar una solicitud `Pending` por cada cuenta.
+- Comparar sistema, aplicación, cuenta y familia de aplicación.
+- Comparar exactamente fecha y hora de inicio.
+- No asumir que existen 14 cuentas.
+- No asumir que todo cabe en una página.
+- No consultar ni abrir el estado `Approved`.
+
+Si PAM rechaza una cuenta con el código estable:
+
+```text
+PSPortal.Requests.Policies.RemoteAppAccesssAlreadyAvailable
+```
+
+registrarla como conflicto y continuar con la siguiente cuenta.
+
+Otros errores deben detener el proceso y conservar la evidencia.
+
+El resultado debe incluir:
+
+- `favoriteCount`.
+- Request ID obtenidos.
+- Cuentas procesadas.
+- Conflictos.
+- Errores.
+- Fecha y hora de la ejecución.
+- Acción final seleccionada.
+
+## Outlook clásico
+
+La aplicación debe utilizar exclusivamente Outlook clásico mediante Microsoft Outlook Interop/COM.
+
+No utilizar:
+
+- Nuevo Outlook.
+- SMTP directo.
+- Microsoft Graph.
+- Automatización visual.
+- Clics por coordenadas.
+
+Requisitos:
+
+- Outlook clásico instalado.
+- Perfil configurado.
+- Sesión de Outlook disponible.
+- Remitente configurado exactamente por `SmtpAddress`.
+- Si no existe exactamente una coincidencia, detener el envío.
+
+Antes de guardar el remitente, crear un mensaje temporal, asignar la cuenta y descartarlo. Esta comprobación no debe enviar correo.
+
+Para enviar:
+
+- Crear siempre un mensaje nuevo.
+- Asignar `SendUsingAccount` antes de `Send()`.
+- No reutilizar borradores antiguos.
+- Validar destinatarios y copias.
+- Evitar duplicados entre Para y CC.
+- Confirmar que todos los Request ID esperados aparecen en el HTML.
+- Comprobar el asunto y la cuenta de envío.
+- Esperar confirmación en Enviados cuando sea posible.
+- Si el correo queda en Bandeja de salida, moverlo a Borradores y marcar el resultado como no confirmado.
+
+La automatización COM debe ejecutarse en un contexto STA y liberar referencias COM de forma explícita. No retener objetos COM más tiempo del necesario. Evitar crear cadenas largas de llamadas sobre objetos COM temporales.
+
+## Contenido del correo
+
+El contenido debe incluir exactamente una vez:
+
+```text
+{{REQUEST_IDS}}
+```
+
+Al preparar el correo, reemplazar el marcador por los Request ID actuales, uno por línea.
+
+Conservar el contenido enriquecido configurado por el usuario, incluyendo tablas y motivos de acceso.
+
+Como no se permite JavaScript ni WebView2, la edición enriquecida debe resolverse con controles nativos WPF. Validar primero un prototipo de:
+
+- Texto con formato.
+- Tablas.
+- Imágenes pegadas.
+- Conversión a HTML.
+- Imágenes inline con Content-ID.
+- Saneamiento del HTML.
+
+No fingir que un `RichTextBox` convierte HTML completo sin limitaciones. Si la conversión no conserva correctamente tablas o imágenes, detenerse y documentar una decisión técnica antes de continuar.
+
+El HTML final no puede contener:
+
+- Scripts.
+- Objetos.
+- Marcos.
+- Conexiones externas.
+- Recursos remotos no autorizados.
+
+## Arquitectura de la solución
+
+Crear una solución similar a:
+
+```text
+PamAutomation.sln
+├── PamAutomation.App
+│   ├── WPF
+│   ├── Views
+│   ├── ViewModels
+│   └── Resources
+├── PamAutomation.Core
+│   ├── Models
+│   ├── Interfaces
+│   ├── Validation
+│   ├── TOTP
+│   └── BusinessRules
+├── PamAutomation.Browser
+│   ├── PamBrowserSession
+│   ├── Authentication
+│   ├── Favorites
+│   └── Requests
+├── PamAutomation.Outlook
+│   ├── OutlookClient
+│   ├── AccountResolver
+│   └── MailComposer
+├── PamAutomation.Infrastructure
+│   ├── CredentialStore
+│   ├── FileStore
+│   ├── Logging
+│   ├── Clock
+│   └── Configuration
+└── PamAutomation.Tests
+```
+
+La lógica de negocio no debe vivir directamente en code-behind de las ventanas WPF.
+
+Usar interfaces para aislar:
+
+- Reloj.
+- Almacenamiento de credenciales.
+- Automatización del navegador.
+- Outlook.
+- Sistema de archivos.
+- Fecha y hora de Ecuador.
+
+Esto permitirá probar la lógica sin abrir Edge, PAM u Outlook.
+
+## Dependencias recomendadas
+
+Dependencias principales:
+
+- `Microsoft.Playwright`.
+- `CommunityToolkit.Mvvm`.
+- `Microsoft.Extensions.DependencyInjection`.
+- `Microsoft.Extensions.Logging`.
+- `Microsoft.Office.Interop.Outlook` o referencia COM oficial a Outlook Object Library.
+- `System.Security.Cryptography.ProtectedData` si se utiliza DPAPI mediante paquete.
+- MSTest o xUnit para pruebas.
+
+Usar primero las APIs incluidas en .NET:
+
+- `System.Text.Json`.
+- `System.Net.Http`.
+- `System.Security.Cryptography`.
+- `System.IO`.
+- `System.Threading.Channels` si se necesita coordinar eventos.
+
+No agregar paquetes grandes sin justificar su necesidad.
+
+## Pruebas obligatorias
+
+### Unitarias
+
+Probar como mínimo:
+
+- RFC 6238.
+- Claves Base32 inválidas.
+- Desfase de reloj.
+- Ventana segura del TOTP.
+- Límite de un solo reintento.
+- Validación de fecha y hora.
+- Meses y días reales.
+- Duración de 1 a 8 horas.
+- Direcciones de correo.
+- Duplicados Para/CC.
+- Marcador `REQUEST_IDS`.
+- Saneamiento HTML.
+- Fingerprints y detección de duplicados.
+- Paginación de solicitudes.
+- Conflictos PAM.
+- Estados de ejecución.
+
+### Pruebas de navegador
+
+Crear un portal simulado local o una capa mock para probar:
+
+- Login correcto.
+- Usuario o contraseña rechazados.
+- TOTP rechazado y segundo intento correcto.
+- Dos TOTP rechazados.
+- Portal sin encabezado `Date`.
+- Navegación a origen no permitido.
+- Formulario que restablece campos.
+- Calendarización inestable.
+- Solicitudes paginadas.
+- Conflicto de acceso existente.
+
+Las pruebas unitarias y simulaciones no deben usar credenciales reales ni conectarse a PAM. Las pruebas de integración visibles pueden utilizar credenciales reales desde el almacén protegido y conectarse al entorno PAM autorizado cuando el usuario lo confirme explícitamente. Incluso en esas pruebas no se crearán solicitudes reales ni se enviarán correos salvo autorización independiente y explícita.
+
+### Pruebas de Outlook
+
+Separar pruebas unitarias de pruebas COM reales.
+
+Las pruebas unitarias deben utilizar un `FakeOutlookClient`.
+
+Las pruebas COM reales deben:
+
+- Ejecutarse solo en un equipo con Outlook clásico.
+- Crear mensajes de prueba claramente identificados.
+- No enviar por defecto.
+- Requerir una confirmación separada para envío real.
+
+## Empaquetado
+
+Publicar para Windows x64 como aplicación autocontenida:
+
+```powershell
+dotnet publish `
+  -c Release `
+  -r win-x64 `
+  --self-contained true `
+  -p:PublishSingleFile=true `
+  -p:PublishTrimmed=false
+```
+
+No activar trimming ni Native AOT durante la primera versión porque COM, reflexión y algunas dependencias pueden presentar incompatibilidades.
+
+El instalador debe:
+
+- Ser x64.
+- Comprobar Edge.
+- Comprobar Outlook clásico cuando se habilite correo.
+- Crear accesos directos.
+- Crear la configuración privada por usuario bajo `%LOCALAPPDATA%\PamAutomation\config`.
+- No escribir credenciales dentro de `Program Files`.
+- Permitir desinstalación.
+- Estar firmado digitalmente antes de distribuirse.
+
+Usar MSI o MSIX según la política de la empresa. La aplicación puede ser un único ejecutable internamente, pero debe distribuirse mediante instalador para manejar instalación, actualización, desinstalación y firma.
+
+## Logs, artefactos y diagnóstico
+
+No crear logs, resultados JSON, capturas, trazas ni artefactos persistentes durante el uso normal. Los resultados de ejecución deben permanecer en memoria y la interfaz debe mostrar los Request ID, conflictos, errores y estado del correo mientras la aplicación esté abierta.
+
+Si desarrollo o soporte necesita información adicional, implementar en una fase posterior un modo de diagnóstico explícito. Ese modo debe requerir una acción clara del usuario, exportar manualmente a una ruta seleccionada y nunca activarse por defecto. No debe guardar contraseñas, semilla TOTP, código TOTP, cookies, tokens ni HTML sensible.
+
+Windows o Playwright pueden crear temporales internos en `%TEMP%` durante la ejecución. No considerarlos almacenamiento persistente de la aplicación, no escribir secretos allí y limpiar lo creado por la aplicación cuando sea posible.
+
+## Entorno de desarrollo Visual Studio
+
+Instalar en Visual Studio Installer la carga de trabajo **Desarrollo de escritorio de .NET**. Es la única carga de trabajo necesaria para esta solución WPF con C# y .NET 10 LTS.
+
+No seleccionar como requisito del proyecto:
+
+- Desarrollo de la interfaz de usuario de aplicaciones multiplataforma (.NET MAUI).
+- Desarrollo de aplicaciones WinUI.
+- Desarrollo para escritorio con C++.
+- Desarrollo móvil con C++.
+- Desarrollo de ASP.NET y web.
+- Azure, Node.js, Python o Java.
+- Entity Framework 6, ML.NET Model Builder, WCF, Blend, Copilot, IntelliCode o herramientas de perfiles, salvo que una decisión posterior los justifique.
+
+El instalador de Visual Studio puede mostrar componentes opcionales ya seleccionados. No son dependencias de la aplicación; deben dejarse sin seleccionar si no se necesitan. El SDK de .NET y las herramientas de desarrollo de .NET que la carga de escritorio marque como requeridas sí deben conservarse.
+
+Referencias oficiales: [tutorial WPF de Microsoft](https://learn.microsoft.com/en-us/visualstudio/get-started/csharp/tutorial-wpf?view=visualstudio) y [componentes de la carga Desarrollo de escritorio de .NET](https://learn.microsoft.com/en-us/visualstudio/install/workload-component-id-vs-professional).
+
+## Reglas obligatorias para Codex
+
+1. Leer `AGENTS.md`, `README.md`, `LOGIC.md` y `History.md` antes de analizar o modificar el proyecto.
+2. Mantener actualizados `README.md`, `LOGIC.md` y `History.md` después de cambios relevantes.
+3. No crear archivos `.js`, `.mjs`, `.ts`, `.py`, `.ps1` ni proyectos Node.
+4. No cambiar la decisión de utilizar Edge externo sin una autorización explícita.
+5. No incluir Chromium en el instalador.
+6. No usar WebView2 como sustituto de la interfaz WPF.
+7. No usar Selenium.
+8. No inventar selectores del portal: inspeccionar y centralizar los selectores.
+9. Preferir roles, labels y atributos estables frente a selectores CSS frágiles.
+10. No usar esperas fijas cuando pueda utilizarse una condición observable.
+11. No introducir reintentos automáticos adicionales sin documentarlos.
+12. No imprimir, registrar ni hardcodear credenciales reales. Las pruebas de integración autorizadas pueden utilizarlas desde el almacén protegido.
+13. No cambiar el reloj del sistema.
+14. No enviar correos durante pruebas automatizadas.
+15. No crear solicitudes reales durante pruebas.
+16. No afirmar que una tarea está terminada sin compilar, probar y revisar los resultados.
+17. Ejecutar las validaciones relacionadas únicamente con el cambio realizado.
+18. Mostrar claramente cualquier limitación que no haya podido comprobarse.
+19. Ante una decisión ambigua que afecte seguridad, datos reales o envío de solicitudes, detenerse y solicitar confirmación.
+20. Mantener cambios pequeños y revisables.
+
+## Orden recomendado de construcción
+
+1. Crear solución C#/.NET y compilar una ventana WPF vacía.
+2. Crear estilos visuales y la ventana principal.
+3. Implementar configuración no sensible.
+4. Implementar Credential Manager o DPAPI.
+5. Implementar TOTP y pruebas RFC 6238.
+6. Implementar un `IClock` para la hora del portal.
+7. Implementar lanzamiento de Edge con Playwright .NET.
+8. Implementar autenticación PAM simulada.
+9. Implementar autenticación real visible utilizando la opción 1: Edge instalado y contexto temporal de Playwright, sin seleccionar ni reutilizar perfiles existentes, y solo con autorización explícita.
+10. Implementar navegación a Favorites.
+11. Implementar modo de prueba sin Submit Request.
+12. Implementar solicitudes reales detrás de confirmación.
+13. Implementar lectura paginada de Pending.
+14. Implementar Outlook falso y después Outlook COM real.
+15. Implementar composición HTML y marcador de Request ID.
+16. Implementar resultados en memoria y mensajes de error sin persistencia para publicación.
+17. Implementar evidencias de desarrollo en `results`, `logs`, `artifacts` y `temp` de la raíz, excluidas de Git.
+18. Implementar instalador sin incluir evidencias de desarrollo.
+19. Ejecutar pruebas finales en un equipo Windows administrado.
+
+No avanzar a la siguiente etapa si la etapa actual no compila y no tiene una prueba mínima.
+
+## Criterio de finalización
+
+El proyecto estará terminado únicamente cuando:
+
+- Compile en Release para `win-x64`.
+- Se publique como aplicación autocontenida.
+- Inicie en un equipo sin .NET, Node.js, Python o PowerShell instalado.
+- Contenga dentro del ejecutable toda la lógica necesaria de la aplicación, dejando como requisitos externos únicamente Windows, Edge, red/VPN y Outlook clásico cuando se utilice correo.
+- Detecte correctamente Edge instalado.
+- Realice login visible y desatendido contra el entorno autorizado.
+- Genere el TOTP usando la hora del portal.
+- Ejecute correctamente el modo de prueba sin crear solicitudes.
+- Ejecute correctamente el modo real bajo confirmación explícita.
+- Gestione conflictos y paginación.
+- Valide y envíe correo desde Outlook clásico cuando corresponda.
+- No cree archivos operativos persistentes ni exponga secretos en mensajes, capturas o diagnósticos.
+- Pase las pruebas unitarias y de integración definidas.
+- Tenga instalador firmado y documentación de uso.
+
+## Fuentes técnicas autorizadas
+
+Para decisiones de implementación, consultar prioritariamente documentación oficial:
+
+- [WPF — Microsoft Learn](https://learn.microsoft.com/en-us/dotnet/desktop/wpf/)
+- [WinUI 3 — Microsoft Learn](https://learn.microsoft.com/en-us/windows/apps/winui/winui3/)
+- [Publicación de aplicaciones .NET](https://learn.microsoft.com/en-us/dotnet/core/deploying/)
+- [Single-file deployment .NET](https://learn.microsoft.com/en-us/dotnet/core/deploying/single-file/overview)
+- [Playwright .NET](https://playwright.dev/dotnet/docs/library)
+- [Navegadores y canales de Playwright .NET](https://playwright.dev/dotnet/docs/browsers)
+- [Outlook MailItem.SendUsingAccount](https://learn.microsoft.com/en-us/office/vba/api/outlook.mailitem.sendusingaccount)
+- [Outlook MailItem.Send](https://learn.microsoft.com/en-us/office/vba/api/outlook.mailitem.send%28method%29)
+
+No sustituir documentación oficial por suposiciones del modelo.
+
+## Estrategia de migración desde la aplicación actual
+
+La versión actual ubicada en:
+
+```text
+C:\pam automatizacion
+```
+
+está escrita en JavaScript/Node.js y debe tratarse como una referencia funcional e histórica. La nueva aplicación se construirá desde cero en:
+
+```text
+C:\pam automatizacion dotnet
+```
+
+La aplicación anterior no debe modificarse durante la construcción de la nueva versión.
+
+La aplicación anterior debe utilizarse para conocer:
+
+- El comportamiento funcional comprobado.
+- Las reglas del portal PAM.
+- Los errores ya descubiertos.
+- La apariencia y experiencia de usuario.
+- Los selectores y textos observados en el portal.
+- Las reglas de TOTP, solicitudes, conflictos y correo.
+
+La aplicación anterior no debe utilizarse para copiar:
+
+- La arquitectura JavaScript.
+- Node.js.
+- `playwright-core`.
+- El servidor HTTP local.
+- PowerShell.
+- Archivos `.cmd`.
+- `.env` o cualquier otra forma de almacenar secretos en texto plano.
+- La estructura de carpetas de la aplicación anterior.
+- Decisiones técnicas que solo existían por las limitaciones de la implementación anterior.
+
+La interfaz anterior debe ser una referencia visual. La nueva interfaz debe implementarse con WPF/XAML y C#, no copiando HTML, CSS o JavaScript.
+
+## Orden de autoridad de la información
+
+Cuando existan diferencias entre fuentes, utilizar este orden:
+
+1. Decisiones confirmadas explícitamente por el usuario.
+2. Este `CODEX_BUILD_SPEC.md`.
+3. `README.md`, `LOGIC.md` y `History.md` del proyecto anterior.
+4. Comportamiento comprobado de la aplicación anterior.
+5. Código fuente anterior.
+6. Suposiciones de Codex.
+
+Si una fuente contradice a otra, Codex debe detenerse, describir la contradicción y solicitar una decisión. No debe elegir silenciosamente una de las versiones.
+
+## Archivos que Codex debe leer antes de implementar
+
+En el nuevo proyecto, ubicado en `C:\pam automatizacion dotnet`, deben existir como mínimo:
+
+```text
+C:\pam automatizacion dotnet\AGENTS.md
+C:\pam automatizacion dotnet\CODEX_BUILD_SPEC.md
+```
+
+Antes de modificar código, Codex debe leer completamente esos dos archivos.
+
+Después debe inspeccionar, como referencia de solo lectura, el proyecto anterior:
+
+```text
+C:\pam automatizacion\README.md
+C:\pam automatizacion\LOGIC.md
+C:\pam automatizacion\History.md
+C:\pam automatizacion\src
+C:\pam automatizacion\web
+C:\pam automatizacion\test
+```
+
+No se deben copiar al nuevo proyecto `node_modules`, `.env`, `.env.mail`, `logs`, `run-artifacts`, `run-results`, cookies, perfiles de navegador ni secretos.
+
+## Primer encargo para Codex
+
+La primera tarea de Codex debe ser únicamente de análisis. No debe crear proyectos ni modificar archivos.
+
+Prompt recomendado:
+
+```text
+Estamos construyendo desde cero una nueva aplicación Windows en C# y .NET.
+
+El nuevo proyecto está ubicado en:
+
+C:\pam automatizacion dotnet
+
+Lee completamente estos archivos del nuevo proyecto antes de hacer cualquier otra cosa:
+
+- C:\pam automatizacion dotnet\AGENTS.md
+- C:\pam automatizacion dotnet\CODEX_BUILD_SPEC.md
+
+Existe una aplicación anterior en:
+
+C:\pam automatizacion
+
+La aplicación anterior está escrita en JavaScript/Node.js y es únicamente una referencia funcional, histórica y visual. Debes leerla, pero no modificarla y no copiar su arquitectura.
+
+Inspecciona como referencia de solo lectura:
+
+- C:\pam automatizacion\README.md
+- C:\pam automatizacion\LOGIC.md
+- C:\pam automatizacion\History.md
+- C:\pam automatizacion\src
+- C:\pam automatizacion\web
+- C:\pam automatizacion\test
+
+En esta primera tarea NO escribas código, NO crees proyectos, NO instales dependencias y NO modifiques archivos.
+
+Entrega un informe que incluya:
+
+1. Comportamientos funcionales que deben conservarse.
+2. Decisiones técnicas que deben descartarse.
+3. Arquitectura C#/.NET propuesta.
+4. Estructura de la solución.
+5. Dependencias .NET necesarias.
+6. Riesgos técnicos.
+7. Diferencias entre documentación y código actual.
+8. Plan de implementación por fases.
+9. Pruebas necesarias para cada fase.
+
+Presta especial atención a Playwright .NET con Edge instalado, TOTP basado en la hora HTTP de PAM, Outlook clásico mediante COM, el editor enriquecido de correo sin JavaScript, la seguridad de credenciales y la publicación autocontenida.
+
+Espera confirmación antes de modificar cualquier archivo.
+```
+
+## Forma correcta de continuar
+
+Después del informe inicial, construir una sola fase por tarea.
+
+Ejemplo de primera fase:
+
+```text
+Implementa únicamente la solución .NET, la aplicación WPF y los proyectos Core, Browser, Outlook, Infrastructure y Tests definidos en CODEX_BUILD_SPEC.md.
+
+No implementes todavía login, TOTP, PAM ni Outlook.
+No agregues JavaScript, Node.js, Python, PowerShell, WebView2 ni Electron.
+
+Compila en Release y ejecuta las pruebas disponibles. No continúes a la siguiente fase hasta informar el resultado.
+```
+
+Ejemplo de fase de TOTP:
+
+```text
+Implementa únicamente el generador TOTP y la referencia de hora HTTP del portal.
+
+Añade pruebas unitarias para RFC 6238, claves Base32 inválidas, desfase de reloj, ventana segura y límite de un solo reintento.
+
+No abras Edge, no contactes PAM, no leas credenciales reales y no implementes todavía solicitudes ni Outlook.
+```
+
+Ejemplo de fase de Playwright:
+
+```text
+Implementa únicamente el adaptador Playwright .NET para lanzar Microsoft Edge instalado mediante Channel = "msedge".
+
+No descargues Chromium, no reutilices el perfil personal del usuario y no implementes todavía solicitudes reales.
+
+Añade una prueba simulada y un diagnóstico claro cuando Edge no esté instalado.
+```
+
+## Reglas de colaboración con Codex
+
+- Codex debe inspeccionar el estado actual antes de modificar archivos.
+- Cada tarea debe tener un alcance pequeño y una lista explícita de archivos permitidos.
+- Codex debe compilar y ejecutar las pruebas relacionadas con cada cambio.
+- No aceptar frases como “debería funcionar” sin evidencia de compilación o pruebas.
+- Si una prueba falla, reparar únicamente la causa demostrada.
+- No permitir que Codex avance automáticamente a otra fase después de una tarea incompleta.
+- Revisar manualmente cada cambio que pueda crear solicitudes PAM, enviar correo o manipular credenciales.
+- Usar pruebas falsas para Outlook y simulaciones del portal antes de hacer pruebas reales.
+- No ejecutar pruebas reales contra PAM sin autorización explícita.
+- No enviar correos automáticamente durante pruebas.
+- No modificar el código anterior.
+
+Codex puede leer el código completo de la aplicación anterior, pero la nueva implementación debe conservar el comportamiento y reconstruir la solución con la arquitectura C# definida aquí.
+
+## Criterio de migración correcta
+
+La migración no se considera correcta porque la nueva aplicación tenga una apariencia similar o compile. Debe demostrar que conserva los comportamientos críticos:
+
+- Autenticación con TOTP sincronizado con la hora HTTP de PAM.
+- Reintento único ante rechazo explícito del TOTP.
+- Restricción de origen y certificado limitada al portal permitido.
+- Modo de prueba que nunca presiona `Submit Request`.
+- Modo real protegido por confirmación.
+- Validación doble de todos los campos antes de crear solicitudes.
+- Paginación completa de `Pending`.
+- Detección y registro de conflictos.
+- Protección contra envíos de correo duplicados.
+- Integración con la cuenta correcta de Outlook clásico.
+- Ausencia de logs, resultados, capturas y artefactos persistentes en el uso normal.
+- Publicación autocontenida que utiliza Edge externo.
