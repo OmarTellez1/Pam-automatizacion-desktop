@@ -82,7 +82,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         IsRequestConfigured ? "Editar solicitud" : "Configurar solicitud";
 
     public string MailActionText =>
-        IsMailConfigured ? "Editar correo" : "Configurar correo";
+        IsMailConfigured ? "Editar envío de correo" : "Configurar envío de correo";
 
     partial void OnAreCredentialsConfiguredChanged(bool value) => RefreshPresentationState();
 

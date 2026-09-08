@@ -8,7 +8,7 @@ La raíz oficial del repositorio es `C:\pam automatizacion dotnet\PamAutomation`
 
 La solución `PamAutomation.slnx` contiene la aplicación WPF `PamAutomation.App` y los proyectos base `PamAutomation.Core`, `PamAutomation.Browser`, `PamAutomation.Outlook`, `PamAutomation.Infrastructure` y `PamAutomation.Tests`. La fase 2 incorpora una pantalla principal WPF con MVVM, recursos visuales centralizados y estados seguros de configuración y ejecución. Aún no existe implementación funcional de PAM, TOTP, persistencia, Outlook o solicitudes.
 
-`PamAutomation.Tests` utiliza MSTest con Microsoft Testing Platform e incluye pruebas del estado de presentación. La estructura base de la fase 1 fue compilada y ejecutada correctamente por el usuario en Visual Studio. Los cambios de la fase 2 quedan pendientes de restauración, compilación Release y ejecución de pruebas en el IDE.
+`PamAutomation.Tests` utiliza MSTest con Microsoft Testing Platform e incluye pruebas del estado de presentación. Las fases 1 y 2 fueron compiladas y ejecutadas correctamente por el usuario en Visual Studio. La portada de la fase 2 se realineó posteriormente con la referencia visual de la aplicación anterior y queda pendiente de una nueva revisión en el IDE.
 
 La compilación y las pruebas se administrarán exclusivamente desde Visual Studio. No se presupone disponibilidad de `dotnet` o `msbuild` en la línea de comandos.
 
@@ -29,6 +29,8 @@ La aplicación permitirá:
 - Distribuirse como aplicación Windows autocontenida.
 
 El modo de prueba estará deshabilitado por defecto mediante `testModeEnabled`. El usuario podrá cambiarlo con `Habilitar modo de prueba` dentro de una sección avanzada de Configuración de solicitud, sin editar manualmente el JSON. Cuando se habilite, su botón solo será visible si las configuraciones necesarias están completas. Si el usuario elige enviar por correo un resultado de prueba, el único destinatario permitido será `tellezoe@hitss.com`; no se utilizarán Para ni CC configurados y se exigirá confirmación explícita.
+
+La configuración de Outlook tendrá además una comprobación manual independiente: `Enviar correo de prueba` podrá enviar un mensaje a la misma cuenta SMTP que el usuario acaba de configurar, previa confirmación. Esta acción valida Outlook y no debe confundirse con el correo de resultados del modo de prueba PAM.
 
 ## Documentación
 
@@ -133,7 +135,7 @@ La primera versión ejecutará Edge de forma visible tanto para la validación d
 ## Decisiones de implementación confirmadas
 
 - Framework de pruebas: MSTest con Microsoft Testing Platform, integrado con Test Explorer de Visual Studio.
-- Presentación: MVVM con CommunityToolkit.Mvvm; los estados y comandos se mantienen fuera del code-behind.
+- Presentación: MVVM con CommunityToolkit.Mvvm; los estados y comandos se mantienen fuera del code-behind. La aplicación anterior es la referencia visual para la portada y los formularios, reconstruidos con WPF/XAML nativo.
 - Solución: `PamAutomation.slnx`.
 - Navegador: Edge instalado, `Channel = "msedge"`, contexto temporal y ejecución visible en la primera versión.
 - Protección contra correo duplicado: estado en memoria durante la ejecución y consulta de Enviados, Bandeja de salida y Borradores de Outlook antes de enviar; no se crearán archivos locales `last-email` o `delivery-state`.
@@ -141,4 +143,4 @@ La primera versión ejecutará Edge de forma visible tanto para la validación d
 
 ## Próximo paso
 
-Abrir `PamAutomation.slnx` en Visual Studio, restaurar las dependencias, compilar en `Release | x64`, ejecutar todas las pruebas desde Test Explorer y abrir la ventana principal para revisar su escala y distribución. La siguiente fase funcional será la configuración no secreta y sus validaciones; no debe iniciarse hasta que estas comprobaciones terminen correctamente.
+Abrir `PamAutomation.slnx` en Visual Studio, compilar en `Release | x64`, ejecutar todas las pruebas desde Test Explorer y revisar la portada realineada a distintos tamaños de ventana. La siguiente fase funcional será la configuración no secreta y sus validaciones; no debe iniciarse hasta aprobar esta revisión visual.

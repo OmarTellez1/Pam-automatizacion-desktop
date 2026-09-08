@@ -102,3 +102,13 @@ Cada cambio relevante debe registrar qué se decidió, por qué, qué se verific
 - Se agregaron pruebas unitarias para el estado inicial seguro, el bloqueo durante una ejecución y las condiciones de visibilidad del modo de prueba.
 - Se verificó estáticamente que los archivos XAML son XML válido y que el diff no contiene errores de espacios. La restauración de paquetes, compilación y ejecución de pruebas quedan pendientes en Visual Studio.
 - Esta fase no agregó persistencia, credenciales, Playwright, acceso a PAM, Outlook ni envío de correo; no produjo efectos externos.
+
+## 8 de septiembre de 2026 — Fase 2B: alineación visual con la aplicación anterior
+
+- El usuario confirmó que la fase 2 compiló, pasó sus comprobaciones y pudo visualizarse correctamente en Visual Studio.
+- Se realineó la portada con las capturas de la aplicación anterior: encabezado `Accesos PAM`, marca con la letra P, fondo claro con degradado, selector Outlook superior, acción azul principal centrada y tres accesos horizontales de configuración.
+- Se conservaron el ViewModel, las condiciones seguras de habilitación, el botón de prueba condicionado y las pruebas de presentación existentes.
+- Se aclaró que existen dos acciones diferentes: la verificación manual de Outlook puede enviar a la misma cuenta configurada; el correo de resultados del modo de prueba PAM continúa limitado a `tellezoe@hitss.com`.
+- El rediseño utiliza únicamente WPF/XAML y recursos nativos; no se copió código, HTML, CSS o JavaScript de la aplicación anterior.
+- Se comprobó estáticamente la estructura XML de los XAML. La compilación, las pruebas y la revisión visual del nuevo diseño quedan pendientes en Visual Studio.
+- No se accedió a PAM, no se utilizaron credenciales, no se crearon solicitudes y no se envió correo.

@@ -1,28 +1,37 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-    <Color x:Key="AppBackgroundColor">#F4F7FB</Color>
+    <Color x:Key="AppBackgroundColor">#F7F9FC</Color>
     <Color x:Key="SurfaceColor">#FFFFFF</Color>
-    <Color x:Key="PrimaryColor">#1769E0</Color>
-    <Color x:Key="PrimaryHoverColor">#125BC4</Color>
-    <Color x:Key="PrimaryPressedColor">#0E4DA8</Color>
-    <Color x:Key="PrimarySoftColor">#E8F1FD</Color>
-    <Color x:Key="TextPrimaryColor">#172033</Color>
-    <Color x:Key="TextSecondaryColor">#536078</Color>
-    <Color x:Key="TextMutedColor">#7A869D</Color>
-    <Color x:Key="BorderColor">#DDE4EF</Color>
+    <Color x:Key="PrimaryColor">#3459D9</Color>
+    <Color x:Key="PrimaryHoverColor">#2D4FC5</Color>
+    <Color x:Key="PrimaryPressedColor">#2745AD</Color>
+    <Color x:Key="PrimarySoftColor">#EBF0FF</Color>
+    <Color x:Key="NavyColor">#102A4A</Color>
+    <Color x:Key="TextPrimaryColor">#0B1F3A</Color>
+    <Color x:Key="TextSecondaryColor">#536784</Color>
+    <Color x:Key="TextMutedColor">#8491A8</Color>
+    <Color x:Key="BorderColor">#D7DEEA</Color>
     <Color x:Key="NeutralSurfaceColor">#F8FAFD</Color>
     <Color x:Key="PendingBackgroundColor">#FFF4D6</Color>
     <Color x:Key="PendingTextColor">#8A6200</Color>
     <Color x:Key="SuccessColor">#18875B</Color>
     <Color x:Key="SuccessSoftColor">#E8F6F0</Color>
+    <Color x:Key="ToggleColor">#25A98B</Color>
+    <Color x:Key="ToggleSoftColor">#E7F7F2</Color>
+    <Color x:Key="ToggleBorderColor">#A9DECF</Color>
     <Color x:Key="ErrorColor">#C33B4A</Color>
 
-    <SolidColorBrush x:Key="AppBackgroundBrush" Color="{StaticResource AppBackgroundColor}" />
+    <LinearGradientBrush x:Key="AppBackgroundBrush" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Offset="0" Color="#FAFBFD" />
+        <GradientStop Offset="0.58" Color="#F7F9FC" />
+        <GradientStop Offset="1" Color="#EAF0FF" />
+    </LinearGradientBrush>
     <SolidColorBrush x:Key="SurfaceBrush" Color="{StaticResource SurfaceColor}" />
     <SolidColorBrush x:Key="PrimaryBrush" Color="{StaticResource PrimaryColor}" />
     <SolidColorBrush x:Key="PrimaryHoverBrush" Color="{StaticResource PrimaryHoverColor}" />
     <SolidColorBrush x:Key="PrimaryPressedBrush" Color="{StaticResource PrimaryPressedColor}" />
     <SolidColorBrush x:Key="PrimarySoftBrush" Color="{StaticResource PrimarySoftColor}" />
+    <SolidColorBrush x:Key="NavyBrush" Color="{StaticResource NavyColor}" />
     <SolidColorBrush x:Key="TextPrimaryBrush" Color="{StaticResource TextPrimaryColor}" />
     <SolidColorBrush x:Key="TextSecondaryBrush" Color="{StaticResource TextSecondaryColor}" />
     <SolidColorBrush x:Key="TextMutedBrush" Color="{StaticResource TextMutedColor}" />
@@ -32,5 +41,8 @@
     <SolidColorBrush x:Key="PendingTextBrush" Color="{StaticResource PendingTextColor}" />
     <SolidColorBrush x:Key="SuccessBrush" Color="{StaticResource SuccessColor}" />
     <SolidColorBrush x:Key="SuccessSoftBrush" Color="{StaticResource SuccessSoftColor}" />
+    <SolidColorBrush x:Key="ToggleBrush" Color="{StaticResource ToggleColor}" />
+    <SolidColorBrush x:Key="ToggleSoftBrush" Color="{StaticResource ToggleSoftColor}" />
+    <SolidColorBrush x:Key="ToggleBorderBrush" Color="{StaticResource ToggleBorderColor}" />
     <SolidColorBrush x:Key="ErrorBrush" Color="{StaticResource ErrorColor}" />
 </ResourceDictionary>

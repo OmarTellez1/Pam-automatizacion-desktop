@@ -350,6 +350,8 @@ Requisitos:
 
 Antes de guardar el remitente, crear un mensaje temporal, asignar la cuenta y descartarlo. Esta comprobación no debe enviar correo.
 
+Después de configurar la cuenta, la interfaz podrá ofrecer una acción manual `Enviar correo de prueba` para verificar Outlook de extremo a extremo. Este mensaje se enviará exclusivamente a la misma dirección SMTP configurada como remitente, sin CC, con una identificación clara de prueba y después de una confirmación explícita. Esta verificación de Outlook es distinta del correo generado por el modo de prueba PAM, cuyo destinatario continúa limitado a `tellezoe@hitss.com`. Ninguna de las dos acciones se ejecutará desde pruebas unitarias o automatizadas.
+
 Para enviar:
 
 - Crear siempre un mensaje nuevo.

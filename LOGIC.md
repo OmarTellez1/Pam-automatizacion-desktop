@@ -19,6 +19,8 @@ La lógica de negocio no debe vivir en el code-behind de las ventanas WPF.
 
 La ventana principal utiliza MVVM mediante `CommunityToolkit.Mvvm`. El ViewModel expone el estado de cada configuración, los comandos visibles y las condiciones para habilitar acciones; el code-behind se limita a inicializar la ventana.
 
+La composición visual toma como referencia la aplicación anterior: encabezado con marca, selector de acción final en la esquina superior, acción principal azul centrada y tres accesos horizontales de configuración. La implementación permanece enteramente en controles WPF y recursos XAML, con adaptación al tamaño de la ventana y escalado DPI.
+
 La aplicación comienza en estado incompleto y seguro. `Iniciar automatización` solo puede habilitarse cuando credenciales y solicitud estén configuradas y, si la acción final incluye correo, exista también una configuración de correo válida. Mientras una ejecución esté activa, los controles y comandos de configuración quedan deshabilitados.
 
 El botón de prueba permanece separado del botón real. Solo es visible cuando `testModeEnabled` está activo y toda la configuración requerida es válida. En esta fase los botones de configuración y ejecución únicamente informan que la función aún no está implementada; no abren Edge u Outlook, no escriben configuración y no producen efectos externos.
@@ -127,6 +129,8 @@ Outlook clásico se integrará mediante COM. Debe verificarse la cuenta exacta p
 La integración COM debe ejecutarse en STA, liberar referencias y no enviar mensajes durante pruebas automáticas.
 
 Las pruebas unitarias e integraciones automatizadas nunca enviarán correo. El envío de un correo de modo de prueba es una acción manual distinta, autorizada desde la interfaz y limitada a `tellezoe@hitss.com`.
+
+La pantalla de configuración de credenciales y Outlook tendrá otra acción manual distinta: `Enviar correo de prueba`. Su propósito es comprobar que la cuenta Outlook configurada puede enviar correctamente y su único destinatario será esa misma dirección SMTP configurada, sin CC y con confirmación explícita. No contiene resultados de una prueba PAM y no cambia la restricción de `tellezoe@hitss.com` aplicable al modo de prueba de la automatización.
 
 ## Editor enriquecido de correo
 
