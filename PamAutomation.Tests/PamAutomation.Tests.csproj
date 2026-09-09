@@ -13,6 +13,7 @@
     <ProjectReference Include="..\PamAutomation.Core\PamAutomation.Core.csproj" />
     <ProjectReference Include="..\PamAutomation.Infrastructure\PamAutomation.Infrastructure.csproj" />
     <ProjectReference Include="..\PamAutomation.Browser\PamAutomation.Browser.csproj" />
+    <ProjectReference Include="..\PamAutomation.Outlook\PamAutomation.Outlook.csproj" />
   </ItemGroup>
 
 </Project>
