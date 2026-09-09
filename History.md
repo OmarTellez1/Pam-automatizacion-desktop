@@ -198,3 +198,14 @@ Cada cambio relevante debe registrar qué se decidió, por qué, qué se verific
 - `Fases.md` ahora clasifica cada fase pendiente como independiente, independiente condicionada o dependiente, registra sus prerrequisitos y propone únicamente dos combinaciones iniciales de paralelismo: fases 6 con 7 y, después de integrarlas, fase 8 con 14.
 - La clasificación de paralelismo no autoriza automáticamente a crear subagentes: el coordinador debe volver a comprobar contratos, archivos y tamaño real antes de cada oleada.
 - Este cambio fue exclusivamente documental; no se modificó código, no se ejecutaron integraciones reales y no se crearon subagentes.
+
+## 9 de septiembre de 2026 — Fases 6 y 7: reloj HTTP y sesión Edge restringida
+
+- Se desarrollaron en paralelo mediante un subagente aislado por fase y se integraron secuencialmente después de revisar y validar cada resultado.
+- La fase 6 agregó contratos de reloj en Core y una implementación en Infrastructure calibrada con HTTP `Date`, resolución del encabezado, mitad del tiempo de ida y vuelta y avance monotónico, sin respaldo al reloj local.
+- La fase 7 agregó Microsoft.Playwright 1.62.0, contratos de sesión en Core y una implementación en Browser que usa Edge externo visible con `Channel = "msedge"` y un contexto temporal.
+- El contexto restringe solicitudes HTTP(S) al origen exacto `https://10.30.17.117`, bloquea service workers y limita `IgnoreHTTPSErrors` a la sesión PAM.
+- El contrato de navegación expone solamente URI final, estado y HTTP `Date`; no enumera ni entrega cookies, tokens u otras cabeceras.
+- Se añadieron errores estables para distinguir un fallo al lanzar Edge de un fallo al inicializar la sesión y se garantizó la liberación de recursos creados parcialmente.
+- Las pruebas usan adaptadores falsos y no abren Edge, no contactan PAM, no leen credenciales reales, no crean solicitudes y no envían correo.
+- La validación consolidada con `Release | x64` compiló sin errores y ejecutó 90 pruebas correctas; permanece una advertencia MSTest heredada en `TestExplorerSmokeTests.cs`.

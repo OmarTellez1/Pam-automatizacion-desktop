@@ -32,6 +32,16 @@ Se implementaron en `PamAutomation.Core/Totp` la decodificación Base32 y el alg
 
 La fase 5 no accede a Credential Manager, Edge, BeyondInsight u Outlook. Fue validada desde la terminal en `Release | x64`: la solución compiló sin errores y las 71 pruebas terminaron correctamente.
 
+## Fase 6 — Hora HTTP confiable
+
+Se definieron en `PamAutomation.Core/Interfaces/Time` los contratos `IClock` e `IPamClockFactory` y los errores estables de calibración. `PamHttpDateClockFactory`, en `PamAutomation.Infrastructure/Time`, valida el encabezado HTTP `Date` en formato RFC 1123, estima el instante de recepción con la resolución del encabezado y la mitad del tiempo de ida y vuelta, y desde allí avanza únicamente con la fuente monotónica de `TimeProvider`. No existe respaldo silencioso al reloj local. Las pruebas deterministas cubren fechas ausentes o inválidas, mediciones negativas, desfase del portal y avance monotónico.
+
+## Fase 7 — Edge y contexto Playwright restringido
+
+Se incorporó Microsoft.Playwright 1.62.0 en `PamAutomation.Browser` y se implementaron los contratos de sesión definidos en Core. La fábrica lanza el Edge instalado mediante `Channel = "msedge"` en modo visible, crea un contexto temporal no persistente, limita la excepción HTTPS a ese contexto, bloquea service workers y aborta solicitudes HTTP(S) fuera del origen PAM exacto por esquema, host y puerto. La sesión no expone objetos Playwright ni cabeceras generales: solo devuelve URI final, estado y el encabezado `Date` necesario para la fase 6. Los dobles unitarios verifican opciones, restricción de origen, errores controlados, cancelación y liberación de recursos sin abrir Edge ni contactar PAM.
+
+Las fases 6 y 7 fueron integradas y validadas conjuntamente en `Release | x64`: la solución compiló sin errores y las 90 pruebas terminaron correctamente. No se ejecutaron pruebas reales contra Edge o PAM porque requieren autorización explícita.
+
 ## Fases pendientes
 
 La clasificación siguiente se refiere únicamente a dependencias entre fases pendientes:
@@ -42,9 +52,7 @@ La clasificación siguiente se refiere únicamente a dependencias entre fases pe
 
 | Fase | Clasificación | Dependencias pendientes | Alcance y posibilidad de paralelismo |
 |---|---|---|---|
-| 6 — Hora HTTP confiable | **Independiente condicionada** | Ninguna; parte de la fase 5 ya completada. | Puede avanzar en paralelo con la fase 7 si el coordinador fija primero el contrato de hora confiable y reserva a esta fase los tipos de Core, validación y pruebas deterministas. La obtención real desde una respuesta del portal se integra después con Browser. |
-| 7 — Edge y contexto Playwright restringido | **Independiente condicionada** | Ninguna fase pendiente. | Puede avanzar en paralelo con la fase 6 si se limita al lanzamiento de Edge externo, contexto temporal, comprobación de disponibilidad y restricción de origen, sin redefinir el contrato de hora. |
-| 8 — Autenticación PAM simulada | **Dependiente** | Fases 6 y 7. | Necesita la hora confiable y la abstracción del navegador integradas. No debe comenzar mientras esos contratos sigan cambiando. |
+| 8 — Autenticación PAM simulada | **Independiente condicionada** | Ninguna fase pendiente; fases 6 y 7 completadas. | Ya puede comenzar sobre los contratos integrados de hora y navegador. Puede avanzar en paralelo con la fase 14 si se congelan esos contratos y no se comparten archivos. |
 | 9 — Autenticación PAM real visible | **Dependiente** | Fase 8 y autorización explícita del usuario. | Es una validación real y secuencial; no se delega en paralelo con operaciones reales de PAM. |
 | 10 — Navegación a Favorites | **Dependiente** | Fase 9. | Necesita una sesión autenticada confirmada y los selectores reales inspeccionados. |
 | 11 — Modo de prueba de solicitudes | **Dependiente** | Fase 10. | Necesita las cuentas descubiertas y el flujo de navegación estable; valida y descarta formularios sin enviarlos. |
@@ -60,10 +68,9 @@ La clasificación siguiente se refiere únicamente a dependencias entre fases pe
 ## Mapa recomendado de trabajo paralelo
 
 ```text
-Fase 5 completada
+Fases 6 y 7 completadas
        │
-       ├── Fase 6 ──┐
-       └── Fase 7 ──┴──► Fase 8 ──► Fase 9 ──► Fase 10 ──► Fase 11 ──► Fase 12 ──► Fase 13
+       └──► Fase 8 ──► Fase 9 ──► Fase 10 ──► Fase 11 ──► Fase 12 ──► Fase 13
 
 Fase 14 ────────────────────────────────────────────────────────────────────────────────┐
                                                                                         ├──► Fase 15 ──► Fase 16 ──► Fase 17 ──► Fase 18 ──► Fase 19
@@ -72,9 +79,8 @@ Fase 13 ────────────────────────
 
 Con un máximo de dos subagentes, las combinaciones recomendadas son:
 
-1. **Primera oleada:** fase 6 y fase 7, únicamente después de que el coordinador defina el límite entre Core y Browser.
-2. **Segunda oleada posible:** fase 8 y fase 14, porque autenticación simulada y Outlook pertenecen a módulos separados. Si alguna es pequeña en el estado real del repositorio, el coordinador debe asumirla directamente y usar solo un subagente.
-3. **Resto del flujo:** ejecutar de forma predominantemente secuencial. El coordinador solo podrá paralelizar una parte si vuelve a comprobar independencia, contratos congelados y ausencia de archivos compartidos.
+1. **Siguiente oleada posible:** fase 8 y fase 14, porque autenticación simulada y Outlook pertenecen a módulos separados. Si alguna es pequeña en el estado real del repositorio, el coordinador debe asumirla directamente y usar solo un subagente.
+2. **Resto del flujo:** ejecutar de forma predominantemente secuencial. El coordinador solo podrá paralelizar una parte si vuelve a comprobar independencia, contratos congelados y ausencia de archivos compartidos.
 
 Esta clasificación es una guía de planificación, no una autorización automática para crear subagentes. Antes de cada oleada, el coordinador debe inspeccionar el diff y la estructura real; si el trabajo resultó pequeño o apareció solapamiento, debe conservarlo en el agente principal o ejecutarlo secuencialmente.
 

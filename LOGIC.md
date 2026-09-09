@@ -110,7 +110,7 @@ Estas carpetas estarán excluidas de Git y no se incluirán en el instalador. Co
 
 La fase 5 implementa en Core el cálculo RFC 6238 con HMAC-SHA1, intervalos de 30 segundos y códigos de seis dígitos. La clave de enrolamiento se decodifica como Base32 sin almacenarla; se aceptan mayúsculas, minúsculas y los espacios utilizados para mostrarla en grupos, mientras que símbolos, longitudes, padding o bits residuales inválidos se rechazan con un error que no reproduce la clave.
 
-El resultado TOTP incluye su inicio y expiración UTC y puede evaluar el requisito de al menos ocho segundos restantes. Su representación textual y del depurador está redactada. Los buffers binarios de clave y hash se sobrescriben al terminar el cálculo. Esta fase no decide la hora por sí misma: recibe una referencia explícita para conservar el algoritmo determinista. La fase 6 deberá suministrar exclusivamente una hora HTTP válida del portal mediante una abstracción de reloj; no podrá recurrir silenciosamente al reloj local.
+El resultado TOTP incluye su inicio y expiración UTC y puede evaluar el requisito de al menos ocho segundos restantes. Su representación textual y del depurador está redactada. Los buffers binarios de clave y hash se sobrescriben al terminar el cálculo. El algoritmo no decide la hora por sí mismo: recibe una referencia explícita para conservarse determinista. La fase 6 implementa `IPamClockFactory`, que exige una fecha HTTP válida del portal, incorpora la mitad del tiempo de ida y vuelta y una compensación central de 500 ms por la resolución de un segundo del encabezado, y después avanza con tiempo monotónico; nunca recurre silenciosamente al reloj local.
 
 El flujo debe:
 
@@ -128,6 +128,8 @@ La aplicación debe diferenciar credenciales rechazadas, TOTP rechazado, fallo d
 ## Navegador
 
 Playwright .NET debe lanzar el Edge instalado mediante el canal msedge.
+
+La fase 7 implementa `IPamBrowserSessionFactory` e `IPamBrowserSession`. Cada sesión crea un navegador visible y un contexto nuevo no persistente, bloquea service workers e instala una ruta que aborta solicitudes HTTP(S) cuyo esquema, host o puerto efectivo no coincidan con el origen PAM autorizado. La excepción HTTPS queda limitada a ese contexto. La respuesta pública de navegación contiene únicamente URI final, código de estado y el encabezado HTTP `Date`; no enumera ni expone cookies, tokens u otras cabeceras.
 
 No se debe incluir Chromium. La aplicación debe utilizar la opción 1: lanzar el Edge instalado mediante el canal msedge y crear un contexto temporal de Playwright. No debe seleccionar, reutilizar ni modificar el perfil existente del usuario, sus cookies, extensiones o sesiones. No utilizar LaunchPersistentContext, userDataDir ni conexión CDP a un navegador existente. El aislamiento es interno de Playwright y no debe presentarse como una ventana de incógnito.
 

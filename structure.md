@@ -21,7 +21,7 @@ La aplicación anterior ubicada en `C:\pam automatizacion` no forma parte de est
 
 ## Estado actual
 
-La solución utiliza `PamAutomation.slnx`, .NET 10 y la plataforma `x64`. Actualmente existen los límites principales de la arquitectura, la persistencia JSON no sensible, el almacenamiento protegido de credenciales PAM y la generación TOTP; todavía no están implementadas las funciones de hora HTTP, PAM, Edge u Outlook.
+La solución utiliza `PamAutomation.slnx`, .NET 10 y la plataforma `x64`. Actualmente existen los límites principales de la arquitectura, la persistencia JSON no sensible, el almacenamiento protegido de credenciales PAM, la generación TOTP, el reloj confiable derivado de HTTP `Date` y la sesión temporal restringida de Edge. Todavía no están implementadas la autenticación PAM, las solicitudes ni Outlook.
 
 Las fases construidas hasta ahora son:
 
@@ -32,6 +32,8 @@ Las fases construidas hasta ahora son:
 - Fase 3B: contrato y persistencia JSON de configuración no sensible.
 - Fase 4: almacenamiento protegido de credenciales PAM.
 - Fase 5: generación TOTP RFC 6238 y evaluación de ventana segura.
+- Fase 6: reloj confiable calibrado con HTTP `Date` y avance monotónico.
+- Fase 7: Edge externo visible y contexto Playwright temporal restringido al origen PAM.
 
 Los directorios `.git`, `.vs`, `bin` y `obj` contienen metadatos o salidas generadas y se omiten en el árbol.
 
@@ -66,12 +68,23 @@ PamAutomation\
 ├── PamAutomation.Core\
 │   ├── PamAutomation.Core.csproj
 │   ├── Interfaces\
+│   │   ├── Browser\
+│   │   │   ├── IPamBrowserSession.cs
+│   │   │   └── IPamBrowserSessionFactory.cs
 │   │   ├── Configuration\
 │   │   │   └── IAppSettingsStore.cs
-│   │   └── Credentials\
-│   │       ├── CredentialStoreErrorCode.cs
-│   │       ├── CredentialStoreException.cs
-│   │       └── IPamCredentialStore.cs
+│   │   ├── Credentials\
+│   │   │   ├── CredentialStoreErrorCode.cs
+│   │   │   ├── CredentialStoreException.cs
+│   │   │   └── IPamCredentialStore.cs
+│   │   └── Time\
+│   │       ├── IClock.cs
+│   │       ├── IPamClockFactory.cs
+│   │       ├── PamClockErrorCode.cs
+│   │       └── PamClockException.cs
+│   ├── Browser\
+│   │   ├── PamBrowserExceptions.cs
+│   │   └── PamNavigationResponse.cs
 │   ├── Models\
 │   │   ├── Configuration\
 │   │   │   ├── AppSettings.cs
@@ -93,7 +106,12 @@ PamAutomation\
 │       └── RequestSettingsValidator.cs
 │
 ├── PamAutomation.Browser\
-│   └── PamAutomation.Browser.csproj
+│   ├── PamAutomation.Browser.csproj
+│   ├── BrowserAbstractions.cs
+│   ├── PamBrowserSession.cs
+│   ├── PamBrowserSessionFactory.cs
+│   ├── PamOriginPolicy.cs
+│   └── PlaywrightEngineFactory.cs
 │
 ├── PamAutomation.Infrastructure\
 │   ├── PamAutomation.Infrastructure.csproj
@@ -102,13 +120,15 @@ PamAutomation\
 │   │   ├── AppSettingsPersistenceErrorCode.cs
 │   │   ├── AppSettingsPersistenceException.cs
 │   │   └── JsonAppSettingsStore.cs
-│   └── Credentials\
-│       ├── CredentialManagerEntry.cs
-│       ├── CredentialNativeMethods.cs
-│       ├── CredentialPayloadCodec.cs
-│       ├── IWindowsCredentialApi.cs
-│       ├── WindowsCredentialApi.cs
-│       └── WindowsPamCredentialStore.cs
+│   ├── Credentials\
+│   │   ├── CredentialManagerEntry.cs
+│   │   ├── CredentialNativeMethods.cs
+│   │   ├── CredentialPayloadCodec.cs
+│   │   ├── IWindowsCredentialApi.cs
+│   │   ├── WindowsCredentialApi.cs
+│   │   └── WindowsPamCredentialStore.cs
+│   └── Time\
+│       └── PamHttpDateClockFactory.cs
 │
 ├── PamAutomation.Outlook\
 │   └── PamAutomation.Outlook.csproj
@@ -125,11 +145,15 @@ PamAutomation\
     │   │   └── PamCredentialsTests.cs
     │   └── Totp\
     │       └── TotpGeneratorTests.cs
+    ├── Browser\
+    │   └── PamBrowserSessionFactoryTests.cs
     └── Infrastructure\
         ├── Configuration\
         │   └── JsonAppSettingsStoreTests.cs
-        └── Credentials\
-            └── WindowsPamCredentialStoreTests.cs
+        ├── Credentials\
+        │   └── WindowsPamCredentialStoreTests.cs
+        └── Time\
+            └── PamHttpDateClockFactoryTests.cs
 ```
 
 ### Documentos de la raíz
@@ -191,7 +215,7 @@ No debe contener:
 
 ### `PamAutomation.Core`
 
-Biblioteca para `net10.0`, sin dependencia de WPF o Windows. Actualmente contiene configuración, credenciales y TOTP:
+Biblioteca para `net10.0`, sin dependencia de WPF o Windows. Actualmente contiene configuración, credenciales, TOTP y contratos de tiempo y navegador:
 
 - `Interfaces/Configuration`: contrato `IAppSettingsStore` para cargar y guardar configuración sin acoplar Core al sistema de archivos.
 - `Interfaces/Credentials`: contrato `IPamCredentialStore` y errores estables para el almacenamiento protegido.
@@ -199,6 +223,9 @@ Biblioteca para `net10.0`, sin dependencia de WPF o Windows. Actualmente contien
 - `Models/Credentials`: modelo completo de uso exclusivo de autenticación y modelo de actualización con campos opcionales.
 - `Validation`: resultado, fallas, códigos estables y validadores de configuración.
 - `Totp`: decodificación Base32, generación RFC 6238 y evaluación de la vigencia mínima antes del envío.
+- `Interfaces/Time`: reloj confiable, fábrica de calibración y errores estables sin dependencia del sistema.
+- `Interfaces/Browser`: contratos de fábrica y sesión que no exponen tipos Playwright.
+- `Browser`: respuesta de navegación reducida a URI, estado y HTTP `Date`, junto con errores controlados de inicialización y navegación.
 
 Los validadores reciben explícitamente la hora actual de Ecuador y no acceden al reloj, sistema de archivos o servicios externos.
 
@@ -214,7 +241,14 @@ Regla principal: `Core` no debe referenciar ningún otro proyecto de la solució
 
 ### `PamAutomation.Browser`
 
-Biblioteca para `net10.0`. Actualmente contiene únicamente su archivo de proyecto y referencia `PamAutomation.Core`.
+Biblioteca para `net10.0`. Referencia `PamAutomation.Core` e implementa la sesión base de Playwright para la fase 7:
+
+- `PamBrowserSessionFactory`: crea Edge visible mediante el canal `msedge` y administra la inicialización segura.
+- `PamBrowserSession`: valida cada navegación y libera página, contexto, navegador y runtime en orden.
+- `PamOriginPolicy`: compara esquema, host y puerto efectivo y bloquea solicitudes HTTP(S) externas o malformadas.
+- `PlaywrightEngineFactory` y `BrowserAbstractions`: adaptadores internos que encapsulan Microsoft.Playwright y permiten pruebas sin abrir Edge.
+
+Dependencia NuGet actual: `Microsoft.Playwright` 1.62.0. Los adaptadores internos se exponen únicamente a `PamAutomation.Tests` mediante `InternalsVisibleTo`.
 
 Responsabilidad objetivo:
 
@@ -229,7 +263,7 @@ No debe administrar configuración local, Outlook ni elementos WPF.
 
 ### `PamAutomation.Infrastructure`
 
-Biblioteca para `net10.0-windows`. Referencia `PamAutomation.Core` e implementa actualmente la persistencia no sensible y el almacenamiento protegido de credenciales:
+Biblioteca para `net10.0-windows`. Referencia `PamAutomation.Core` e implementa actualmente la persistencia no sensible, el almacenamiento protegido de credenciales y el reloj HTTP confiable:
 
 - `Configuration/AppSettingsDocument.cs`: representación JSON plana y conversión explícita hacia y desde el modelo de Core.
 - `Configuration/JsonAppSettingsStore.cs`: carga desde la ruta privada del usuario y escritura atómica mediante un temporal en la misma carpeta.
@@ -238,6 +272,7 @@ Biblioteca para `net10.0-windows`. Referencia `PamAutomation.Core` e implementa 
 - `Credentials/CredentialPayloadCodec.cs`: formato binario versionado que mantiene juntas contraseña y semilla TOTP y aplica el límite del blob de Windows.
 - `Credentials/WindowsCredentialApi.cs`, `CredentialNativeMethods.cs` y `CredentialManagerEntry.cs`: límite interno sobre `CredReadW`, `CredWriteW`, `CredDeleteW` y `CredFree`, con liberación y limpieza de memoria.
 - `Credentials/IWindowsCredentialApi.cs`: punto interno sustituible utilizado exclusivamente por pruebas; no forma parte del dominio público.
+- `Time/PamHttpDateClockFactory.cs`: valida HTTP `Date`, calibra el instante recibido y avanza mediante la marca monotónica de `TimeProvider`.
 
 No se agregaron paquetes NuGet para Credential Manager. El proyecto utiliza las API Win32 incluidas en Windows y expone sus tipos internos a `PamAutomation.Tests` únicamente para validar el adaptador sin tocar el almacén real.
 
@@ -269,7 +304,7 @@ No debe contener vistas WPF, navegación PAM ni almacenamiento de credenciales P
 
 ### `PamAutomation.Tests`
 
-Proyecto MSTest para `net10.0-windows`. Actualmente referencia `PamAutomation.App`, `PamAutomation.Core` y `PamAutomation.Infrastructure`.
+Proyecto MSTest para `net10.0-windows`. Actualmente referencia `PamAutomation.App`, `PamAutomation.Core`, `PamAutomation.Infrastructure` y `PamAutomation.Browser`.
 
 Contenido actual:
 
@@ -281,6 +316,8 @@ Contenido actual:
 - `Core/Totp/TotpGeneratorTests.cs`: valida vectores públicos RFC 6238, Base32, ventanas de 30 segundos, vigencia mínima y redacción del código.
 - `Infrastructure/Configuration/JsonAppSettingsStoreTests.cs`: valida formato plano, carga, sustitución atómica, cancelación segura y errores de persistencia sin tocar la configuración real del usuario.
 - `Infrastructure/Credentials/WindowsPamCredentialStoreTests.cs`: valida creación, actualización parcial, límites, corrupción, borrado y limpieza de buffers mediante una API de Windows falsa.
+- `Infrastructure/Time/PamHttpDateClockFactoryTests.cs`: valida calibración, avance monotónico y errores sin consultar el reloj local.
+- `Browser/PamBrowserSessionFactoryTests.cs`: valida Edge visible, contexto temporal, origen exacto, respuesta segura, cancelación y liberación con adaptadores falsos.
 
 Responsabilidad objetivo:
 
