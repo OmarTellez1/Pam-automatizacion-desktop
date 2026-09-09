@@ -21,7 +21,7 @@ La aplicación anterior ubicada en `C:\pam automatizacion` no forma parte de est
 
 ## Estado actual
 
-La solución utiliza `PamAutomation.slnx`, .NET 10 y la plataforma `x64`. Actualmente existen los límites principales de la arquitectura, configuración y credenciales protegidas, TOTP, reloj HTTP, sesión temporal de Edge, autenticación PAM simulada y real visible, lectura de Favorites y el adaptador testeable de Outlook clásico. Todavía no están implementados los formularios de prueba, las solicitudes reales, la composición HTML ni la conexión de estos servicios con la interfaz.
+La solución utiliza `PamAutomation.slnx`, .NET 10 y la plataforma `x64`. Actualmente existen los límites principales de la arquitectura, configuración y credenciales protegidas, TOTP, reloj HTTP, sesión temporal de Edge, autenticación PAM simulada y real visible, lectura de Favorites, validación y descarte seguro de formularios y el adaptador testeable de Outlook clásico. Todavía no están implementadas las solicitudes reales, la composición HTML ni la conexión de estos servicios con la interfaz.
 
 Las fases construidas hasta ahora son:
 
@@ -37,6 +37,7 @@ Las fases construidas hasta ahora son:
 - Fase 8: autenticación PAM simulada con reloj confiable, ventana TOTP y reintento controlado.
 - Fase 9: adaptador de autenticación PAM real visible y validación de integración limitada al login.
 - Fase 10: sesión autenticada reutilizable y lectura paginada de Favorites sin abrir formularios.
+- Fase 11: llenado, verificación y descarte de todos los formularios con envío inaccesible y bloqueado por red.
 - Fase 14: contratos, validación, fake y adaptador Outlook clásico COM ejecutado en STA.
 
 Los directorios `.git`, `.vs`, `bin` y `obj` contienen metadatos o salidas generadas y se omiten en el árbol.
@@ -91,6 +92,9 @@ PamAutomation\
 │   │   ├── Favorites\
 │   │   │   ├── IPamFavoritesPortal.cs
 │   │   │   └── IPamFavoritesPortalFactory.cs
+│   │   ├── Requests\
+│   │   │   ├── IPamRequestTestPortal.cs
+│   │   │   └── IPamRequestTestPortalFactory.cs
 │   │   ├── Outlook\
 │   │   │   └── IOutlookClassicClient.cs
 │   │   └── Time\
@@ -131,6 +135,11 @@ PamAutomation\
 │   │   ├── OutlookSendRequest.cs
 │   │   ├── OutlookValidationErrorCode.cs
 │   │   └── OutlookValidationException.cs
+│   ├── Requests\
+│   │   ├── PamRequestTestErrorCode.cs
+│   │   ├── PamRequestTestException.cs
+│   │   ├── PamRequestTestResult.cs
+│   │   └── PamRequestTestService.cs
 │   ├── Totp\
 │   │   ├── Base32SecretDecoder.cs
 │   │   ├── InvalidBase32SecretException.cs
@@ -150,12 +159,15 @@ PamAutomation\
 │   ├── PamFavoritesPagination.cs
 │   ├── PamFavoritesPortal.cs
 │   ├── PamFavoritesSelectors.cs
+│   ├── PamRequestTestPortal.cs
+│   ├── PamRequestTestSelectors.cs
 │   ├── PamBrowserSession.cs
 │   ├── PamBrowserSessionFactory.cs
 │   ├── PamLoginAlertClassifier.cs
 │   ├── PamLoginSelectors.cs
 │   ├── PamOriginPolicy.cs
 │   ├── PlaywrightManagedPage.Favorites.cs
+│   ├── PlaywrightManagedPage.RequestTest.cs
 │   └── PlaywrightEngineFactory.cs
 │
 ├── PamAutomation.Infrastructure\
@@ -198,6 +210,8 @@ PamAutomation\
     │   │   └── PamCredentialsTests.cs
     │   ├── Favorites\
     │   │   └── PamFavoritesServiceTests.cs
+    │   ├── Requests\
+    │   │   └── PamRequestTestServiceTests.cs
     │   └── Totp\
     │       └── TotpGeneratorTests.cs
     ├── Browser\
@@ -205,6 +219,8 @@ PamAutomation\
     │   ├── PamFavoritesPortalTests.cs
     │   ├── PamBrowserSessionFactoryTests.cs
     │   ├── PamRealFavoritesTests.cs
+    │   ├── PamRealRequestTestTests.cs
+    │   ├── PamRequestTestPortalTests.cs
     │   └── PamRealAuthenticationTests.cs
     ├── Infrastructure\
     │   ├── Configuration\
@@ -276,7 +292,7 @@ No debe contener:
 
 ### `PamAutomation.Core`
 
-Biblioteca para `net10.0`, sin dependencia de WPF o Windows. Actualmente contiene configuración, credenciales, TOTP, autenticación simulada y contratos de tiempo, navegador y Outlook:
+Biblioteca para `net10.0`, sin dependencia de WPF o Windows. Actualmente contiene configuración, credenciales, TOTP, autenticación simulada, modo de prueba de solicitudes y contratos de tiempo, navegador y Outlook:
 
 - `Interfaces/Configuration`: contrato `IAppSettingsStore` para cargar y guardar configuración sin acoplar Core al sistema de archivos.
 - `Interfaces/Credentials`: contrato `IPamCredentialStore` y errores estables para el almacenamiento protegido.
@@ -288,6 +304,8 @@ Biblioteca para `net10.0`, sin dependencia de WPF o Windows. Actualmente contien
 - `Interfaces/Browser`: contratos de fábrica y sesión que no exponen tipos Playwright.
 - `Browser`: respuesta de navegación reducida a URI, estado y HTTP `Date`, junto con errores controlados de inicialización y navegación.
 - `Authentication`: servicio de autenticación simulado, espera asincrónica, errores estables y contratos del puerto ligado a una sesión.
+- `Interfaces/Favorites` y `Favorites`: lectura y validación de identidades únicas dentro de una sesión autenticada reutilizable.
+- `Interfaces/Requests` y `Requests`: contrato sin capacidad de envío, coordinación de validación y descarte, errores estables y resultado en memoria con cero envíos.
 - `Interfaces/Outlook` y `Outlook`: contrato del cliente clásico, modelos redactados, validaciones, resultados y errores seguros.
 
 Los validadores reciben explícitamente la hora actual de Ecuador y no acceden al reloj, sistema de archivos o servicios externos.
@@ -304,7 +322,7 @@ Regla principal: `Core` no debe referenciar ningún otro proyecto de la solució
 
 ### `PamAutomation.Browser`
 
-Biblioteca para `net10.0`. Referencia `PamAutomation.Core` e implementa la sesión restringida de Playwright, el login real y Favorites de las fases 7, 9 y 10:
+Biblioteca para `net10.0`. Referencia `PamAutomation.Core` e implementa la sesión restringida de Playwright, el login real, Favorites y el modo de prueba de las fases 7, 9, 10 y 11:
 
 - `PamBrowserSessionFactory`: crea Edge visible mediante el canal `msedge` y administra la inicialización segura.
 - `PamBrowserSession`: valida cada navegación y libera página, contexto, navegador y runtime en orden.
@@ -317,6 +335,9 @@ Biblioteca para `net10.0`. Referencia `PamAutomation.Core` e implementa la sesi�
 - `PamFavoritesPortalFactory` y `PamFavoritesPortal`: enlazan la lectura de Favorites con la misma sesión autenticada.
 - `PamFavoritesSelectors` y `PamFavoritesPagination`: centralizan Accounts, categorías, grid y paginación accesible.
 - `PlaywrightManagedPage.Favorites`: navega, estabiliza las filas y lee todas las páginas mediante locators sin seleccionar cuentas.
+- `PamRequestTestPortalFactory` y `PamRequestTestPortal`: enlazan el contrato seguro de formularios con la misma página autenticada.
+- `PamRequestTestSelectors`: centraliza acciones, campos y el endpoint de creación que debe permanecer bloqueado.
+- `PlaywrightManagedPage.RequestTest`: vuelve a validar cada identidad, llena y comprueba el formulario, lo descarta y aborta cualquier intento de envío.
 
 Dependencia NuGet actual: `Microsoft.Playwright` 1.62.0. Los adaptadores internos se exponen únicamente a `PamAutomation.Tests` mediante `InternalsVisibleTo`.
 
@@ -396,8 +417,11 @@ Contenido actual:
 - `Browser/PamAuthenticationPortalTests.cs`: valida el enlace de sesión, el mapeo del portal y la clasificación segura de anuncios sin abrir Edge.
 - `Browser/PamFavoritesPortalTests.cs`: valida el adaptador de Favorites y el formato del paginador con dobles.
 - `Browser/PamRealFavoritesTests.cs`: integración opt-in de solo lectura que confirma cuentas completas sin mostrar sus valores.
+- `Browser/PamRequestTestPortalTests.cs`: valida el enlace del contrato seguro con un doble de página y rechaza sesiones ajenas.
+- `Browser/PamRealRequestTestTests.cs`: integración opt-in visible que valida y descarta todos los formularios y exige cero envíos.
 - `Browser/PamRealAuthenticationTests.cs`: integración explícitamente opt-in que lee Credential Manager y valida solo el login visible autorizado.
 - `Core/Favorites/PamFavoritesServiceTests.cs`: valida snapshot, identidades, duplicados, errores seguros y cierre de sesión.
+- `Core/Requests/PamRequestTestServiceTests.cs`: valida configuración previa, recorrido completo, detención segura, cierre de sesión y resultado invariablemente no enviado.
 - `Core/Authentication/PamAuthenticationServiceTests.cs`: valida el flujo simulado, RTT, ventana TOTP, reintento único, errores y cancelación.
 - `Outlook/OutlookClassicClientTests.cs`: valida cuenta exacta, mensajes temporales, redacción, STA, liberación y envío no confirmado mediante COM falso.
 

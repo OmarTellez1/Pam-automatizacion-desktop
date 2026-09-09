@@ -44,6 +44,10 @@ public sealed class PamBrowserSession : IPamBrowserSession
     internal IPamFavoritesPage FavoritesPage => page as IPamFavoritesPage
         ?? throw new InvalidOperationException("La página de la sesión PAM no admite Favorites.");
 
+    /// <summary>Gets the safe request-test page owned by this session.</summary>
+    internal IPamRequestTestPage RequestTestPage => page as IPamRequestTestPage
+        ?? throw new InvalidOperationException("La página de la sesión PAM no admite el modo de prueba.");
+
     /// <inheritdoc />
     public async Task<PamNavigationResponse> NavigateAsync(Uri uri, CancellationToken cancellationToken = default)
     {

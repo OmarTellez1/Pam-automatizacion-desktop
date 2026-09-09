@@ -244,3 +244,16 @@ Cada cambio relevante debe registrar qué se decidió, por qué, qué se verific
 - La integración `PAM_AUTOMATION_ALLOW_REAL_FAVORITES=READ_ONLY` abrió Edge visible, reutilizó la sesión autenticada, confirmó cuentas válidas en Favorites y cerró el contexto temporal.
 - No se abrieron formularios, no se pulsó `Submit Request`, no se crearon solicitudes, no se inició Outlook y no se envió correo.
 - La validación consolidada compiló en `Release | x64` y ejecutó 146 pruebas correctas, 0 fallidas y 0 omitidas. La advertencia heredada `MSTEST0032` permanece fuera del alcance de esta fase.
+
+## 9 de septiembre de 2026 — Fase 11: modo de prueba de solicitudes
+
+- El usuario autorizó el desarrollo con el agente principal y la prueba real visible de formularios, manteniendo prohibido crear solicitudes.
+- Se agregó `PamRequestTestService`, que reutiliza una única sesión autenticada para leer Favorites y procesar cada formulario.
+- `IPamRequestTestPortal` solo permite validar y descartar; deliberadamente no contiene una operación de envío.
+- El adaptador Browser vuelve a comprobar la identidad de cada fila, abre `Access`, selecciona la pestaña del formulario, llena fecha, hora, duración y razón, verifica `Application Session` y ejecuta `Cancel > Discard Changes`.
+- Antes de abrir formularios se instala un bloqueo de red para el endpoint de creación; cualquier intento de `POST /api/ps-portal/requests` se aborta y se informa como fallo.
+- La primera integración se detuvo de forma segura porque React restableció `Start Time`; se incorporó el segundo llenado condicionado ya conocido en la referencia anterior.
+- Otra ejecución reveló que ciertos formularios abren Flatpickr automáticamente; la selección de fecha se hizo idempotente para no cerrar el calendario con un clic redundante.
+- La integración final abrió Edge visible y confirmó 14 cuentas encontradas, 14 formularios validados y descartados y `submitted = 0`.
+- No se creó ninguna solicitud, no se abrió Outlook, no se envió correo y no se imprimieron ni persistieron identidades, credenciales o valores del formulario.
+- La solución compiló en `Release | x64` con 0 errores y el proyecto de pruebas ejecutó 154 pruebas correctas. Permanece la advertencia heredada `MSTEST0032`, fuera del alcance de la fase.

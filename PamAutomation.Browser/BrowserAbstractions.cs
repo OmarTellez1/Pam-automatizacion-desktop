@@ -1,5 +1,6 @@
 using PamAutomation.Core.Browser;
 using PamAutomation.Core.Favorites;
+using PamAutomation.Core.Models.Configuration;
 
 namespace PamAutomation.Browser;
 
@@ -78,6 +79,16 @@ internal interface IPamFavoritesPage
 {
     /// <summary>Navigates to Favorites and reads every visible page without opening a request.</summary>
     Task<IReadOnlyList<PamFavoriteAccount>> ReadAllFavoritesAsync(CancellationToken cancellationToken);
+}
+
+/// <summary>Browser operations for validating and discarding PAM request forms.</summary>
+internal interface IPamRequestTestPage
+{
+    /// <summary>Validates one account form while blocking the request submission endpoint.</summary>
+    Task ValidateAndDiscardRequestFormAsync(
+        PamFavoriteAccount account,
+        RequestSettings settings,
+        CancellationToken cancellationToken);
 }
 
 /// <summary>Required settings for launching the externally installed Edge channel.</summary>

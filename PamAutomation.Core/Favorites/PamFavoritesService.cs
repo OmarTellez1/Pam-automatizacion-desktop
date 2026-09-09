@@ -40,6 +40,35 @@ public sealed class PamFavoritesService
 
         try
         {
+            return await ReadAllAsync(session, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (PamFavoritesException)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            throw new PamFavoritesException(PamFavoritesErrorCode.PortalUnavailable, exception);
+        }
+    }
+
+    /// <summary>Reads and validates Favorites using an existing authenticated session.</summary>
+    /// <param name="session">Authenticated PAM session owned by the caller.</param>
+    /// <param name="cancellationToken">Cancels read-only navigation.</param>
+    /// <returns>A validated in-memory snapshot of all favorite account identities.</returns>
+    public async Task<IReadOnlyList<PamFavoriteAccount>> ReadAllAsync(
+        IPamBrowserSession session,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        try
+        {
             IPamFavoritesPortal portal = portalFactory.Create(session);
             IReadOnlyList<PamFavoriteAccount> accounts = await portal
                 .ReadAllAsync(cancellationToken)

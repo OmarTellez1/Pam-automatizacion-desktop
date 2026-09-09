@@ -54,6 +54,12 @@ Se implementó en `PamAutomation.Browser` el adaptador Playwright real enlazado 
 
 Se agregó un contrato de sesión autenticada reutilizable y `PamFavoritesService` para mantener login y lectura dentro del mismo contexto temporal. El adaptador real navega a Accounts, selecciona `Browse by Category > Favorites`, espera un grid estable, recorre el paginador accesible cuando existe y construye identidades redactadas de sistema, aplicación y cuenta. Core rechaza resultados vacíos, incompletos o duplicados. La API de esta fase es exclusivamente de lectura y no permite seleccionar filas ni abrir formularios. La integración real autorizada confirmó Favorites y cerró Edge sin solicitar accesos. La solución compiló en `Release | x64` y ejecutó 146 pruebas correctas.
 
+## Fase 11 — Modo de prueba de solicitudes
+
+Se implementó `PamRequestTestService` y un contrato deliberadamente incapaz de enviar solicitudes. El flujo reutiliza la sesión autenticada de fase 10, recorre cada cuenta de Favorites, vuelve a comprobar su identidad, abre `Access`, llena fecha, hora, duración y razón, valida `Application Session` y descarta el formulario mediante `Cancel > Discard Changes`. El adaptador instala además un bloqueo de red para `POST /api/ps-portal/requests`; cualquier intento interceptado hace fallar la prueba.
+
+El resultado se mantiene en memoria, no contiene identidades y define `SubmittedCount = 0`. La integración real visible autorizada procesó 14 cuentas, validó y descartó los 14 formularios y confirmó cero envíos. La solución compiló en `Release | x64` y el proyecto completo ejecutó 154 pruebas correctas.
+
 ## Fase 14 — Outlook falso y Outlook COM
 
 Se definieron en Core los contratos, modelos redactados, validaciones y errores estables de Outlook. `PamAutomation.Outlook` incorpora Microsoft Office Interop Outlook 15.0.4797.1004, resolución exacta de cuenta por `SmtpAddress`, comprobación mediante mensaje temporal descartado, creación de un mensaje nuevo por envío, asignación previa de `SendUsingAccount`, ejecución en un hilo STA y liberación explícita de referencias COM. Las pruebas usan un seam COM falso: no abren Outlook ni envían correo. Como todavía no se consulta Enviados, un `Send()` correcto se informa honestamente como `SubmittedUnconfirmed`, no como entrega confirmada.
@@ -70,8 +76,7 @@ La clasificación siguiente se refiere únicamente a dependencias entre fases pe
 
 | Fase | Clasificación | Dependencias pendientes | Alcance y posibilidad de paralelismo |
 |---|---|---|---|
-| 11 — Modo de prueba de solicitudes | **Dependiente** | Autorización explícita para formularios reales; fase 10 completada. | Ya dispone de las cuentas descubiertas y el flujo de navegación estable; debe validar y descartar cada formulario demostrando que nunca pulsa `Submit Request`. |
-| 12 — Solicitudes reales | **Dependiente** | Fase 11 y confirmación explícita. | Reutiliza el mismo flujo y archivos de Browser; debe implementarse después de demostrar que el modo de prueba nunca envía solicitudes. |
+| 12 — Solicitudes reales | **Dependiente** | Confirmación explícita para crear solicitudes; fase 11 completada. | Reutilizará el flujo y archivos de Browser ya validados, pero no puede comenzar una ejecución real sin autorización adicional. |
 | 13 — Lectura y comparación de Pending | **Dependiente** | Fases 10, 11 y 12. | Aunque conceptualmente es lectura, comparte sesión, selectores y modelos de solicitudes con las fases anteriores; mantenerla secuencial evita conflictos en Browser. |
 | 15 — HTML saneado y marcador Request ID | **Dependiente** | Fase 13; fase 14 completada. | Ya dispone de la abstracción de Outlook, pero aún necesita el contrato final de resultados PAM para componer y validar los Request ID. |
 | 16 — Resultados en memoria e interfaz | **Dependiente** | Fases 13 y 15. | Necesita los resultados y estados finales que debe presentar; probablemente afecta App y la composición principal. |
@@ -82,16 +87,16 @@ La clasificación siguiente se refiere únicamente a dependencias entre fases pe
 ## Mapa recomendado de trabajo paralelo
 
 ```text
-Fases 6 a 10 completadas
+Fases 6 a 11 completadas
        │
-       └──► Fase 11 ──► Fase 12 ──► Fase 13
+       └──► Fase 12 ──► Fase 13
 
 Fase 14 completada ─────────────────────────────────────────────────────────────────────┐
                                                                                         ├──► Fase 15 ──► Fase 16 ──► Fase 17 ──► Fase 18 ──► Fase 19
 Fase 13 ────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-No queda actualmente otra fase clasificada como independiente. El flujo PAM debe continuar de forma secuencial desde la fase 11 y la fase 15 seguirá bloqueada hasta completar la fase 13. El coordinador solo podrá paralelizar una parte futura si vuelve a demostrar independencia, contratos congelados y ausencia de archivos compartidos.
+No queda actualmente otra fase clasificada como independiente. El flujo PAM debe continuar de forma secuencial desde la fase 12 y la fase 15 seguirá bloqueada hasta completar la fase 13. El coordinador solo podrá paralelizar una parte futura si vuelve a demostrar independencia, contratos congelados y ausencia de archivos compartidos.
 
 Esta clasificación es una guía de planificación, no una autorización automática para crear subagentes. Antes de cada oleada, el coordinador debe inspeccionar el diff y la estructura real; si el trabajo resultó pequeño o apareció solapamiento, debe conservarlo en el agente principal o ejecutarlo secuencialmente.
 

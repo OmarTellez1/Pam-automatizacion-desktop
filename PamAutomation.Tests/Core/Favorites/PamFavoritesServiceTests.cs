@@ -29,6 +29,21 @@ public sealed class PamFavoritesServiceTests
     }
 
     [TestMethod]
+    public async Task ReadAllAsync_ExistingSession_ReturnsSnapshotWithoutDisposingCallerSession()
+    {
+        var harness = new FavoritesHarness(
+        [
+            new PamFavoriteAccount("system-a", "application-a", "account-a"),
+        ]);
+
+        IReadOnlyList<PamFavoriteAccount> result = await harness.Service.ReadAllAsync(harness.Session);
+
+        Assert.HasCount(1, result);
+        Assert.AreSame(harness.Session, harness.PortalFactory.ReceivedSession);
+        Assert.AreEqual(0, harness.Session.DisposeCalls);
+    }
+
+    [TestMethod]
     public async Task ReadAllAsync_EmptyFavorites_ThrowsStableErrorAndDisposesSession()
     {
         var harness = new FavoritesHarness([]);

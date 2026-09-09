@@ -2,7 +2,7 @@
 
 ## Estado
 
-Este documento describe la lógica objetivo de la aplicación nueva. Ya existen la estructura base, el estado de presentación de la ventana principal, la configuración, el almacenamiento protegido de credenciales, TOTP, navegador restringido, autenticación PAM real visible, lectura de Favorites y Outlook clásico aislado. Los formularios de prueba, solicitudes reales, composición HTML y la coordinación desde la interfaz permanecen pendientes.
+Este documento describe la lógica objetivo de la aplicación nueva. Ya existen la estructura base, el estado de presentación de la ventana principal, la configuración, el almacenamiento protegido de credenciales, TOTP, navegador restringido, autenticación PAM real visible, lectura de Favorites, validación segura de formularios y Outlook clásico aislado. Las solicitudes reales, composición HTML y la coordinación desde la interfaz permanecen pendientes.
 
 ## Capas
 
@@ -153,6 +153,10 @@ La aplicación debe separar claramente:
 
 - Modo prueba: llena y valida formularios, descarta cada formulario y nunca pulsa Submit Request.
 - Modo real: requiere confirmación y crea solicitudes.
+
+La fase 11 implementa el modo de prueba mediante `PamRequestTestService`. El servicio reutiliza una única sesión autenticada para leer todas las cuentas de Favorites y entregar cada identidad al contrato `IPamRequestTestPortal`, que solo permite abrir, llenar, verificar y descartar; no expone ninguna operación de envío. Antes de interactuar con formularios, el adaptador Browser instala además una ruta que aborta cualquier acceso al endpoint `POST /api/ps-portal/requests` y trata un intento interceptado como fallo de seguridad.
+
+Cada formulario conserva y comprueba fecha, hora, duración, razón y `Application Session`, luego ejecuta `Cancel > Discard Changes` y espera su cierre. El resultado permanece en memoria y fija `SubmittedCount` en cero. La integración explícita `VALIDATE_AND_DISCARD` validó y descartó 14 de 14 formularios en Edge visible con `submitted = 0`; no abrió Outlook ni persistió identidades o contenido.
 
 El usuario podrá cambiar `testModeEnabled` mediante `Habilitar modo de prueba` en una sección avanzada de Configuración de solicitud; no necesitará editar el JSON. `Iniciar prueba` solo será visible cuando esa opción sea verdadera y la configuración de credenciales y solicitud esté completa. Si la acción final es correo, también deberá existir una configuración de correo válida, pero los destinatarios guardados no se usarán: el correo de prueba se enviará exclusivamente a `tellezoe@hitss.com`, sin CC, con asunto prefijado por `[PRUEBA]` y después de una confirmación que muestre el destinatario exacto.
 
