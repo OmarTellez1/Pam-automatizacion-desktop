@@ -136,14 +136,14 @@ PamAutomation\
 
 | Archivo | Responsabilidad |
 |---|---|
-| `AGENTS.md` | Reglas obligatorias de trabajo, seguridad, tecnología y validación. |
+| `AGENTS.md` | Reglas obligatorias de trabajo, seguridad, tecnología y validación; también funciona como índice para la consulta documental bajo demanda. |
 | `CODEX_BUILD_SPEC.md` | Especificación canónica y fuente principal de requisitos. |
 | `README.md` | Estado general, requisitos del entorno y decisiones confirmadas. |
 | `LOGIC.md` | Comportamientos, reglas de negocio y contratos previstos. |
 | `History.md` | Registro cronológico de decisiones y cambios relevantes. |
 | `structure.md` | Inventario físico y arquitectura actual y objetivo. |
 | `Fases.md` | Resumen acumulativo del alcance, ubicación e importancia de cada fase implementada. |
-| `Subagentes.md` | Protocolo para coordinar subagentes, aislar sus cambios e integrar únicamente trabajo validado. |
+| `Subagentes.md` | Protocolo para coordinar un máximo de dos subagentes en unidades verticales independientes, aislar sus cambios e integrar únicamente trabajo validado. |
 | `.gitignore` | Exclusiones de Git para salidas, configuración local y artefactos de desarrollo. |
 | `PamAutomation.slnx` | Solución .NET que agrupa los seis proyectos en `x64` para operar mediante la CLI `dotnet`. |
 

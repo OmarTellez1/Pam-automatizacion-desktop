@@ -6,7 +6,9 @@ Este repositorio es una aplicación nueva construida desde cero para Windows. La
 
 La raíz oficial del repositorio es `C:\pam automatizacion dotnet\PamAutomation` y la solución utiliza el formato moderno `PamAutomation.slnx`.
 
-Antes de analizar, modificar o crear código, el agente principal o coordinador debe leer completamente:
+## Política de lectura de documentación
+
+`AGENTS.md` es la instrucción permanente y el índice de consulta del repositorio; debe aplicarse cada vez que Codex lo cargue. Esa carga automática no obliga a releer los demás Markdown. La primera vez que un thread nuevo de Codex entra a este proyecto sin contexto previo, el agente principal o coordinador debe leer una vez y por completo:
 
 - CODEX_BUILD_SPEC.md
 - README.md
@@ -16,16 +18,30 @@ Antes de analizar, modificar o crear código, el agente principal o coordinador 
 - Fases.md
 - Subagentes.md
 
-Esta lectura completa no se repite automáticamente en cada subagente. Los subagentes deben obedecer este `AGENTS.md` y recibir del coordinador un paquete de contexto acotado con la ruta de trabajo, la rama, el objetivo, los archivos permitidos, las restricciones, los criterios de aceptación y los archivos o secciones documentales que deben leer. No deben recorrer todo el repositorio ni leer todos los Markdown por defecto.
+En todos los prompts y tasks posteriores del mismo thread, el agente principal no debe repetir automáticamente esa lectura completa porque conserva el contexto adquirido. Consultará bajo demanda únicamente el documento o la sección que necesite para recordar o verificar una decisión, resolver una duda, preparar una fase o comprobar una posible contradicción. Que el propio agente haya actualizado un Markdown no obliga a releerlo por completo; basta revisar el cambio realizado, salvo que exista una razón concreta para volver a consultar el documento.
+
+Una nueva tarea, fase o solicitud dentro del mismo thread no reinicia esta obligación. La lectura completa solo debe realizarse de nuevo cuando otro thread o coordinador entra sin contexto previo o sin un traspaso confiable, el contexto disponible ya no permite confirmar las reglas vigentes o el usuario la solicita expresamente.
+
+Usar este índice para seleccionar la lectura mínima necesaria:
+
+- `CODEX_BUILD_SPEC.md`: requisitos globales, tecnología, seguridad y arquitectura.
+- `README.md`: estado general, entorno y comandos de uso actuales.
+- `LOGIC.md`: comportamiento funcional, reglas de negocio y contratos.
+- `History.md`: origen cronológico de decisiones y contradicciones.
+- `structure.md`: estructura física, responsabilidades y dependencias entre proyectos.
+- `Fases.md`: alcance completado, fase actual y trabajo pendiente.
+- `Subagentes.md`: delegación, contexto, aislamiento, integración y límites multiagente.
+
+Esta lectura completa tampoco se repite automáticamente en cada subagente. Los subagentes deben obedecer este `AGENTS.md` y recibir del coordinador un paquete de contexto acotado con la ruta de trabajo, la rama, el objetivo, los archivos permitidos, las restricciones, los criterios de aceptación y los archivos o secciones documentales que deben leer. No deben recorrer todo el repositorio ni leer todos los Markdown por defecto.
 
 Un subagente solo leerá los archivos fuente, pruebas y secciones documentales asignados. Puede ampliar esa lectura únicamente cuando sea imprescindible para resolver una dependencia directa, comprobar seguridad o aclarar una contradicción; debe explicar al coordinador qué contexto adicional necesitó. Si el contexto suministrado no basta para tomar una decisión segura, debe detenerse y solicitarlo en lugar de asumir. Las auditorías globales, reconciliaciones documentales o revisiones arquitectónicas pueden requerir una lectura más amplia cuando el coordinador la indique expresamente.
 
-Si el rol no está claro, el agente debe considerarse principal y realizar la lectura completa.
+Si el rol no está claro y el thread no tiene contexto previo del proyecto, el agente debe considerarse principal y realizar la lectura inicial completa.
 
 Debes mantener actualizado structure.md, este markdown se trata de documentar la estructura del proyecto e indicar que hace cada paquete, subpaquete y modulos.
 Manten siempre actualizado Fases.md con todas las fases que se ha desarrollado en el proyecto, explicando que incorporo al desarrollo y en donde y por que fue importante implementar esa fase, tambien en ese markdown describe las fases completadas y las fases pendientes por hacer y completar.
 
-Cuando se trabaje con subagentes de IA, el agente principal debe leer `Subagentes.md` y aplicar su protocolo de delegación. Debe trasladar al prompt del subagente las reglas relevantes; no debe obligarlo a releer el documento completo salvo que su tarea lo requiera expresamente.
+Cuando se trabaje con subagentes de IA, el agente principal debe consultar `Subagentes.md` y aplicar su protocolo de delegación. Debe trasladar al prompt del subagente las reglas relevantes; no debe obligarlo a releer el documento completo salvo que su tarea lo requiera expresamente.
 
 ## Tecnología obligatoria
 

@@ -10,7 +10,8 @@ La finalidad de los subagentes es reducir tiempo y ruido de contexto al repartir
 
 - Agente principal o coordinador: GPT-5.6 Sol con razonamiento `medium`.
 - Subagentes de implementación: GPT-5.6 Terra con razonamiento `medium`.
-- Máximo normal: dos subagentes de implementación simultáneos.
+- Límite absoluto por task: como máximo dos subagentes, incluso si existen más cupos disponibles.
+- Dos subagentes son un límite, no un objetivo. Si solo existe una unidad independiente o el costo de coordinación supera el beneficio, utilizar uno o ninguno.
 - `high` se reserva para una revisión puntual que exija lógica compleja, análisis de seguridad, comprobación de supuestos o investigación de un fallo difícil.
 - No elevar el razonamiento de todos los agentes como medida preventiva. Un esfuerzo mayor aumenta la latencia y el consumo de tokens.
 
@@ -20,7 +21,7 @@ Si el producto no permite seleccionar exactamente estos modelos, el coordinador 
 
 El agente principal conserva la autoridad sobre el resultado completo. Debe:
 
-1. Leer completamente la documentación obligatoria indicada en `AGENTS.md`.
+1. Realizar la lectura inicial únicamente si el thread todavía no tiene contexto del proyecto y efectuar las consultas posteriores bajo demanda conforme a `AGENTS.md`.
 2. Inspeccionar el estado de Git, la solución y los archivos relevantes antes de delegar.
 3. Convertir la fase solicitada en tareas pequeñas, independientes y verificables.
 4. Definir para cada subagente el alcance, los archivos permitidos, los archivos prohibidos, los criterios de aceptación y las validaciones esperadas.
@@ -36,7 +37,7 @@ El coordinador siempre debe de indicar explicitamente a los subagentes que son s
 
 ## Política de contexto y lectura
 
-El agente principal es el propietario del contexto completo del proyecto. Debe leer toda la documentación obligatoria de `AGENTS.md`, relacionar las decisiones vigentes y entregar a cada subagente únicamente lo necesario para realizar su tarea con seguridad.
+El agente principal es el propietario del contexto completo del proyecto. La primera vez que un thread entra sin contexto previo debe realizar la lectura inicial definida en `AGENTS.md`, relacionar las decisiones vigentes y entregar a cada subagente únicamente lo necesario para realizar su tarea con seguridad. Las nuevas tareas dentro de ese mismo thread no reinician la lectura: el coordinador consultará documentos bajo demanda y no repetirá todo solo porque él mismo haya actualizado uno o varios Markdown.
 
 Un subagente no debe leer por defecto todos los Markdown ni explorar todo el repositorio. Debe:
 
@@ -56,8 +57,8 @@ Una lectura documental amplia solo se justifica cuando el subagente recibe expre
 Los subagentes son apropiados para:
 
 - Exploraciones de solo lectura con preguntas distintas.
-- Implementaciones en proyectos o archivos sin solapamiento.
-- Creación de pruebas para un contrato ya acordado mientras otro agente implementa una capa independiente.
+- Unidades verticales independientes en proyectos o archivos sin solapamiento, donde cada subagente implementa, crea sus pruebas relacionadas y ejecuta una validación focalizada.
+- Creación de pruebas para un contrato ya acordado únicamente cuando no dependa del código que otro subagente todavía está desarrollando.
 - Revisión enfocada de seguridad, regresiones o cobertura.
 - Análisis separado de documentación oficial o registros de una prueba.
 
@@ -65,11 +66,30 @@ No se debe paralelizar:
 
 - Dos cambios sobre el mismo archivo o la misma responsabilidad.
 - Una interfaz de Core y su consumidor mientras el contrato todavía cambia.
+- La implementación de una característica en un subagente y las pruebas de esa misma característica en otro cuando el segundo deba esperar el resultado del primero.
 - Migraciones, archivos de solución o configuración compartida sin un único propietario.
 - Operaciones reales contra PAM, Credential Manager u Outlook.
 - Cualquier trabajo cuya segunda parte dependa de una decisión o resultado de la primera.
 
+No se deben repartir fases únicamente por su número. Antes de delegar una fase 6 a un subagente y una fase 7 a otro, el coordinador debe demostrar que ninguna depende de decisiones, contratos o archivos todavía no terminados por la otra.
+
+Dos tareas son realmente independientes solo si:
+
+- Cada una puede avanzar y validarse sin esperar el resultado de la otra.
+- Sus contratos compartidos ya están definidos y no cambiarán durante el trabajo paralelo.
+- No modifican los mismos archivos, proyectos compartidos ni una misma responsabilidad.
+- Un fallo o cambio de alcance en una no invalida el trabajo de la otra.
+
 Cuando exista riesgo de solapamiento, el coordinador debe ejecutar las tareas de forma secuencial.
+
+## Trabajo por oleadas
+
+El coordinador debe organizar el paralelismo en oleadas:
+
+1. **Oleada 0 — preparación:** inspeccionar el estado, fijar contratos y decisiones compartidas, asignar un único propietario para `.slnx`, `.csproj`, documentación común o interfaces transversales y preparar las bases de trabajo.
+2. **Oleada 1 — ejecución:** delegar como máximo dos unidades verticales independientes. Cada subagente es responsable de su implementación, sus pruebas relacionadas y su validación focalizada.
+3. **Integración:** revisar e integrar un resultado a la vez, ejecutar la validación consolidada y resolver cualquier incompatibilidad antes de continuar.
+4. **Oleada siguiente:** delegar trabajo dependiente solo después de que la base anterior esté integrada y validada.
 
 ## Aislamiento con ramas y worktrees
 
@@ -116,6 +136,7 @@ Archivos y secciones exactas que debe leer:
 Lecturas amplias que no debe realizar:
 Restricciones de seguridad y tecnología:
 Criterios de aceptación:
+Implementación, pruebas relacionadas y validación focalizada a cargo del subagente:
 Comandos de validación permitidos:
 Formato del informe final:
 ```
@@ -170,6 +191,7 @@ Si una integración falla, el coordinador debe conservar la evidencia, identific
 Cada subagente consume sus propios tokens de modelo y herramientas. Para limitar el gasto:
 
 - Utilizar uno o dos subagentes solo cuando exista paralelismo real.
+- No superar dos subagentes en un mismo task ni reemplazar un subagente finalizado por un tercero para eludir el límite.
 - Mantener `medium` como razonamiento normal.
 - Entregar contexto relevante y rutas concretas, evitando exploraciones completas duplicadas.
 - No hacer que cada subagente relea todos los Markdown ni todo el historial del chat.

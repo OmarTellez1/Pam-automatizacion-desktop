@@ -574,7 +574,7 @@ No se requieren .NET MAUI, WinUI, C++, ASP.NET, Azure, Node.js, Python, Java ni 
 
 ## Reglas obligatorias para Codex
 
-1. El agente principal debe leer la documentación completa exigida por `AGENTS.md` antes de analizar o modificar el proyecto. Un subagente debe obedecer `AGENTS.md` y leer únicamente los archivos y secciones que el coordinador asigne en su paquete de contexto; no debe recorrer todo el repositorio ni todos los Markdown por defecto.
+1. La primera vez que un thread nuevo de Codex entra al proyecto sin contexto previo, el agente principal debe leer una vez la documentación completa exigida por `AGENTS.md`. Las nuevas tareas o prompts dentro del mismo thread no reinician esa obligación: debe consultar bajo demanda solo los documentos necesarios, y una edición realizada por el propio agente no obliga a releerlos por completo. Un subagente debe obedecer `AGENTS.md` y leer únicamente los archivos y secciones que el coordinador asigne en su paquete de contexto; no debe recorrer todo el repositorio ni todos los Markdown por defecto.
 2. Mantener actualizados `README.md`, `LOGIC.md` y `History.md` después de cambios relevantes.
 3. No crear archivos `.js`, `.mjs`, `.ts`, `.py`, `.ps1` ni proyectos Node.
 4. No cambiar la decisión de utilizar Edge externo sin una autorización explícita.
@@ -708,7 +708,7 @@ Cuando existan diferencias entre fuentes, utilizar este orden:
 
 Si una fuente contradice a otra, Codex debe detenerse, describir la contradicción y solicitar una decisión. No debe elegir silenciosamente una de las versiones.
 
-## Archivos que el agente principal debe leer antes de implementar
+## Lectura inicial del agente principal
 
 En el nuevo proyecto, ubicado en `C:\pam automatizacion dotnet\PamAutomation`, deben existir como mínimo:
 
@@ -717,7 +717,7 @@ C:\pam automatizacion dotnet\PamAutomation\AGENTS.md
 C:\pam automatizacion dotnet\PamAutomation\CODEX_BUILD_SPEC.md
 ```
 
-Antes de modificar código, el agente principal debe leer completamente esos dos archivos y las demás lecturas vigentes definidas en `AGENTS.md`.
+La primera vez que un thread nuevo entra al proyecto sin contexto previo, el agente principal debe leer completamente esos dos archivos y las demás lecturas vigentes definidas en `AGENTS.md`. Esta lectura inicial se realiza una sola vez durante la vida de ese thread. Las nuevas tareas, fases o solicitudes dentro del mismo thread deben usar el contexto conservado y el índice de `AGENTS.md` para consultar solo lo necesario. La lectura completa solo se repite si otro thread o coordinador entra sin contexto suficiente, aparece una contradicción que exige reconciliar toda la documentación o el usuario la solicita expresamente.
 
 Después, cuando la fase lo necesite, el agente principal debe inspeccionar como referencia de solo lectura las partes pertinentes del proyecto anterior:
 
@@ -741,6 +741,10 @@ Los subagentes no repiten estas lecturas completas. El coordinador debe proporci
 - Cada tarea debe tener un alcance pequeño y una lista explícita de archivos permitidos.
 - El agente principal debe conservar el contexto global; los subagentes recibirán contexto mínimo suficiente y lecturas documentales concretas conforme a `Subagentes.md`.
 - No pedir a todos los subagentes que relean toda la documentación o el repositorio cuando su tarea sea acotada.
+- No utilizar más de dos subagentes en un mismo task. El límite no obliga a usar ambos cuando no exista paralelismo real.
+- Cada subagente de implementación debe recibir una unidad vertical independiente y hacerse cargo del código, las pruebas relacionadas y la validación focalizada de su alcance.
+- No separar entre dos subagentes la implementación y las pruebas de una misma característica cuando uno deba esperar al otro.
+- Fijar primero los contratos y archivos compartidos; ejecutar el trabajo independiente por oleadas e integrar un resultado a la vez.
 - Codex debe restaurar cuando corresponda, compilar y ejecutar desde la terminal las pruebas relacionadas con cada cambio.
 - No aceptar frases como “debería funcionar” sin evidencia de compilación o pruebas.
 - Si una prueba falla, reparar únicamente la causa demostrada.

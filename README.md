@@ -34,13 +34,13 @@ La configuración de Outlook tendrá además una comprobación manual independie
 
 ## Documentación
 
-- AGENTS.md: reglas de trabajo para Codex.
+- AGENTS.md: reglas permanentes que Codex carga normalmente en cada tarea e índice para consultar los demás documentos bajo demanda. La lectura completa de esos otros Markdown se realiza únicamente la primera vez que un thread entra al proyecto sin contexto previo; nuevas tareas dentro del mismo thread no la reinician.
 - CODEX_BUILD_SPEC.md: especificación completa y fuente principal de decisiones.
 - LOGIC.md: lógica prevista y contratos del sistema.
 - History.md: historial propio de este proyecto nuevo.
 - structure.md: estructura física actual, responsabilidades de proyectos y arquitectura objetivo.
 - Fases.md: resumen acumulativo de lo incorporado y la importancia de cada fase.
-- Subagentes.md: protocolo de delegación, contexto acotado, aislamiento, revisión, integración y control de consumo para trabajo multiagente.
+- Subagentes.md: protocolo para un máximo de dos subagentes, con unidades verticales independientes, contexto acotado, aislamiento, pruebas propias, integración y control de consumo.
 
 ## Referencia histórica
 
