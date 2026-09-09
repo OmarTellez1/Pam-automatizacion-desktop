@@ -143,7 +143,7 @@ La primera versión utilizará Edge visible para la comprobación de credenciale
 
 Los locators se refieren al DOM HTML del portal externo. La interfaz propia no utilizará HTML, CSS ni JavaScript. Priorizar roles, labels y atributos estables; CSS o XPath solo como último recurso.
 
-La fase 10 permite que `PamAuthenticationService` entregue una sesión temporal ya autenticada cuyo consumidor debe cerrar. `PamFavoritesService` utiliza esa misma sesión para navegar a `/webconsole/ps/portal?tab=accounts`, identificar `Browse by Category` y seleccionar `Favorites`. El adaptador lee mediante locators las columnas `SystemName`, `ApplicationName` y `AccountName`, espera filas completas y estables y recorre el paginador accesible cuando existe, con un límite de 500 páginas.
+La fase 10 permite que `PamAuthenticationService` entregue una sesión temporal ya autenticada cuyo consumidor debe cerrar. `PamFavoritesService` utiliza esa misma sesión para navegar a `/webconsole/ps/portal?tab=accounts`, identificar `Browse by Category` y seleccionar `Favorites`. El adaptador lee mediante locators las columnas visibles `System`, `Application` y `Account`, cuyos identificadores DOM actuales son `SystemName`, `ApplicationName` y `AccountName`; espera filas completas y estables y recorre el paginador accesible cuando existe, con un límite de 500 páginas.
 
 Las identidades se conservan únicamente en memoria, redactan su representación textual y se validan como completas y únicas. El contrato no contiene métodos para seleccionar filas, abrir formularios o enviar solicitudes. La integración real `READ_ONLY` confirmó la navegación y lectura sin imprimir las cuentas ni producir efectos posteriores.
 
@@ -154,19 +154,19 @@ La aplicación debe separar claramente:
 - Modo prueba: llena y valida formularios, descarta cada formulario y nunca pulsa Submit Request.
 - Modo real: requiere confirmación y crea solicitudes.
 
-La fase 11 implementa el modo de prueba mediante `PamRequestTestService`. El servicio reutiliza una única sesión autenticada para leer todas las cuentas de Favorites y entregar cada identidad al contrato `IPamRequestTestPortal`, que solo permite abrir, llenar, verificar y descartar; no expone ninguna operación de envío. Antes de interactuar con formularios, el adaptador Browser instala además una ruta que aborta cualquier acceso al endpoint `POST /api/ps-portal/requests` y trata un intento interceptado como fallo de seguridad.
+La fase 11 implementa el modo de prueba mediante `PamRequestTestService`. El servicio reutiliza una única sesión autenticada para leer todas las `Favorites` rows y entregar cada identidad `System + Application + Account` al contrato `IPamRequestTestPortal`, que solo permite abrir, llenar, verificar y descartar; no expone ninguna operación de envío. Antes de interactuar con formularios, el adaptador Browser instala además una ruta que aborta cualquier acceso al endpoint `POST /api/ps-portal/requests` y trata un intento interceptado como fallo de seguridad.
 
 Cada formulario conserva y comprueba fecha, hora, duración, razón y `Application Session`, luego ejecuta `Cancel > Discard Changes` y espera su cierre. El resultado permanece en memoria y fija `SubmittedCount` en cero. La integración explícita `VALIDATE_AND_DISCARD` validó y descartó 14 de 14 formularios en Edge visible con `submitted = 0`; no abrió Outlook ni persistió identidades o contenido.
 
 El usuario podrá cambiar `testModeEnabled` mediante `Habilitar modo de prueba` en una sección avanzada de Configuración de solicitud; no necesitará editar el JSON. `Iniciar prueba` solo será visible cuando esa opción sea verdadera y la configuración de credenciales y solicitud esté completa. Si la acción final es correo, también deberá existir una configuración de correo válida, pero los destinatarios guardados no se usarán: el correo de prueba se enviará exclusivamente a `tellezoe@hitss.com`, sin CC, con asunto prefijado por `[PRUEBA]` y después de una confirmación que muestre el destinatario exacto.
 
-El modo real debe recorrer todas las cuentas de Favorites, todas las páginas y las solicitudes Pending relevantes. Debe validar sistema, aplicación, cuenta, familia, fecha, hora, duración y razón antes de cada envío.
+El modo real debe recorrer todas las `Favorites` rows, todas las páginas y las solicitudes `Pending` relevantes. Debe validar `System`, `Application`, `Account`, familia de `Application`, fecha, hora, duración y razón antes de cada envío.
 
 ## Colecciones personalizadas posteriores a la migración
 
-Después de completar la migración inicial se incorporará una fase para crear colecciones locales editables de cuentas disponibles en Favorites. Una colección permitirá ejecutar un subconjunto elegido por el usuario, tendrá nombre propio y conservará una configuración predeterminada de fecha, hora, duración y razón. Se prevén sobrescrituras opcionales por cuenta, sujetas a confirmación durante el diseño de esa fase.
+Después de completar la migración inicial se incorporará una fase para crear colecciones locales editables de `Favorites` rows. Una colección permitirá ejecutar un subconjunto elegido por el usuario, tendrá nombre propio y conservará una configuración predeterminada de fecha, hora, duración y razón. Se prevén sobrescrituras opcionales por fila, sujetas a confirmación durante el diseño de esa fase.
 
-La colección guardará claves lógicas completas, nunca índices del grid. Favorites continuará siendo la fuente de verdad: cada apertura o ejecución actualizará todas sus páginas y clasificará los elementos guardados como disponibles, no disponibles o ambiguos. No se agregarán cuentas nuevas automáticamente ni se reemplazarán identidades por coincidencias aproximadas.
+La colección guardará claves lógicas completas `System + Application + Account`, nunca índices del grid. `Favorites` continuará siendo la fuente de verdad: cada apertura o ejecución actualizará todas sus páginas y clasificará las filas guardadas como `Available`, `Missing` o `Ambiguous`. Las filas `New in Favorites` no se agregarán automáticamente ni se reemplazarán identidades por coincidencias aproximadas.
 
 La referencia visual aportada establece una futura entrada nativa WPF con día, mes, descripción completa de fecha, hora de 12 horas y selector `AM/PM`, duración operativa en horas y razón. La conversión temporal se realizará en el dominio y el adaptador comprobará el valor normalizado por PAM. El recorrido confirmado, sus selectores e invariantes se mantienen en `PAM_NAVIGATION.md`.
 

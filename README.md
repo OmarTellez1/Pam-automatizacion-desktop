@@ -8,7 +8,7 @@ La raíz oficial del repositorio es `C:\pam automatizacion dotnet\PamAutomation`
 
 La solución `PamAutomation.slnx` contiene la aplicación WPF `PamAutomation.App` y los proyectos base `PamAutomation.Core`, `PamAutomation.Browser`, `PamAutomation.Outlook`, `PamAutomation.Infrastructure` y `PamAutomation.Tests`. Las fases 3A y 3B incorporan el dominio, la validación y la persistencia JSON de la configuración no sensible; las fases 4 a 7 incorporan credenciales protegidas, TOTP, reloj HTTP y sesión restringida de Edge. Las fases 8 a 11 agregan autenticación simulada, login real, lectura paginada de Favorites y validación segura de formularios; la fase 14 incorpora los contratos y el adaptador COM testeable de Outlook clásico. Todavía no existen solicitudes reales o composición HTML, y la interfaz no está conectada a estos servicios.
 
-`PamAutomation.Tests` utiliza MSTest con Microsoft Testing Platform e incluye pruebas de presentación, configuración, credenciales, TOTP, reloj HTTP, navegador, autenticación, Favorites, formularios seguros y Outlook. Las fases 1, 2, 2B, 3A, 3B, 4, 5, 6, 7, 8, 9, 10, 11 y 14 fueron compiladas y validadas con `Release | x64`; actualmente hay 154 pruebas aprobadas. La integración de fase 11 es deliberadamente opt-in mediante `PAM_AUTOMATION_ALLOW_REAL_REQUEST_FORMS=VALIDATE_AND_DISCARD`, lee Windows Credential Manager y bloquea por red el endpoint de creación. La validación autorizada recorrió 14 cuentas, descartó sus 14 formularios y confirmó `submitted = 0`. El diseño 2B fue aprobado funcional y visualmente, aunque queda pendiente reducir la escala de sus elementos.
+`PamAutomation.Tests` utiliza MSTest con Microsoft Testing Platform e incluye pruebas de presentación, configuración, credenciales, TOTP, reloj HTTP, navegador, autenticación, `Favorites`, formularios seguros y Outlook. Las fases 1, 2, 2B, 3A, 3B, 4, 5, 6, 7, 8, 9, 10, 11 y 14 fueron compiladas y validadas con `Release | x64`; actualmente hay 154 pruebas aprobadas. La integración de fase 11 es deliberadamente opt-in mediante `PAM_AUTOMATION_ALLOW_REAL_REQUEST_FORMS=VALIDATE_AND_DISCARD`, lee Windows Credential Manager y bloquea por red el endpoint de creación. La validación autorizada recorrió 14 `Favorites` rows, descartó sus 14 formularios y confirmó `submitted = 0`. El diseño 2B fue aprobado funcional y visualmente, aunque queda pendiente reducir la escala de sus elementos.
 
 Todo el flujo de desarrollo se administra exclusivamente desde la terminal con el SDK x64 de .NET 10: restauración, compilación, pruebas, ejecución y publicación.
 
@@ -20,7 +20,7 @@ La aplicación permitirá:
 - Generar TOTP usando la hora HTTP del portal.
 - Iniciar sesión en BeyondInsight mediante Playwright .NET.
 - Utilizar Microsoft Edge instalado externamente.
-- Procesar las cuentas de Favorites.
+- Procesar las `Favorites` rows mediante su identidad `System + Application + Account`.
 - Ejecutar un modo de prueba que nunca cree solicitudes.
 - Crear solicitudes reales tras confirmación explícita.
 - Leer solicitudes Pending, paginación y conflictos.

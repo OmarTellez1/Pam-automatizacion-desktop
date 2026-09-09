@@ -27,7 +27,7 @@ La aplicación debe:
 3. Iniciar sesión en BeyondInsight mediante Playwright .NET.
 4. Utilizar Microsoft Edge instalado localmente como navegador automatizado.
 5. Entrar en `Accounts > Browse By Category > Favorites`.
-6. Crear o recuperar solicitudes PAM para las cuentas favoritas.
+6. Crear o recuperar solicitudes PAM para las `Favorites` rows seleccionadas, identificadas por `System + Application + Account`.
 7. Ejecutar pruebas sin crear solicitudes reales.
 8. Crear solicitudes reales únicamente después de confirmación explícita.
 9. Leer y validar solicitudes en estado `Pending`.
@@ -269,7 +269,7 @@ Si alguno de estos controles falla, no pulsar `Submit Request`.
 El modo de prueba debe:
 
 - Entrar en Favorites.
-- Recorrer todas las cuentas encontradas.
+- Recorrer todas las `Favorites` rows encontradas.
 - Llenar cada formulario.
 - Validar los campos.
 - Descartar el formulario.
@@ -302,7 +302,7 @@ El modo real debe:
 - Contar las cuentas dinámicamente.
 - Recorrer todas las páginas.
 - Crear o recuperar una solicitud `Pending` por cada cuenta.
-- Comparar sistema, aplicación, cuenta y familia de aplicación.
+- Comparar `System`, `Application`, `Account` y familia de `Application`.
 - Comparar exactamente fecha y hora de inicio.
 - No asumir que existen 14 cuentas.
 - No asumir que todo cabe en una página.
@@ -620,9 +620,9 @@ No se requieren .NET MAUI, WinUI, C++, ASP.NET, Azure, Node.js, Python, Java ni 
 
 No avanzar a la siguiente etapa si la etapa actual no compila y no tiene una prueba mínima.
 
-La fase 20 es una ampliación posterior a la migración y no modifica el camino crítico de las fases 12 a 19. Debe mostrar todas las cuentas disponibles en Favorites, permitir que el usuario seleccione cualquier subconjunto, nombrar y editar la colección y conservar fecha, hora, duración y razón predeterminadas. Podrá admitir valores específicos por cuenta después de confirmar su experiencia de edición.
+La fase 20 es una ampliación posterior a la migración y no modifica el camino crítico de las fases 12 a 19. Debe mostrar todas las `Favorites` rows, indicar cuáles tienen `Account Status = Available`, permitir que el usuario seleccione cualquier subconjunto, nombrar y editar la colección y conservar fecha, hora, duración y razón predeterminadas. Podrá admitir valores específicos por fila después de confirmar su experiencia de edición.
 
-Las colecciones guardarán identidades completas, no índices o páginas del grid, y deberán reconciliarse con un snapshot vivo de todas las páginas de Favorites antes de editarse o ejecutarse. Su persistencia será privada, versionada, atómica y protegida con DPAPI `CurrentUser`. El recorrido web y las invariantes detalladas se mantienen en `PAM_NAVIGATION.md`.
+Las colecciones guardarán identidades completas `System + Application + Account`, no índices o páginas del grid, y deberán reconciliarse con un snapshot vivo de todas las páginas de `Favorites` antes de editarse o ejecutarse. Su persistencia será privada, versionada, atómica y protegida con DPAPI `CurrentUser`. El recorrido web y las invariantes detalladas se mantienen en `PAM_NAVIGATION.md`.
 
 ## Criterio de finalización
 

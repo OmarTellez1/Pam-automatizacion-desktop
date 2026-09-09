@@ -254,18 +254,20 @@ Cada cambio relevante debe registrar qué se decidió, por qué, qué se verific
 - Antes de abrir formularios se instala un bloqueo de red para el endpoint de creación; cualquier intento de `POST /api/ps-portal/requests` se aborta y se informa como fallo.
 - La primera integración se detuvo de forma segura porque React restableció `Start Time`; se incorporó el segundo llenado condicionado ya conocido en la referencia anterior.
 - Otra ejecución reveló que ciertos formularios abren Flatpickr automáticamente; la selección de fecha se hizo idempotente para no cerrar el calendario con un clic redundante.
-- La integración final abrió Edge visible y confirmó 14 cuentas encontradas, 14 formularios validados y descartados y `submitted = 0`.
+- La integración final abrió Edge visible y confirmó 14 `Favorites` rows encontradas, 14 formularios validados y descartados y `submitted = 0`.
 - No se creó ninguna solicitud, no se abrió Outlook, no se envió correo y no se imprimieron ni persistieron identidades, credenciales o valores del formulario.
 - La solución compiló en `Release | x64` con 0 errores y el proyecto de pruebas ejecutó 154 pruebas correctas. Permanece la advertencia heredada `MSTEST0032`, fuera del alcance de la fase.
 
 ## 9 de septiembre de 2026 — Plan post-migración: colecciones personalizadas
 
 - El usuario definió una ampliación nueva que no existe en la aplicación JavaScript anterior y debe comenzar solo después de completar la migración.
-- Una colección local permitirá seleccionar cualquier subconjunto de cuentas actualmente disponible en Favorites, asignarle un nombre editable y conservar fecha, hora, duración y razón predeterminadas.
+- Una colección local permitirá seleccionar cualquier subconjunto de `Favorites` rows, asignarle un nombre editable y conservar fecha, hora, duración y razón predeterminadas.
 - Se registró como fase 20, dependiente de la finalización de la migración y de las pruebas administradas de fase 19; no cambia el alcance de fase 12.
 - Se tomó la referencia visual como guía para día, mes, descripción completa de fecha, entrada de hora con `AM/PM`, duración en horas, razón y guardado explícito.
-- Se previeron sobrescrituras opcionales por cuenta para solicitudes personalizadas, cuya experiencia exacta deberá confirmarse al diseñar la fase.
-- Favorites permanecerá como fuente de verdad. Las colecciones guardarán identidades completas y se reconciliarán con todas las páginas para detectar cuentas disponibles, eliminadas, nuevas o ambiguas sin sustituciones silenciosas.
+- Se previeron sobrescrituras opcionales por `Favorites` row para solicitudes personalizadas, cuya experiencia exacta deberá confirmarse al diseñar la fase.
+- `Favorites` permanecerá como fuente de verdad. Las colecciones guardarán `System + Application + Account` y se reconciliarán con todas las páginas para detectar filas `Available`, `Missing`, `New in Favorites` o `Ambiguous` sin sustituciones silenciosas.
 - Las colecciones se tratarán como configuración privada, versionada, atómica y protegida con DPAPI `CurrentUser`; no contendrán credenciales, TOTP, cookies ni resultados.
 - Se creó `PAM_NAVIGATION.md` con el recorrido web confirmado, selectores, comportamiento observado de los controles e invariantes necesarios para implementar colecciones sin depender de índices del grid.
+- El usuario aclaró que los nombres visibles del portal deben conservarse en inglés. Se documentaron `Account`, `Description`, `System`, `Account Status`, `IP Address`, `Platform` y `Application`, y se reservó `Favorites` row para referirse inequívocamente a una fila completa.
+- Se dejó explícito que `Account` no identifica por sí solo una fila: puede repetirse y la clave confirmada hasta fase 11 es `System + Application + Account`.
 - Este cambio fue exclusivamente documental: no se inició la fase 12, no se modificó código, no se abrió PAM y no se creó ninguna solicitud.

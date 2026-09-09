@@ -52,13 +52,13 @@ Se implementó en `PamAutomation.Browser` el adaptador Playwright real enlazado 
 
 ## Fase 10 — Navegación a Favorites
 
-Se agregó un contrato de sesión autenticada reutilizable y `PamFavoritesService` para mantener login y lectura dentro del mismo contexto temporal. El adaptador real navega a Accounts, selecciona `Browse by Category > Favorites`, espera un grid estable, recorre el paginador accesible cuando existe y construye identidades redactadas de sistema, aplicación y cuenta. Core rechaza resultados vacíos, incompletos o duplicados. La API de esta fase es exclusivamente de lectura y no permite seleccionar filas ni abrir formularios. La integración real autorizada confirmó Favorites y cerró Edge sin solicitar accesos. La solución compiló en `Release | x64` y ejecutó 146 pruebas correctas.
+Se agregó un contrato de sesión autenticada reutilizable y `PamFavoritesService` para mantener login y lectura dentro del mismo contexto temporal. El adaptador real navega a `Accounts`, selecciona `Browse by Category > Favorites`, espera un grid estable, recorre el paginador accesible cuando existe y construye identidades redactadas `System + Application + Account` para cada `Favorites` row. Core rechaza resultados vacíos, incompletos o duplicados. La API de esta fase es exclusivamente de lectura y no permite seleccionar filas ni abrir formularios. La integración real autorizada confirmó `Favorites` y cerró Edge sin solicitar accesos. La solución compiló en `Release | x64` y ejecutó 146 pruebas correctas.
 
 ## Fase 11 — Modo de prueba de solicitudes
 
-Se implementó `PamRequestTestService` y un contrato deliberadamente incapaz de enviar solicitudes. El flujo reutiliza la sesión autenticada de fase 10, recorre cada cuenta de Favorites, vuelve a comprobar su identidad, abre `Access`, llena fecha, hora, duración y razón, valida `Application Session` y descarta el formulario mediante `Cancel > Discard Changes`. El adaptador instala además un bloqueo de red para `POST /api/ps-portal/requests`; cualquier intento interceptado hace fallar la prueba.
+Se implementó `PamRequestTestService` y un contrato deliberadamente incapaz de enviar solicitudes. El flujo reutiliza la sesión autenticada de fase 10, recorre cada `Favorites` row, vuelve a comprobar `System + Application + Account`, abre `Access`, llena fecha, hora, duración y razón, valida `Application Session` y descarta el formulario mediante `Cancel > Discard Changes`. El adaptador instala además un bloqueo de red para `POST /api/ps-portal/requests`; cualquier intento interceptado hace fallar la prueba.
 
-El resultado se mantiene en memoria, no contiene identidades y define `SubmittedCount = 0`. La integración real visible autorizada procesó 14 cuentas, validó y descartó los 14 formularios y confirmó cero envíos. La solución compiló en `Release | x64` y el proyecto completo ejecutó 154 pruebas correctas.
+El resultado se mantiene en memoria, no contiene identidades y define `SubmittedCount = 0`. La integración real visible autorizada procesó 14 `Favorites` rows, validó y descartó los 14 formularios y confirmó cero envíos. La solución compiló en `Release | x64` y el proyecto completo ejecutó 154 pruebas correctas.
 
 ## Fase 14 — Outlook falso y Outlook COM
 
@@ -83,7 +83,7 @@ La clasificación siguiente se refiere únicamente a dependencias entre fases pe
 | 17 — Evidencias técnicas de desarrollo | **Dependiente** | Fase 16 y flujos operativos integrados. | Es transversal y debe conocer qué fallos pueden diagnosticarse sin persistir secretos. No conviene paralelizarla con cambios activos en esos flujos. |
 | 18 — Instalador y publicación autocontenida | **Dependiente** | Fases 6 a 17. | Requiere que la aplicación y sus dependencias externas estén definidas y validadas. |
 | 19 — Pruebas finales administradas | **Dependiente** | Fase 18. | Es la validación final del producto publicado en el entorno Windows objetivo. |
-| 20 — Colecciones personalizadas post-migración | **Dependiente** | Migración inicial y fase 19 completadas. | Permitirá seleccionar subconjuntos editables de Favorites, guardar configuración general y posibles sobrescrituras por cuenta. Es alcance nuevo y no debe mezclarse con las fases 12 a 19. |
+| 20 — Colecciones personalizadas post-migración | **Dependiente** | Migración inicial y fase 19 completadas. | Permitirá seleccionar subconjuntos editables de `Favorites` rows, guardar configuración general y posibles sobrescrituras por fila. Es alcance nuevo y no debe mezclarse con las fases 12 a 19. |
 
 ## Mapa recomendado de trabajo paralelo
 

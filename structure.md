@@ -562,10 +562,10 @@ No se deben crear carpetas vacías por adelantado. Cada submódulo aparecerá ú
 
 La fase 20 añadirá colecciones personalizadas sin convertirlas en una función del portal PAM. La forma física definitiva se decidirá después de la migración, pero deberá respetar estos límites:
 
-- `PamAutomation.Core/Collections`: modelos de colección, claves completas de cuenta, configuración predeterminada, sobrescrituras opcionales y reconciliación con Favorites.
+- `PamAutomation.Core/Collections`: modelos de colección, claves `System + Application + Account` de cada `Favorites` row, configuración predeterminada, sobrescrituras opcionales y reconciliación con `Favorites`.
 - `PamAutomation.Infrastructure/Collections`: documento versionado, protección DPAPI `CurrentUser` y escritura atómica bajo la configuración privada del usuario.
-- `PamAutomation.App/Views` y `ViewModels`: listado de colecciones, editor de nombre, selector paginado o filtrable de Favorites y configuración WPF con hora `AM/PM`.
-- `PamAutomation.Browser`: no administrará colecciones; continuará entregando el snapshot vivo de Favorites y ejecutando únicamente el subconjunto validado que Core le indique.
+- `PamAutomation.App/Views` y `ViewModels`: listado de colecciones, editor de nombre, selector paginado o filtrable de `Favorites` rows y configuración WPF con hora `AM/PM`.
+- `PamAutomation.Browser`: no administrará colecciones; continuará entregando el snapshot vivo de `Favorites` y ejecutando únicamente el subconjunto validado que Core le indique.
 - `PamAutomation.Tests`: cubrirá reconciliación, persistencia protegida, selección, conversiones horarias y bloqueo de envíos no autorizados.
 
 Esta sección describe arquitectura prevista y no afirma que esos directorios o módulos existan todavía. El detalle funcional y de navegación está en `PAM_NAVIGATION.md`.
