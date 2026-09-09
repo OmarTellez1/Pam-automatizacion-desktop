@@ -257,3 +257,15 @@ Cada cambio relevante debe registrar qué se decidió, por qué, qué se verific
 - La integración final abrió Edge visible y confirmó 14 cuentas encontradas, 14 formularios validados y descartados y `submitted = 0`.
 - No se creó ninguna solicitud, no se abrió Outlook, no se envió correo y no se imprimieron ni persistieron identidades, credenciales o valores del formulario.
 - La solución compiló en `Release | x64` con 0 errores y el proyecto de pruebas ejecutó 154 pruebas correctas. Permanece la advertencia heredada `MSTEST0032`, fuera del alcance de la fase.
+
+## 9 de septiembre de 2026 — Plan post-migración: colecciones personalizadas
+
+- El usuario definió una ampliación nueva que no existe en la aplicación JavaScript anterior y debe comenzar solo después de completar la migración.
+- Una colección local permitirá seleccionar cualquier subconjunto de cuentas actualmente disponible en Favorites, asignarle un nombre editable y conservar fecha, hora, duración y razón predeterminadas.
+- Se registró como fase 20, dependiente de la finalización de la migración y de las pruebas administradas de fase 19; no cambia el alcance de fase 12.
+- Se tomó la referencia visual como guía para día, mes, descripción completa de fecha, entrada de hora con `AM/PM`, duración en horas, razón y guardado explícito.
+- Se previeron sobrescrituras opcionales por cuenta para solicitudes personalizadas, cuya experiencia exacta deberá confirmarse al diseñar la fase.
+- Favorites permanecerá como fuente de verdad. Las colecciones guardarán identidades completas y se reconciliarán con todas las páginas para detectar cuentas disponibles, eliminadas, nuevas o ambiguas sin sustituciones silenciosas.
+- Las colecciones se tratarán como configuración privada, versionada, atómica y protegida con DPAPI `CurrentUser`; no contendrán credenciales, TOTP, cookies ni resultados.
+- Se creó `PAM_NAVIGATION.md` con el recorrido web confirmado, selectores, comportamiento observado de los controles e invariantes necesarios para implementar colecciones sin depender de índices del grid.
+- Este cambio fue exclusivamente documental: no se inició la fase 12, no se modificó código, no se abrió PAM y no se creó ninguna solicitud.

@@ -162,6 +162,14 @@ El usuario podrá cambiar `testModeEnabled` mediante `Habilitar modo de prueba` 
 
 El modo real debe recorrer todas las cuentas de Favorites, todas las páginas y las solicitudes Pending relevantes. Debe validar sistema, aplicación, cuenta, familia, fecha, hora, duración y razón antes de cada envío.
 
+## Colecciones personalizadas posteriores a la migración
+
+Después de completar la migración inicial se incorporará una fase para crear colecciones locales editables de cuentas disponibles en Favorites. Una colección permitirá ejecutar un subconjunto elegido por el usuario, tendrá nombre propio y conservará una configuración predeterminada de fecha, hora, duración y razón. Se prevén sobrescrituras opcionales por cuenta, sujetas a confirmación durante el diseño de esa fase.
+
+La colección guardará claves lógicas completas, nunca índices del grid. Favorites continuará siendo la fuente de verdad: cada apertura o ejecución actualizará todas sus páginas y clasificará los elementos guardados como disponibles, no disponibles o ambiguos. No se agregarán cuentas nuevas automáticamente ni se reemplazarán identidades por coincidencias aproximadas.
+
+La referencia visual aportada establece una futura entrada nativa WPF con día, mes, descripción completa de fecha, hora de 12 horas y selector `AM/PM`, duración operativa en horas y razón. La conversión temporal se realizará en el dominio y el adaptador comprobará el valor normalizado por PAM. El recorrido confirmado, sus selectores e invariantes se mantienen en `PAM_NAVIGATION.md`.
+
 El conflicto PSPortal.Requests.Policies.RemoteAppAccesssAlreadyAvailable se registra y permite continuar. Otros errores deben detener el proceso.
 
 ## Outlook

@@ -41,6 +41,7 @@ La configuración de Outlook tendrá además una comprobación manual independie
 - structure.md: estructura física actual, responsabilidades de proyectos y arquitectura objetivo.
 - Fases.md: resumen acumulativo, dependencias entre fases pendientes y combinaciones de trabajo paralelo recomendadas.
 - Subagentes.md: protocolo para un máximo de dos subagentes, con unidades verticales independientes, contexto acotado, aislamiento, pruebas propias, integración y control de consumo.
+- PAM_NAVIGATION.md: recorrido confirmado del portal, selectores e invariantes, y diseño preliminar de colecciones personalizadas posteriores a la migración.
 
 ## Referencia histórica
 

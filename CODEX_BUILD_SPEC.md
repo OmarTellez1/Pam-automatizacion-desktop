@@ -245,8 +245,8 @@ Reglas:
 - No permitir fechas anteriores al día actual de Ecuador.
 - No permitir días inexistentes de cada mes.
 - No permitir horas pasadas antes de iniciar la automatización.
-- Mantener la hora técnica en formato de 24 horas para Playwright.
-- Mostrar la hora al usuario en formato local de 12 horas si se considera más usable.
+- Mantener internamente una representación temporal inequívoca y comprobar el valor de 24 horas normalizado por PAM.
+- Mostrar y solicitar la hora al usuario en formato de 12 horas con selector explícito `AM/PM`.
 - Mantener `Days` en cero.
 - Escribir la duración únicamente en `Hours`.
 - Validar fecha, hora, duración y razón antes de comenzar.
@@ -616,8 +616,13 @@ No se requieren .NET MAUI, WinUI, C++, ASP.NET, Azure, Node.js, Python, Java ni 
 17. Implementar evidencias de desarrollo en `results`, `logs`, `artifacts` y `temp` de la raíz, excluidas de Git.
 18. Implementar instalador sin incluir evidencias de desarrollo.
 19. Ejecutar pruebas finales en un equipo Windows administrado.
+20. Después de completar la migración, implementar colecciones locales editables para ejecutar subconjuntos de Favorites.
 
 No avanzar a la siguiente etapa si la etapa actual no compila y no tiene una prueba mínima.
+
+La fase 20 es una ampliación posterior a la migración y no modifica el camino crítico de las fases 12 a 19. Debe mostrar todas las cuentas disponibles en Favorites, permitir que el usuario seleccione cualquier subconjunto, nombrar y editar la colección y conservar fecha, hora, duración y razón predeterminadas. Podrá admitir valores específicos por cuenta después de confirmar su experiencia de edición.
+
+Las colecciones guardarán identidades completas, no índices o páginas del grid, y deberán reconciliarse con un snapshot vivo de todas las páginas de Favorites antes de editarse o ejecutarse. Su persistencia será privada, versionada, atómica y protegida con DPAPI `CurrentUser`. El recorrido web y las invariantes detalladas se mantienen en `PAM_NAVIGATION.md`.
 
 ## Criterio de finalización
 

@@ -54,6 +54,7 @@ PamAutomation\
 ├── structure.md
 ├── Fases.md
 ├── Subagentes.md
+├── PAM_NAVIGATION.md
 ├── .gitignore
 ├── PamAutomation.slnx
 │
@@ -478,6 +479,7 @@ PamAutomation\
 │   ├── History.md
 │   ├── structure.md
 │   ├── Subagentes.md
+│   ├── PAM_NAVIGATION.md
 │   └── PamAutomation.slnx
 │
 ├── PamAutomation.App\
@@ -556,6 +558,18 @@ PamAutomation\
 
 No se deben crear carpetas vacías por adelantado. Cada submódulo aparecerá únicamente cuando una fase implemente una responsabilidad real.
 
+## Ampliación post-migración planificada
+
+La fase 20 añadirá colecciones personalizadas sin convertirlas en una función del portal PAM. La forma física definitiva se decidirá después de la migración, pero deberá respetar estos límites:
+
+- `PamAutomation.Core/Collections`: modelos de colección, claves completas de cuenta, configuración predeterminada, sobrescrituras opcionales y reconciliación con Favorites.
+- `PamAutomation.Infrastructure/Collections`: documento versionado, protección DPAPI `CurrentUser` y escritura atómica bajo la configuración privada del usuario.
+- `PamAutomation.App/Views` y `ViewModels`: listado de colecciones, editor de nombre, selector paginado o filtrable de Favorites y configuración WPF con hora `AM/PM`.
+- `PamAutomation.Browser`: no administrará colecciones; continuará entregando el snapshot vivo de Favorites y ejecutando únicamente el subconjunto validado que Core le indique.
+- `PamAutomation.Tests`: cubrirá reconciliación, persistencia protegida, selección, conversiones horarias y bloqueo de envíos no autorizados.
+
+Esta sección describe arquitectura prevista y no afirma que esos directorios o módulos existan todavía. El detalle funcional y de navegación está en `PAM_NAVIGATION.md`.
+
 ## Flujo objetivo de ejecución
 
 ```text
@@ -585,11 +599,13 @@ La aplicación instalada solo podrá mantener esta configuración privada por us
 %LOCALAPPDATA%\PamAutomation\
 └── config\
     ├── app-settings.json
-    └── mail-settings.dat
+    ├── mail-settings.dat
+    └── collections.dat                   futuro, fase 20
 ```
 
 - `app-settings.json`: configuración no secreta, con `schemaVersion` y escritura atómica.
 - `mail-settings.dat`: configuración de correo protegida con DPAPI `CurrentUser`.
+- `collections.dat`: colecciones post-migración con identidades y razones, versionadas y protegidas con DPAPI `CurrentUser`.
 - Usuario, contraseña y semilla TOTP: Windows Credential Manager.
 - Resultados, Request ID, conflictos y estado: únicamente en memoria.
 

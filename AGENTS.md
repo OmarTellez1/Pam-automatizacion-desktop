@@ -17,6 +17,7 @@ La raíz oficial del repositorio es `C:\pam automatizacion dotnet\PamAutomation`
 - structure.md
 - Fases.md
 - Subagentes.md
+- PAM_NAVIGATION.md
 
 En todos los prompts y tasks posteriores del mismo thread, el agente principal no debe repetir automáticamente esa lectura completa porque conserva el contexto adquirido. Consultará bajo demanda únicamente el documento o la sección que necesite para recordar o verificar una decisión, resolver una duda, preparar una fase o comprobar una posible contradicción. Que el propio agente haya actualizado un Markdown no obliga a releerlo por completo; basta revisar el cambio realizado, salvo que exista una razón concreta para volver a consultar el documento.
 
@@ -31,6 +32,7 @@ Usar este índice para seleccionar la lectura mínima necesaria:
 - `structure.md`: estructura física, responsabilidades y dependencias entre proyectos.
 - `Fases.md`: alcance completado, fase actual, dependencias pendientes y oportunidades condicionadas de paralelismo.
 - `Subagentes.md`: delegación, contexto, aislamiento, integración y límites multiagente.
+- `PAM_NAVIGATION.md`: recorrido observado del portal, selectores, invariantes de navegación y base prevista para colecciones.
 
 Esta lectura completa tampoco se repite automáticamente en cada subagente. Los subagentes deben obedecer este `AGENTS.md` y recibir del coordinador un paquete de contexto acotado con la ruta de trabajo, la rama, el objetivo, los archivos permitidos, las restricciones, los criterios de aceptación y los archivos o secciones documentales que deben leer. No deben recorrer todo el repositorio ni leer todos los Markdown por defecto.
 
