@@ -116,7 +116,8 @@ internal sealed class PlaywrightManagedPage(IPage page) : IManagedPage
         return new PamAutomation.Core.Browser.PamNavigationResponse(
             response is null ? uri : new Uri(response.Url),
             response?.Status,
-            httpDateHeader);
+            httpDateHeader,
+            TimeSpan.Zero);
     }
 
     public async ValueTask DisposeAsync()

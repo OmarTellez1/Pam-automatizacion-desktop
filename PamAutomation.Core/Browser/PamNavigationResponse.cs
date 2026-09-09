@@ -4,7 +4,9 @@ namespace PamAutomation.Core.Browser;
 /// <param name="Uri">The final response URI.</param>
 /// <param name="StatusCode">The HTTP status code, when a response was received.</param>
 /// <param name="HttpDateHeader">The optional HTTP <c>Date</c> header value.</param>
+/// <param name="RoundTripTime">The monotonic elapsed time from navigation start until its response was received.</param>
 public sealed record PamNavigationResponse(
     Uri Uri,
     int? StatusCode,
-    string? HttpDateHeader);
+    string? HttpDateHeader,
+    TimeSpan RoundTripTime);

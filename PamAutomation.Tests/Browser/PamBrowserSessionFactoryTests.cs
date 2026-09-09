@@ -92,6 +92,24 @@ public sealed class PamBrowserSessionFactoryTests
         Assert.AreEqual(target, response.Uri);
         Assert.AreEqual(200, response.StatusCode);
         Assert.AreEqual("Tue, 15 Nov 1994 08:12:31 GMT", response.HttpDateHeader);
+        Assert.IsGreaterThanOrEqualTo(TimeSpan.Zero, response.RoundTripTime);
+    }
+
+    [TestMethod]
+    public async Task NavigateAsync_AllowedUri_MeasuresRoundTripWithMonotonicTime()
+    {
+        // Arrange
+        var harness = new BrowserHarness();
+        var timeProvider = new ControlledTimeProvider();
+        harness.DuringNavigation = () => timeProvider.Advance(TimeSpan.FromMilliseconds(240));
+        await using var session = new PamBrowserSession(
+            harness, harness, harness, harness, new PamOriginPolicy(), timeProvider);
+
+        // Act
+        PamNavigationResponse response = await session.NavigateAsync(new Uri("https://10.30.17.117/"));
+
+        // Assert
+        Assert.AreEqual(TimeSpan.FromMilliseconds(240), response.RoundTripTime);
     }
 
     [TestMethod]
@@ -174,6 +192,7 @@ public sealed class PamBrowserSessionFactoryTests
         public bool CancelPageCreation { get; init; }
         public bool FailEdgeLaunch { get; init; }
         public int PageNavigateCalls { get; private set; }
+        public Action? DuringNavigation { get; set; }
 
         public Task<IPlaywrightEngine> CreateAsync(CancellationToken cancellationToken) =>
             Task.FromResult<IPlaywrightEngine>(this);
@@ -219,7 +238,8 @@ public sealed class PamBrowserSessionFactoryTests
         public Task<PamNavigationResponse> NavigateAsync(Uri uri, CancellationToken cancellationToken)
         {
             PageNavigateCalls++;
-            return Task.FromResult(new PamNavigationResponse(uri, 200, "Tue, 15 Nov 1994 08:12:31 GMT"));
+            DuringNavigation?.Invoke();
+            return Task.FromResult(new PamNavigationResponse(uri, 200, "Tue, 15 Nov 1994 08:12:31 GMT", TimeSpan.Zero));
         }
 
         public ValueTask DisposeAsync()
@@ -245,5 +265,16 @@ public sealed class PamBrowserSessionFactoryTests
             DisposalOrder.Add(resource);
             return ValueTask.CompletedTask;
         }
+    }
+
+    private sealed class ControlledTimeProvider : TimeProvider
+    {
+        private long timestamp;
+
+        public override long TimestampFrequency => TimeSpan.TicksPerSecond;
+
+        public override long GetTimestamp() => timestamp;
+
+        public void Advance(TimeSpan elapsed) => timestamp += elapsed.Ticks;
     }
 }
