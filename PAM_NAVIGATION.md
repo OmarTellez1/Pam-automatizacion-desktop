@@ -6,6 +6,9 @@ Este documento conserva el conocimiento operativo obtenido al automatizar el por
 
 No deben incluirse aquí credenciales, códigos TOTP, cookies, tokens, Request ID reales ni identidades reales observadas en el portal.
 
+## Importante
+Al momento de navegar en la aplicación web de BeyondInsight, puedes tomar capturas de pantalla de la web para que puedas observar de mejor manera como lucen las interfaces de la aplicación, sus nombres, como se estructura, etc. Tomar capturas de pantalla y luego visualizarlas puede ayudar mucho a entender mejor como se debe de navegar en la web. Puedes guardas las capturas de pantalla en esta carpeta "C:\pam automatizacion dotnet\PamAutomation\img" por si después necesitas visualizar otra vez las imagenes. Guarda las imagenes con un nombre descriptivo para que en un futuro sepas cual imagen buscar.
+
 ## Terminología exacta del portal
 
 La documentación debe conservar en inglés los nombres mostrados por PAM. El grid de `Favorites` contiene estas columnas visibles confirmadas:
