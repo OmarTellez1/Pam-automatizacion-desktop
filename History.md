@@ -112,3 +112,48 @@ Cada cambio relevante debe registrar qué se decidió, por qué, qué se verific
 - El rediseño utiliza únicamente WPF/XAML y recursos nativos; no se copió código, HTML, CSS o JavaScript de la aplicación anterior.
 - Se comprobó estáticamente la estructura XML de los XAML. La compilación, las pruebas y la revisión visual del nuevo diseño quedan pendientes en Visual Studio.
 - No se accedió a PAM, no se utilizaron credenciales, no se crearon solicitudes y no se envió correo.
+
+## 8 de septiembre de 2026 — Documentación de estructura
+
+- Se creó `structure.md` como inventario de la estructura física actual y referencia de la arquitectura objetivo.
+- Se documentaron las responsabilidades y límites de App, Core, Browser, Infrastructure, Outlook y Tests.
+- Se estableció la dirección permitida de dependencias y se aclaró que actualmente solo App y Tests contienen implementación.
+- Se documentó una estructura final orientativa que deberá materializarse gradualmente, sin crear carpetas vacías por adelantado.
+- Este cambio fue únicamente documental; no se modificó código, proyectos ni referencias de la solución.
+
+## 9 de septiembre de 2026 — Fase 3A: dominio de configuración no sensible
+
+- El usuario confirmó que la fase 2B compiló y se visualizó correctamente en Visual Studio con `Release | x64`; la composición fue aprobada, pero sus elementos se perciben demasiado grandes y su escala queda pendiente de ajuste.
+- Se agregaron en Core `AppSettings`, `RequestSettings` y `FinalAction`, sin dependencias de WPF o Windows.
+- Los valores predeterminados mantienen `schemaVersion = 1`, `America/Guayaquil`, visualización de IDs y modo de prueba deshabilitado.
+- Se agregaron validadores para esquema, acción final, zona horaria, fecha, hora, duración de 1 a 8 horas y razón obligatoria.
+- La hora actual de Ecuador se recibe como entrada del validador para permitir pruebas deterministas sin implementar todavía un reloj del sistema.
+- Se agregaron pruebas MSTest unitarias para escenarios válidos, nulos, límites y múltiples errores simultáneos.
+- No se implementó persistencia, interfaz de configuración, Credential Manager, DPAPI, TOTP, Edge, PAM u Outlook.
+- La revisión estática queda a cargo de esta fase; la compilación y ejecución de pruebas quedan pendientes en Visual Studio.
+
+## 9 de septiembre de 2026 — Fase 3B: persistencia JSON no sensible
+
+- El usuario confirmó que la fase 3A compiló y que todas sus pruebas terminaron correctamente en Visual Studio con `Release | x64`.
+- Se agregó `IAppSettingsStore` en Core para separar el dominio del almacenamiento físico.
+- Se implementó `JsonAppSettingsStore` en Infrastructure con la ruta predeterminada `%LOCALAPPDATA%\PamAutomation\config\app-settings.json`.
+- El formato persistido es plano, versionado y estricto; utiliza representaciones ISO para `DateOnly` y `TimeOnly` y rechaza JSON inválido, propiedades desconocidas, valores faltantes y esquemas incompatibles.
+- Un archivo inexistente devuelve valores predeterminados seguros sin crear almacenamiento. Guardar crea la carpeta cuando se necesita y sustituye el archivo mediante un temporal único en la misma ubicación.
+- Se agregaron pruebas MSTest aisladas para valores predeterminados, formato JSON, ida y vuelta, reemplazo, cancelación segura, limpieza de temporales, contenido inválido y versión incompatible.
+- `PamAutomation.Tests` ahora referencia `PamAutomation.Infrastructure` para probar la implementación concreta.
+- No se conectó todavía la persistencia con la interfaz y no se implementaron Credential Manager, DPAPI, correo, TOTP, Edge o PAM.
+- La revisión estática queda a cargo de esta fase; la compilación y ejecución de pruebas quedan pendientes en Visual Studio.
+
+## 9 de septiembre de 2026 — Fase 4: credenciales PAM protegidas
+
+- El usuario confirmó que las fases 3A y 3B compilaron y que todas sus pruebas terminaron correctamente en Visual Studio con `Release | x64`.
+- Se agregaron en Core `PamCredentials`, `PamCredentialUpdate`, `IPamCredentialStore` y errores estables de almacenamiento.
+- Se implementó `WindowsPamCredentialStore` sobre `CredReadW`, `CredWriteW`, `CredDeleteW` y `CredFree`, sin dependencias NuGet nuevas.
+- Usuario, contraseña y semilla TOTP se guardan juntos en una única credencial genérica versionada bajo `PamAutomation/PamCredentials/v1`.
+- Una edición con campos vacíos conserva internamente los valores protegidos existentes; una primera configuración incompleta se rechaza.
+- El blob binario incluye versión y longitudes, respeta los límites de Windows Credential Manager y sus copias administradas y no administradas se limpian con ceros después de usarse.
+- Los modelos sensibles redactan `ToString()` y su presentación en el depurador; los mensajes controlados no contienen valores de credenciales.
+- Se agregaron pruebas MSTest con una API de Windows falsa para no crear, leer, modificar ni eliminar credenciales reales.
+- Se eliminó de `README.md` una frase heredada sobre una carpeta común de datos que contradecía la regla canónica de no persistir archivos operativos.
+- La interfaz todavía no usa este almacén y no se implementaron TOTP, Edge, acceso a PAM, DPAPI de correo u Outlook.
+- La revisión estática queda a cargo de esta fase; la compilación y ejecución de pruebas quedan pendientes en Visual Studio.

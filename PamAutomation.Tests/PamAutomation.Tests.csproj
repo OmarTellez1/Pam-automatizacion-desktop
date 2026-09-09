@@ -11,6 +11,7 @@
   <ItemGroup>
     <ProjectReference Include="..\PamAutomation.App\PamAutomation.App.csproj" />
     <ProjectReference Include="..\PamAutomation.Core\PamAutomation.Core.csproj" />
+    <ProjectReference Include="..\PamAutomation.Infrastructure\PamAutomation.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

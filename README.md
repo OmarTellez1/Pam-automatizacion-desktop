@@ -6,9 +6,9 @@ Aplicación de escritorio Windows para automatizar BeyondInsight Password Safe d
 
 La raíz oficial del repositorio es `C:\pam automatizacion dotnet\PamAutomation`.
 
-La solución `PamAutomation.slnx` contiene la aplicación WPF `PamAutomation.App` y los proyectos base `PamAutomation.Core`, `PamAutomation.Browser`, `PamAutomation.Outlook`, `PamAutomation.Infrastructure` y `PamAutomation.Tests`. La fase 2 incorpora una pantalla principal WPF con MVVM, recursos visuales centralizados y estados seguros de configuración y ejecución. Aún no existe implementación funcional de PAM, TOTP, persistencia, Outlook o solicitudes.
+La solución `PamAutomation.slnx` contiene la aplicación WPF `PamAutomation.App` y los proyectos base `PamAutomation.Core`, `PamAutomation.Browser`, `PamAutomation.Outlook`, `PamAutomation.Infrastructure` y `PamAutomation.Tests`. Las fases 3A y 3B incorporan el dominio, la validación y la persistencia JSON de la configuración no sensible. La fase 4 incorpora el almacenamiento protegido de credenciales PAM en Windows Credential Manager. Aún no existe implementación funcional de TOTP, PAM, Edge u Outlook y la interfaz todavía no está conectada a estos almacenamientos.
 
-`PamAutomation.Tests` utiliza MSTest con Microsoft Testing Platform e incluye pruebas del estado de presentación. Las fases 1 y 2 fueron compiladas y ejecutadas correctamente por el usuario en Visual Studio. La portada de la fase 2 se realineó posteriormente con la referencia visual de la aplicación anterior y queda pendiente de una nueva revisión en el IDE.
+`PamAutomation.Tests` utiliza MSTest con Microsoft Testing Platform e incluye pruebas del estado de presentación, validación, persistencia de configuración y almacenamiento protegido simulado. Las fases 1, 2, 2B, 3A y 3B fueron compiladas y revisadas por el usuario en Visual Studio con `Release | x64`. El diseño 2B fue aprobado funcional y visualmente, aunque queda pendiente reducir la escala de sus elementos. La fase 4 queda pendiente de compilación y pruebas en el IDE.
 
 La compilación y las pruebas se administrarán exclusivamente desde Visual Studio. No se presupone disponibilidad de `dotnet` o `msbuild` en la línea de comandos.
 
@@ -38,6 +38,7 @@ La configuración de Outlook tendrá además una comprobación manual independie
 - CODEX_BUILD_SPEC.md: especificación completa y fuente principal de decisiones.
 - LOGIC.md: lógica prevista y contratos del sistema.
 - History.md: historial propio de este proyecto nuevo.
+- structure.md: estructura física actual, responsabilidades de proyectos y arquitectura objetivo.
 
 ## Referencia histórica
 
@@ -59,6 +60,8 @@ Las credenciales PAM se guardarán en Windows Credential Manager, asociadas al u
 - Contraseña PAM.
 - Semilla TOTP de Microsoft Authenticator.
 
+La implementación utiliza una sola credencial genérica versionada para que usuario, contraseña y semilla se sustituyan juntos. Los campos vacíos durante una edición conservan el valor protegido anterior. Las pruebas automatizadas sustituyen la API de Windows por un adaptador falso y no crean entradas reales en Credential Manager.
+
 La configuración no secreta se guardará en:
 
     %LOCALAPPDATA%\PamAutomation\config\app-settings.json
@@ -71,9 +74,7 @@ La configuración de correo se guardará en:
 
 Ese archivo contendrá remitente, destinatarios, copias, asunto y contenido HTML. Se protegerá con DPAPI CurrentUser porque el contenido del correo puede ser sensible.
 
-La configuración anterior es privada y específica del usuario. Los archivos operativos que un usuario normal no necesita leer no se guardarán en su perfil, sino en una carpeta común de datos de la máquina:
-
-La estructura persistente completa queda limitada a:
+La configuración es privada y específica del usuario. La estructura persistente completa queda limitada a:
 
     %LOCALAPPDATA%\PamAutomation\
     └── config\
@@ -137,10 +138,11 @@ La primera versión ejecutará Edge de forma visible tanto para la validación d
 - Framework de pruebas: MSTest con Microsoft Testing Platform, integrado con Test Explorer de Visual Studio.
 - Presentación: MVVM con CommunityToolkit.Mvvm; los estados y comandos se mantienen fuera del code-behind. La aplicación anterior es la referencia visual para la portada y los formularios, reconstruidos con WPF/XAML nativo.
 - Solución: `PamAutomation.slnx`.
+- Credenciales PAM: una credencial genérica versionada en Windows Credential Manager, vinculada al usuario actual y sin archivos de secretos.
 - Navegador: Edge instalado, `Channel = "msedge"`, contexto temporal y ejecución visible en la primera versión.
 - Protección contra correo duplicado: estado en memoria durante la ejecución y consulta de Enviados, Bandeja de salida y Borradores de Outlook antes de enviar; no se crearán archivos locales `last-email` o `delivery-state`.
 - Editor de correo: `RichTextBox` y `FlowDocument` como editor nativo, con un subconjunto explícito de formato y un convertidor C# propio a HTML saneado. El contenido enriquecido y las imágenes se persistirán únicamente dentro de `mail-settings.dat` protegido con DPAPI.
 
 ## Próximo paso
 
-Abrir `PamAutomation.slnx` en Visual Studio, compilar en `Release | x64`, ejecutar todas las pruebas desde Test Explorer y revisar la portada realineada a distintos tamaños de ventana. La siguiente fase funcional será la configuración no secreta y sus validaciones; no debe iniciarse hasta aprobar esta revisión visual.
+Abrir `PamAutomation.slnx` en Visual Studio, compilar en `Release | x64` y ejecutar todas las pruebas desde Test Explorer. No comenzar TOTP hasta que el almacenamiento protegido de la fase 4 compile y sus pruebas terminen correctamente.

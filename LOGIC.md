@@ -15,6 +15,8 @@ Este documento describe la lógica objetivo de la aplicación nueva. Ya existen 
 
 La lógica de negocio no debe vivir en el code-behind de las ventanas WPF.
 
+La estructura física, la dirección permitida de dependencias y la arquitectura objetivo se mantienen detalladas en `structure.md`. Ese documento debe reflejar cada módulo cuando pase de planeado a implementado.
+
 ## Estado de presentación
 
 La ventana principal utiliza MVVM mediante `CommunityToolkit.Mvvm`. El ViewModel expone el estado de cada configuración, los comandos visibles y las condiciones para habilitar acciones; el code-behind se limita a inicializar la ventana.
@@ -34,6 +36,26 @@ Los secretos PAM se almacenarán en Windows Credential Manager, asociados al usu
 - Usuario PAM.
 - Contraseña PAM.
 - Semilla TOTP.
+
+La fase 4 define `IPamCredentialStore`, `PamCredentials` y `PamCredentialUpdate` en Core e implementa `WindowsPamCredentialStore` en Infrastructure. Usuario, contraseña y semilla se almacenan juntos como una única credencial genérica bajo el destino estable `PamAutomation/PamCredentials/v1`. El blob interno tiene versión propia y longitudes explícitas; no es JSON ni se escribe en archivos.
+
+`CredWriteW` sustituye la entrada completa para evitar estados parciales entre contraseña y semilla. `CredReadW` recupera la entrada asociada al usuario actual y su búfer nativo siempre se libera con `CredFree`. Las copias administradas y no administradas del blob se sobrescriben con ceros tan pronto termina cada operación. Las cadenas administradas se mantienen solo el tiempo necesario, reconociendo que .NET no permite borrarlas de memoria de forma fiable.
+
+Durante una edición, cada campo nulo, vacío o compuesto solo por espacios conserva su valor anterior dentro del almacén; la interfaz no necesita recuperar secretos para rellenar controles. La primera configuración exige los tres valores. `ToString()` y la vista del depurador de los modelos sensibles están redactados, y las excepciones controladas no incluyen usuario, contraseña ni semilla.
+
+Las pruebas de esta fase utilizan un adaptador falso de la API de Windows. Verifican formato, actualización parcial, límites, corrupción, borrado y limpieza de buffers sin leer ni escribir el Credential Manager real.
+
+La fase 3A representa la configuración no sensible mediante `AppSettings`, `RequestSettings` y el enum `FinalAction`. `AppSettings` establece `schemaVersion = 1`, `America/Guayaquil`, `Mostrar IDs` y `testModeEnabled = false` como valores predeterminados seguros.
+
+`AppSettingsValidator` y `RequestSettingsValidator` devuelven todas las fallas detectadas mediante códigos estables y mensajes de presentación. La hora actual de Ecuador se entrega explícitamente al validador para mantener la lógica determinista; su obtención desde el sistema se implementará detrás de una abstracción en una fase posterior.
+
+Los tipos `DateOnly` y `TimeOnly` impiden representar días u horas inexistentes. La validación rechaza fechas anteriores al día actual de Ecuador, horas pasadas para el mismo día, duración fuera de 1 a 8 horas, razón vacía, esquema incompatible, acción final desconocida y una zona horaria distinta de `America/Guayaquil`.
+
+La fase 3B define `IAppSettingsStore` en Core e implementa `JsonAppSettingsStore` en Infrastructure. Si aún no existe un archivo, la carga devuelve los valores predeterminados seguros sin crear carpetas ni archivos. El guardado crea `%LOCALAPPDATA%\PamAutomation\config` únicamente cuando es necesario y reemplaza `app-settings.json` mediante un archivo temporal único escrito en la misma carpeta.
+
+El documento JSON es plano y contiene exactamente `schemaVersion`, `finalAction`, `requestReason`, `sessionHours`, `startDate`, `startTime`, `timeZone` y `testModeEnabled`. La fecha y la hora utilizan la representación ISO de `DateOnly` y `TimeOnly`. Las propiedades desconocidas, el contenido incompleto, JSON inválido y acciones finales desconocidas se rechazan sin usar valores implícitos. Una versión distinta de `schemaVersion = 1` produce un error específico, dejando un punto explícito para agregar migraciones futuras sin reinterpretar silenciosamente el archivo.
+
+La sustitución del archivo existente utiliza una operación de reemplazo en la misma unidad después de vaciar el contenido del temporal al disco. Ante cancelación o error se intenta retirar el temporal y nunca se modifica deliberadamente el archivo anterior mediante una escritura parcial.
 
 La configuración general se guardará como JSON en:
 
@@ -67,7 +89,7 @@ Si la acción final es correo, la aplicación debe preparar, validar y enviar el
 
 No habrá auditoría local ni debugging persistente por defecto. Un modo de diagnóstico futuro, si se necesita, deberá activarse explícitamente y exportar manualmente la información a una ubicación seleccionada por el desarrollador o soporte. No debe formar parte del almacenamiento normal.
 
-Las escrituras de `app-settings.json` y `mail-settings.dat` deben ser atómicas, incluir `schemaVersion` y permitir migraciones futuras. No escribir configuración dentro de `Program Files` ni junto al ejecutable.
+Las escrituras de `app-settings.json` y `mail-settings.dat` deben ser atómicas, incluir `schemaVersion` y permitir migraciones futuras. La primera de estas reglas ya está implementada para `app-settings.json`; `mail-settings.dat` permanece pendiente. No escribir configuración dentro de `Program Files` ni junto al ejecutable.
 
 Windows o Playwright pueden utilizar `%TEMP%` para archivos internos transitorios durante el lanzamiento del navegador. No tratar esa ubicación como almacenamiento persistente, no escribir secretos allí y limpiar lo creado por la aplicación cuando sea posible.
 

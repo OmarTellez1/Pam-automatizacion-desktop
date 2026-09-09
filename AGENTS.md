@@ -12,6 +12,9 @@ Antes de analizar, modificar o crear código, leer completamente:
 - README.md
 - LOGIC.md
 - History.md
+- structure.md
+
+Debes mantener actualizado structure.md, este markdown se trata de documentar la estructura del proyecto e indicar que hace cada paquete, subpaquete y modulos. 
 
 ## Tecnología obligatoria
 
