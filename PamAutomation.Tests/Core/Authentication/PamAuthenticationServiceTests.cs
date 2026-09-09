@@ -32,6 +32,21 @@ public sealed class PamAuthenticationServiceTests
         Assert.AreSame(harness.Session, harness.PortalFactory.ReceivedSession);
         Assert.AreEqual(harness.Session.Response.HttpDateHeader, harness.ClockFactory.ReceivedHttpDateHeader);
         Assert.AreEqual(harness.Session.Response.RoundTripTime, harness.ClockFactory.ReceivedRoundTripTime);
+        Assert.AreEqual(1, harness.Session.DisposeCalls);
+    }
+
+    [TestMethod]
+    public async Task CreateAuthenticatedAsync_Success_ReturnsOwnedOpenSession()
+    {
+        var harness = new AuthenticationHarness();
+
+        IPamBrowserSession session = await harness.Service.CreateAuthenticatedAsync(CreateCredentials());
+
+        Assert.AreSame(harness.Session, session);
+        Assert.AreEqual(0, harness.Session.DisposeCalls);
+
+        await session.DisposeAsync();
+        Assert.AreEqual(1, harness.Session.DisposeCalls);
     }
 
     [TestMethod]
@@ -62,6 +77,7 @@ public sealed class PamAuthenticationServiceTests
         // Assert
         Assert.AreEqual(PamAuthenticationErrorCode.CredentialsRejected, exception.ErrorCode);
         Assert.AreEqual(0, harness.Portal.TotpCalls);
+        Assert.AreEqual(1, harness.Session.DisposeCalls);
     }
 
     [TestMethod]
@@ -275,12 +291,17 @@ public sealed class PamAuthenticationServiceTests
         public PamNavigationResponse Response { get; set; } = new(
             PamAuthenticationService.AuthorizedOrigin, 200, "Wed, 21 Oct 2015 07:28:00 GMT", TimeSpan.FromMilliseconds(240));
         public Uri? NavigatedUri { get; private set; }
+        public int DisposeCalls { get; private set; }
         public Task<PamNavigationResponse> NavigateAsync(Uri uri, CancellationToken cancellationToken = default)
         {
             NavigatedUri = uri;
             return Task.FromResult(Response);
         }
-        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+        public ValueTask DisposeAsync()
+        {
+            DisposeCalls++;
+            return ValueTask.CompletedTask;
+        }
     }
 
     private sealed class FakePortalFactory(IPamAuthenticationPortal portal) : IPamAuthenticationPortalFactory

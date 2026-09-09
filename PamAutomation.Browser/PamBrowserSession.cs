@@ -40,6 +40,10 @@ public sealed class PamBrowserSession : IPamBrowserSession
     internal IPamLoginPage LoginPage => page as IPamLoginPage
         ?? throw new InvalidOperationException("La página de la sesión PAM no admite autenticación.");
 
+    /// <summary>Gets the read-only Favorites page owned by this session.</summary>
+    internal IPamFavoritesPage FavoritesPage => page as IPamFavoritesPage
+        ?? throw new InvalidOperationException("La página de la sesión PAM no admite Favorites.");
+
     /// <inheritdoc />
     public async Task<PamNavigationResponse> NavigateAsync(Uri uri, CancellationToken cancellationToken = default)
     {

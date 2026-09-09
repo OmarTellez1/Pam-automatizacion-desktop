@@ -99,7 +99,7 @@ internal sealed class PlaywrightManagedBrowserContext(IBrowserContext context) :
 
 }
 
-internal sealed class PlaywrightManagedPage(IPage page) : IManagedPage, IPamLoginPage
+internal sealed partial class PlaywrightManagedPage(IPage page) : IManagedPage, IPamLoginPage, IPamFavoritesPage
 {
     private static readonly TimeSpan PortalTimeout = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan ObservationInterval = TimeSpan.FromMilliseconds(100);

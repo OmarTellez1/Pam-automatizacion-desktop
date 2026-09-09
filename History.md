@@ -233,3 +233,14 @@ Cada cambio relevante debe registrar qué se decidió, por qué, qué se verific
 - La centralización inicial del patrón de rechazo TOTP añadió `RegexOptions.CultureInvariant`, una bandera que Playwright .NET no admite en locators; la integración se detuvo antes de introducir el código. Se retiró exclusivamente esa bandera y la validación real final volvió a confirmar el dashboard.
 - La ejecución terminó inmediatamente después del login y cerró el contexto; no navegó a Favorites, no abrió formularios, no creó solicitudes, no inició Outlook y no envió correo.
 - La validación consolidada compiló en `Release | x64` con 0 errores y ejecutó 127 pruebas correctas, 0 fallidas y 0 omitidas. Permanece la advertencia heredada `MSTEST0032` fuera del alcance de esta fase.
+
+## 9 de septiembre de 2026 — Fase 10: navegación de solo lectura a Favorites
+
+- El usuario autorizó continuar con la fase 10 utilizando el agente principal y sin subagentes; la inspección real se limitó a navegación y lectura, manteniendo prohibido solicitar accesos.
+- `PamAuthenticationService` ahora implementa `IPamAuthenticatedSessionFactory` y puede transferir al consumidor una sesión autenticada confirmada; el consumidor conserva la responsabilidad de cerrarla. El método de verificación anterior sigue cerrando automáticamente su propia sesión.
+- Se agregaron `PamFavoriteAccount`, errores estables, contratos de portal y `PamFavoritesService` en Core. Las identidades se validan como completas y únicas y su representación textual permanece redactada.
+- `PamAutomation.Browser` navega a Accounts, identifica `Browse by Category > Favorites`, espera filas completas y estables, lee `SystemName`, `ApplicationName` y `AccountName` y recorre el paginador accesible cuando existe, con un límite seguro de 500 páginas.
+- El contrato de fase 10 no permite seleccionar filas, abrir formularios ni enviar solicitudes. Los valores observados se conservaron únicamente en memoria y no se imprimieron ni persistieron.
+- La integración `PAM_AUTOMATION_ALLOW_REAL_FAVORITES=READ_ONLY` abrió Edge visible, reutilizó la sesión autenticada, confirmó cuentas válidas en Favorites y cerró el contexto temporal.
+- No se abrieron formularios, no se pulsó `Submit Request`, no se crearon solicitudes, no se inició Outlook y no se envió correo.
+- La validación consolidada compiló en `Release | x64` y ejecutó 146 pruebas correctas, 0 fallidas y 0 omitidas. La advertencia heredada `MSTEST0032` permanece fuera del alcance de esta fase.

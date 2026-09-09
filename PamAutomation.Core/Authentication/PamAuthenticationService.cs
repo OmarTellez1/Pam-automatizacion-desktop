@@ -7,7 +7,7 @@ using PamAutomation.Core.Totp;
 namespace PamAutomation.Core.Authentication;
 
 /// <summary>Coordinates the isolated, timing-safe PAM authentication workflow.</summary>
-public sealed class PamAuthenticationService
+public sealed class PamAuthenticationService : IPamAuthenticatedSessionFactory
 {
     /// <summary>The sole portal origin allowed by the authentication workflow.</summary>
     public static readonly Uri AuthorizedOrigin = new("https://10.30.17.117");
@@ -37,7 +37,37 @@ public sealed class PamAuthenticationService
         ArgumentNullException.ThrowIfNull(credentials);
         cancellationToken.ThrowIfCancellationRequested();
 
-        await using IPamBrowserSession session = await InvokePortalAsync(() => browserSessionFactory.CreateAsync(cancellationToken)).ConfigureAwait(false);
+        await using IPamBrowserSession session = await CreateAuthenticatedAsync(credentials, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <inheritdoc />
+    public async Task<IPamBrowserSession> CreateAuthenticatedAsync(
+        PamCredentials credentials,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(credentials);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        IPamBrowserSession session = await InvokePortalAsync(
+            () => browserSessionFactory.CreateAsync(cancellationToken)).ConfigureAwait(false);
+
+        try
+        {
+            await AuthenticateSessionAsync(session, credentials, cancellationToken).ConfigureAwait(false);
+            return session;
+        }
+        catch
+        {
+            await DisposeAfterFailureAsync(session).ConfigureAwait(false);
+            throw;
+        }
+    }
+
+    private async Task AuthenticateSessionAsync(
+        IPamBrowserSession session,
+        PamCredentials credentials,
+        CancellationToken cancellationToken)
+    {
         IPamAuthenticationPortal portal = InvokePortal(() => portalFactory.Create(session));
         var navigation = await InvokePortalAsync(() => session.NavigateAsync(LoginUri, cancellationToken)).ConfigureAwait(false);
         IClock clock = clockFactory.Create(navigation.HttpDateHeader, navigation.RoundTripTime);
@@ -79,6 +109,18 @@ public sealed class PamAuthenticationService
                 throw new PamAuthenticationException(PamAuthenticationErrorCode.TotpRejected);
             default:
                 throw new PamAuthenticationException(PamAuthenticationErrorCode.UnexpectedPortalResponse);
+        }
+    }
+
+    private static async Task DisposeAfterFailureAsync(IPamBrowserSession session)
+    {
+        try
+        {
+            await session.DisposeAsync().ConfigureAwait(false);
+        }
+        catch
+        {
+            // The authentication failure remains the actionable result.
         }
     }
 

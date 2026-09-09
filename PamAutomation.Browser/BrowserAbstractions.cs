@@ -1,4 +1,5 @@
 using PamAutomation.Core.Browser;
+using PamAutomation.Core.Favorites;
 
 namespace PamAutomation.Browser;
 
@@ -70,6 +71,13 @@ internal interface IPamLoginPage
 
     /// <summary>Waits for the final dashboard confirmation link.</summary>
     Task<bool> WaitForDashboardAsync(CancellationToken cancellationToken);
+}
+
+/// <summary>Browser operations needed for read-only Favorites discovery.</summary>
+internal interface IPamFavoritesPage
+{
+    /// <summary>Navigates to Favorites and reads every visible page without opening a request.</summary>
+    Task<IReadOnlyList<PamFavoriteAccount>> ReadAllFavoritesAsync(CancellationToken cancellationToken);
 }
 
 /// <summary>Required settings for launching the externally installed Edge channel.</summary>

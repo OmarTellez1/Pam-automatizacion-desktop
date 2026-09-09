@@ -2,7 +2,7 @@
 
 ## Estado
 
-Este documento describe la lógica objetivo de la aplicación nueva. Ya existen la estructura base, el estado de presentación de la ventana principal, la configuración, el almacenamiento protegido de credenciales, TOTP, navegador restringido, autenticación PAM real visible y Outlook clásico aislado. Favorites, solicitudes, composición HTML y la coordinación desde la interfaz permanecen pendientes.
+Este documento describe la lógica objetivo de la aplicación nueva. Ya existen la estructura base, el estado de presentación de la ventana principal, la configuración, el almacenamiento protegido de credenciales, TOTP, navegador restringido, autenticación PAM real visible, lectura de Favorites y Outlook clásico aislado. Los formularios de prueba, solicitudes reales, composición HTML y la coordinación desde la interfaz permanecen pendientes.
 
 ## Capas
 
@@ -142,6 +142,10 @@ No se debe incluir Chromium. La aplicación debe utilizar la opción 1: lanzar e
 La primera versión utilizará Edge visible para la comprobación de credenciales y la automatización real. Se conservará el comportamiento funcional validado de la aplicación anterior, no su uso de Chrome, perfiles existentes o ejecución headless. Cualquier modo headless futuro requerirá una decisión explícita y la misma cobertura de seguridad e integración.
 
 Los locators se refieren al DOM HTML del portal externo. La interfaz propia no utilizará HTML, CSS ni JavaScript. Priorizar roles, labels y atributos estables; CSS o XPath solo como último recurso.
+
+La fase 10 permite que `PamAuthenticationService` entregue una sesión temporal ya autenticada cuyo consumidor debe cerrar. `PamFavoritesService` utiliza esa misma sesión para navegar a `/webconsole/ps/portal?tab=accounts`, identificar `Browse by Category` y seleccionar `Favorites`. El adaptador lee mediante locators las columnas `SystemName`, `ApplicationName` y `AccountName`, espera filas completas y estables y recorre el paginador accesible cuando existe, con un límite de 500 páginas.
+
+Las identidades se conservan únicamente en memoria, redactan su representación textual y se validan como completas y únicas. El contrato no contiene métodos para seleccionar filas, abrir formularios o enviar solicitudes. La integración real `READ_ONLY` confirmó la navegación y lectura sin imprimir las cuentas ni producir efectos posteriores.
 
 ## Solicitudes
 
