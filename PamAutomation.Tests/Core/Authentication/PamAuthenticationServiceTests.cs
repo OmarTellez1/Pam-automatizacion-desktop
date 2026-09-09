@@ -25,7 +25,7 @@ public sealed class PamAuthenticationServiceTests
         await harness.Service.AuthenticateAsync(CreateCredentials());
 
         // Assert
-        Assert.AreEqual(PamAuthenticationService.AuthorizedOrigin, harness.Session.NavigatedUri);
+        Assert.AreEqual(PamAuthenticationService.LoginUri, harness.Session.NavigatedUri);
         Assert.AreEqual(1, harness.Portal.CredentialCalls);
         Assert.AreEqual(1, harness.Portal.TotpCalls);
         Assert.AreEqual(1, harness.Portal.DashboardCalls);

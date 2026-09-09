@@ -220,3 +220,16 @@ Cada cambio relevante debe registrar qué se decidió, por qué, qué se verific
 - Las pruebas de Outlook usan un seam COM falso; no abren Outlook ni envían mensajes. El resultado posterior a `Send()` queda como no confirmado hasta consultar Enviados.
 - La herramienta de parche de los subagentes nativos quedó inicialmente anclada al checkout principal aunque sus comandos estaban en los worktrees. Ambos se detuvieron o fueron interrumpidos; los cambios se replicaron mediante rutas verificadas hacia cada worktree y el checkout principal se limpió antes de integrar.
 - La validación consolidada compiló en `Release | x64` con 0 errores y ejecutó 116 pruebas correctas. No se abrió Edge, no se contactó PAM, no se inició Outlook real y no se envió correo.
+
+## 9 de septiembre de 2026 — Fase 9: autenticación PAM real visible
+
+- El usuario autorizó explícitamente una prueba real limitada al login contra `https://10.30.17.117/webconsole/login?redir=dashboard` y prohibió solicitar accesos.
+- Las credenciales proporcionadas se guardaron en Windows Credential Manager bajo `PamAutomation/PamCredentials/v1`; no se incorporaron a archivos, código, logs, capturas ni documentación.
+- Se implementaron `PamAuthenticationPortalFactory` y `PamAuthenticationPortal`, enlazados exclusivamente con la página del contexto temporal creado por `PamBrowserSessionFactory`.
+- Se centralizaron los nombres accesibles observados para usuario, contraseña, inicio de sesión, desafío TOTP, envío y confirmación del dashboard.
+- La primera integración descubrió que el portal emite `Navigation complete.` mediante `role=alert`; se corrigió su clasificación para no confundir ese anuncio de transición con un rechazo de credenciales.
+- Los estados ambiguos o agotados no se convierten en rechazos explícitos y, por tanto, no habilitan reintentos adicionales.
+- Una integración posterior abrió Edge externo visible, utilizó el contexto no persistente y la hora HTTP del portal, completó el TOTP y confirmó `Return to dashboard`.
+- La centralización inicial del patrón de rechazo TOTP añadió `RegexOptions.CultureInvariant`, una bandera que Playwright .NET no admite en locators; la integración se detuvo antes de introducir el código. Se retiró exclusivamente esa bandera y la validación real final volvió a confirmar el dashboard.
+- La ejecución terminó inmediatamente después del login y cerró el contexto; no navegó a Favorites, no abrió formularios, no creó solicitudes, no inició Outlook y no envió correo.
+- La validación consolidada compiló en `Release | x64` con 0 errores y ejecutó 127 pruebas correctas, 0 fallidas y 0 omitidas. Permanece la advertencia heredada `MSTEST0032` fuera del alcance de esta fase.

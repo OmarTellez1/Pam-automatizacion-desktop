@@ -21,7 +21,7 @@ La aplicación anterior ubicada en `C:\pam automatizacion` no forma parte de est
 
 ## Estado actual
 
-La solución utiliza `PamAutomation.slnx`, .NET 10 y la plataforma `x64`. Actualmente existen los límites principales de la arquitectura, configuración y credenciales protegidas, TOTP, reloj HTTP, sesión temporal de Edge, autenticación PAM simulada y el adaptador testeable de Outlook clásico. Todavía no están implementadas la autenticación PAM real, Favorites, solicitudes, composición HTML ni la conexión de estos servicios con la interfaz.
+La solución utiliza `PamAutomation.slnx`, .NET 10 y la plataforma `x64`. Actualmente existen los límites principales de la arquitectura, configuración y credenciales protegidas, TOTP, reloj HTTP, sesión temporal de Edge, autenticación PAM simulada y real visible, y el adaptador testeable de Outlook clásico. Todavía no están implementadas Favorites, solicitudes, composición HTML ni la conexión de estos servicios con la interfaz.
 
 Las fases construidas hasta ahora son:
 
@@ -35,6 +35,7 @@ Las fases construidas hasta ahora son:
 - Fase 6: reloj confiable calibrado con HTTP `Date` y avance monotónico.
 - Fase 7: Edge externo visible y contexto Playwright temporal restringido al origen PAM.
 - Fase 8: autenticación PAM simulada con reloj confiable, ventana TOTP y reintento controlado.
+- Fase 9: adaptador de autenticación PAM real visible y validación de integración limitada al login.
 - Fase 14: contratos, validación, fake y adaptador Outlook clásico COM ejecutado en STA.
 
 Los directorios `.git`, `.vs`, `bin` y `obj` contienen metadatos o salidas generadas y se omiten en el árbol.
@@ -135,8 +136,11 @@ PamAutomation\
 ├── PamAutomation.Browser\
 │   ├── PamAutomation.Browser.csproj
 │   ├── BrowserAbstractions.cs
+│   ├── PamAuthenticationPortal.cs
 │   ├── PamBrowserSession.cs
 │   ├── PamBrowserSessionFactory.cs
+│   ├── PamLoginAlertClassifier.cs
+│   ├── PamLoginSelectors.cs
 │   ├── PamOriginPolicy.cs
 │   └── PlaywrightEngineFactory.cs
 │
@@ -181,7 +185,9 @@ PamAutomation\
     │   └── Totp\
     │       └── TotpGeneratorTests.cs
     ├── Browser\
-    │   └── PamBrowserSessionFactoryTests.cs
+    │   ├── PamAuthenticationPortalTests.cs
+    │   ├── PamBrowserSessionFactoryTests.cs
+    │   └── PamRealAuthenticationTests.cs
     ├── Infrastructure\
     │   ├── Configuration\
     │   │   └── JsonAppSettingsStoreTests.cs
@@ -280,13 +286,16 @@ Regla principal: `Core` no debe referenciar ningún otro proyecto de la solució
 
 ### `PamAutomation.Browser`
 
-Biblioteca para `net10.0`. Referencia `PamAutomation.Core` e implementa la sesión base de Playwright para la fase 7:
+Biblioteca para `net10.0`. Referencia `PamAutomation.Core` e implementa la sesión restringida de Playwright y el login real de las fases 7 y 9:
 
 - `PamBrowserSessionFactory`: crea Edge visible mediante el canal `msedge` y administra la inicialización segura.
 - `PamBrowserSession`: valida cada navegación y libera página, contexto, navegador y runtime en orden.
 - `PamOriginPolicy`: compara esquema, host y puerto efectivo y bloquea solicitudes HTTP(S) externas o malformadas.
 - `PlaywrightEngineFactory` y `BrowserAbstractions`: adaptadores internos que encapsulan Microsoft.Playwright y permiten pruebas sin abrir Edge.
 - `PamBrowserSession` mide monotónicamente el tiempo de ida y vuelta de cada navegación para calibrar el reloj HTTP.
+- `PamAuthenticationPortalFactory` y `PamAuthenticationPortal`: enlazan el contrato de Core únicamente con la página perteneciente a la sesión temporal.
+- `PamLoginSelectors`: centraliza roles, nombres accesibles y el texto de rechazo TOTP observados en el portal real.
+- `PamLoginAlertClassifier`: evita interpretar el anuncio accesible `Navigation complete.` como rechazo de credenciales.
 
 Dependencia NuGet actual: `Microsoft.Playwright` 1.62.0. Los adaptadores internos se exponen únicamente a `PamAutomation.Tests` mediante `InternalsVisibleTo`.
 
@@ -363,6 +372,8 @@ Contenido actual:
 - `Infrastructure/Credentials/WindowsPamCredentialStoreTests.cs`: valida creación, actualización parcial, límites, corrupción, borrado y limpieza de buffers mediante una API de Windows falsa.
 - `Infrastructure/Time/PamHttpDateClockFactoryTests.cs`: valida calibración, avance monotónico y errores sin consultar el reloj local.
 - `Browser/PamBrowserSessionFactoryTests.cs`: valida Edge visible, contexto temporal, origen exacto, respuesta segura, cancelación y liberación con adaptadores falsos.
+- `Browser/PamAuthenticationPortalTests.cs`: valida el enlace de sesión, el mapeo del portal y la clasificación segura de anuncios sin abrir Edge.
+- `Browser/PamRealAuthenticationTests.cs`: integración explícitamente opt-in que lee Credential Manager y valida solo el login visible autorizado.
 - `Core/Authentication/PamAuthenticationServiceTests.cs`: valida el flujo simulado, RTT, ventana TOTP, reintento único, errores y cancelación.
 - `Outlook/OutlookClassicClientTests.cs`: valida cuenta exacta, mensajes temporales, redacción, STA, liberación y envío no confirmado mediante COM falso.
 

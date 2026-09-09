@@ -36,6 +36,10 @@ public sealed class PamBrowserSession : IPamBrowserSession
         this.timeProvider = timeProvider ?? TimeProvider.System;
     }
 
+    /// <summary>Gets the login-capable page owned by this session.</summary>
+    internal IPamLoginPage LoginPage => page as IPamLoginPage
+        ?? throw new InvalidOperationException("La página de la sesión PAM no admite autenticación.");
+
     /// <inheritdoc />
     public async Task<PamNavigationResponse> NavigateAsync(Uri uri, CancellationToken cancellationToken = default)
     {

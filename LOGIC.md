@@ -2,7 +2,7 @@
 
 ## Estado
 
-Este documento describe la lógica objetivo de la aplicación nueva. Ya existen la estructura base, el estado de presentación de la ventana principal, la configuración, el almacenamiento protegido de credenciales y la generación TOTP aislada. La automatización externa todavía no existe.
+Este documento describe la lógica objetivo de la aplicación nueva. Ya existen la estructura base, el estado de presentación de la ventana principal, la configuración, el almacenamiento protegido de credenciales, TOTP, navegador restringido, autenticación PAM real visible y Outlook clásico aislado. Favorites, solicitudes, composición HTML y la coordinación desde la interfaz permanecen pendientes.
 
 ## Capas
 
@@ -113,6 +113,10 @@ La fase 5 implementa en Core el cálculo RFC 6238 con HMAC-SHA1, intervalos de 3
 El resultado TOTP incluye su inicio y expiración UTC y puede evaluar el requisito de al menos ocho segundos restantes. Su representación textual y del depurador está redactada. Los buffers binarios de clave y hash se sobrescriben al terminar el cálculo. El algoritmo no decide la hora por sí mismo: recibe una referencia explícita para conservarse determinista. La fase 6 implementa `IPamClockFactory`, que exige una fecha HTTP válida del portal, incorpora la mitad del tiempo de ida y vuelta y una compensación central de 500 ms por la resolución de un segundo del encabezado, y después avanza con tiempo monotónico; nunca recurre silenciosamente al reloj local.
 
 La fase 8 implementa `PamAuthenticationService` con un puerto del portal ligado a la misma sesión temporal creada para el intento. El servicio mide y entrega el tiempo monotónico de ida y vuelta al reloj, espera asincrónicamente una ventana TOTP segura y permite un segundo código únicamente cuando el primero fue rechazado explícitamente. Las respuestas desconocidas, fallos de conexión y falta de confirmación no se consideran éxito ni provocan reintentos. Esta fase utiliza dobles del portal y no contiene selectores reales.
+
+La fase 9 implementa en Browser `PamAuthenticationPortalFactory` y `PamAuthenticationPortal`, ligados exclusivamente a la página de un `PamBrowserSession`. El adaptador usa los nombres accesibles reales `Username`, `Password`, `Log In`, `Enter Response`, `Submit` y `Return to dashboard`, y reconoce el rechazo TOTP observado sin registrar su contenido. La transición del portal anuncia `Navigation complete.` con `role=alert`; ese anuncio se ignora expresamente porque no representa un rechazo de credenciales. Los timeouts o estados ambiguos tampoco se convierten en rechazos explícitos.
+
+La integración real permanece detrás de `PAM_AUTOMATION_ALLOW_REAL_LOGIN=LOGIN_ONLY`, recupera los valores únicamente desde Windows Credential Manager y abre Edge visible. La validación autorizada confirmó el dashboard y cerró el contexto temporal; no navegó a Favorites, no creó solicitudes y no abrió Outlook.
 
 El flujo debe:
 

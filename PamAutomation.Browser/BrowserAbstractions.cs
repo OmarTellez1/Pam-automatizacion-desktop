@@ -56,6 +56,22 @@ internal interface IManagedPage : IAsyncDisposable
     Task<PamNavigationResponse> NavigateAsync(Uri uri, CancellationToken cancellationToken);
 }
 
+/// <summary>Browser operations needed by the real PAM login adapter.</summary>
+internal interface IPamLoginPage
+{
+    /// <summary>Submits the primary PAM credentials and waits for an explicit outcome.</summary>
+    Task<bool> SubmitCredentialsAsync(string username, string password, CancellationToken cancellationToken);
+
+    /// <summary>Submits one TOTP value and waits for acceptance or explicit rejection.</summary>
+    Task<bool> SubmitTotpAsync(string code, CancellationToken cancellationToken);
+
+    /// <summary>Waits until the previously visible TOTP rejection is no longer visible.</summary>
+    Task WaitForTotpRejectionToDisappearAsync(CancellationToken cancellationToken);
+
+    /// <summary>Waits for the final dashboard confirmation link.</summary>
+    Task<bool> WaitForDashboardAsync(CancellationToken cancellationToken);
+}
+
 /// <summary>Required settings for launching the externally installed Edge channel.</summary>
 /// <param name="Channel">The installed browser channel.</param>
 /// <param name="Headless">Whether the browser is headless.</param>

@@ -182,7 +182,7 @@ public sealed class PamBrowserSessionFactoryTests
             harness.DisposalOrder);
     }
 
-    private sealed class BrowserHarness : IPlaywrightEngineFactory, IPlaywrightEngine, IManagedBrowser, IManagedBrowserContext, IManagedPage
+    private sealed class BrowserHarness : IPlaywrightEngineFactory, IPlaywrightEngine, IManagedBrowser, IManagedBrowserContext, IManagedPage, IPamLoginPage
     {
         public List<string> DisposalOrder { get; } = [];
         public EdgeLaunchOptions? LaunchOptions { get; private set; }
@@ -241,6 +241,15 @@ public sealed class PamBrowserSessionFactoryTests
             DuringNavigation?.Invoke();
             return Task.FromResult(new PamNavigationResponse(uri, 200, "Tue, 15 Nov 1994 08:12:31 GMT", TimeSpan.Zero));
         }
+
+        public Task<bool> SubmitCredentialsAsync(string username, string password, CancellationToken cancellationToken) =>
+            Task.FromResult(true);
+
+        public Task<bool> SubmitTotpAsync(string code, CancellationToken cancellationToken) => Task.FromResult(true);
+
+        public Task WaitForTotpRejectionToDisappearAsync(CancellationToken cancellationToken) => Task.CompletedTask;
+
+        public Task<bool> WaitForDashboardAsync(CancellationToken cancellationToken) => Task.FromResult(true);
 
         public ValueTask DisposeAsync()
         {

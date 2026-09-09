@@ -12,6 +12,9 @@ public sealed class PamAuthenticationService
     /// <summary>The sole portal origin allowed by the authentication workflow.</summary>
     public static readonly Uri AuthorizedOrigin = new("https://10.30.17.117");
 
+    /// <summary>The authorized entry point for a dashboard login.</summary>
+    public static readonly Uri LoginUri = new(AuthorizedOrigin, "/webconsole/login?redir=dashboard");
+
     private readonly IPamBrowserSessionFactory browserSessionFactory;
     private readonly IPamAuthenticationPortalFactory portalFactory;
     private readonly IPamClockFactory clockFactory;
@@ -36,7 +39,7 @@ public sealed class PamAuthenticationService
 
         await using IPamBrowserSession session = await InvokePortalAsync(() => browserSessionFactory.CreateAsync(cancellationToken)).ConfigureAwait(false);
         IPamAuthenticationPortal portal = InvokePortal(() => portalFactory.Create(session));
-        var navigation = await InvokePortalAsync(() => session.NavigateAsync(AuthorizedOrigin, cancellationToken)).ConfigureAwait(false);
+        var navigation = await InvokePortalAsync(() => session.NavigateAsync(LoginUri, cancellationToken)).ConfigureAwait(false);
         IClock clock = clockFactory.Create(navigation.HttpDateHeader, navigation.RoundTripTime);
 
         PamCredentialSubmissionResult credentialsResult = await InvokePortalAsync(() => portal.SubmitCredentialsAsync(credentials, cancellationToken)).ConfigureAwait(false);
