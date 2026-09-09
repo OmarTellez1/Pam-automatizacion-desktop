@@ -209,3 +209,14 @@ Cada cambio relevante debe registrar qué se decidió, por qué, qué se verific
 - Se añadieron errores estables para distinguir un fallo al lanzar Edge de un fallo al inicializar la sesión y se garantizó la liberación de recursos creados parcialmente.
 - Las pruebas usan adaptadores falsos y no abren Edge, no contactan PAM, no leen credenciales reales, no crean solicitudes y no envían correo.
 - La validación consolidada con `Release | x64` compiló sin errores y ejecutó 90 pruebas correctas; permanece una advertencia MSTest heredada en `TestExplorerSmokeTests.cs`.
+
+## 9 de septiembre de 2026 — Fases 8 y 14: autenticación simulada y Outlook clásico
+
+- Se desarrollaron en paralelo mediante dos subagentes nativos y worktrees separados, con integración y validación secuencial por el coordinador.
+- La fase 8 agregó un servicio de autenticación simulado que coordina sesión Browser, reloj HTTP, TOTP, espera de ventana segura, reintento único y confirmación final mediante contratos testeables.
+- `PamNavigationResponse` ahora incluye el tiempo monotónico de ida y vuelta utilizado para calibrar el reloj del portal.
+- La fase 14 agregó contratos y modelos redactados de Outlook, validación de cuenta y mensaje, ejecución STA y un adaptador Microsoft Office Interop/COM con liberación explícita.
+- Se actualizó `Microsoft.Office.Interop.Outlook` a 15.0.4797.1004, que restauró y compiló sin la advertencia `NU1701` observada con la versión anterior.
+- Las pruebas de Outlook usan un seam COM falso; no abren Outlook ni envían mensajes. El resultado posterior a `Send()` queda como no confirmado hasta consultar Enviados.
+- La herramienta de parche de los subagentes nativos quedó inicialmente anclada al checkout principal aunque sus comandos estaban en los worktrees. Ambos se detuvieron o fueron interrumpidos; los cambios se replicaron mediante rutas verificadas hacia cada worktree y el checkout principal se limpió antes de integrar.
+- La validación consolidada compiló en `Release | x64` con 0 errores y ejecutó 116 pruebas correctas. No se abrió Edge, no se contactó PAM, no se inició Outlook real y no se envió correo.

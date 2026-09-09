@@ -112,6 +112,8 @@ La fase 5 implementa en Core el cálculo RFC 6238 con HMAC-SHA1, intervalos de 3
 
 El resultado TOTP incluye su inicio y expiración UTC y puede evaluar el requisito de al menos ocho segundos restantes. Su representación textual y del depurador está redactada. Los buffers binarios de clave y hash se sobrescriben al terminar el cálculo. El algoritmo no decide la hora por sí mismo: recibe una referencia explícita para conservarse determinista. La fase 6 implementa `IPamClockFactory`, que exige una fecha HTTP válida del portal, incorpora la mitad del tiempo de ida y vuelta y una compensación central de 500 ms por la resolución de un segundo del encabezado, y después avanza con tiempo monotónico; nunca recurre silenciosamente al reloj local.
 
+La fase 8 implementa `PamAuthenticationService` con un puerto del portal ligado a la misma sesión temporal creada para el intento. El servicio mide y entrega el tiempo monotónico de ida y vuelta al reloj, espera asincrónicamente una ventana TOTP segura y permite un segundo código únicamente cuando el primero fue rechazado explícitamente. Las respuestas desconocidas, fallos de conexión y falta de confirmación no se consideran éxito ni provocan reintentos. Esta fase utiliza dobles del portal y no contiene selectores reales.
+
 El flujo debe:
 
 1. Abrir únicamente https://10.30.17.117.
@@ -152,7 +154,9 @@ El conflicto PSPortal.Requests.Policies.RemoteAppAccesssAlreadyAvailable se regi
 
 ## Outlook
 
-Outlook clásico se integrará mediante COM. Debe verificarse la cuenta exacta por SmtpAddress, asignarse SendUsingAccount antes de Send() y crearse un mensaje nuevo por ejecución.
+La fase 14 integra Outlook clásico mediante COM detrás de `IOutlookClassicClient`. Verifica una única cuenta por `SmtpAddress`, valida la cuenta con un mensaje temporal que siempre se descarta, asigna `SendUsingAccount` antes de `Send()` y crea un mensaje nuevo por operación. La ejecución COM se realiza en STA y las referencias se liberan explícitamente.
+
+Los modelos que contienen dirección, asunto, HTML, destinatarios o Request ID redactan su representación textual. Invocar `Send()` solo produce `SubmittedUnconfirmed`; la entrega no se marcará confirmada hasta que una fase posterior la compruebe en Enviados. Un fallo COM devuelve un resultado seguro sin exponer el contenido.
 
 La integración COM debe ejecutarse en STA, liberar referencias y no enviar mensajes durante pruebas automáticas.
 

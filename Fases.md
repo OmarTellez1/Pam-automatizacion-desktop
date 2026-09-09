@@ -42,6 +42,16 @@ Se incorporó Microsoft.Playwright 1.62.0 en `PamAutomation.Browser` y se implem
 
 Las fases 6 y 7 fueron integradas y validadas conjuntamente en `Release | x64`: la solución compiló sin errores y las 90 pruebas terminaron correctamente. No se ejecutaron pruebas reales contra Edge o PAM porque requieren autorización explícita.
 
+## Fase 8 — Autenticación PAM simulada
+
+Se implementó en Core un servicio de autenticación aislado que enlaza el puerto del portal con la misma sesión temporal de navegador, calibra el reloj con HTTP `Date` y el tiempo monotónico de ida y vuelta, genera el TOTP y exige al menos ocho segundos de vigencia. El flujo simulado diferencia credenciales rechazadas, dos rechazos TOTP, fallos de comunicación, ausencia de confirmación y respuestas inesperadas. Solo reintenta una vez ante un rechazo TOTP explícito, espera que desaparezca el rechazo anterior y nunca utiliza credenciales reales, selectores Playwright ni el portal PAM. Las pruebas cubren todos esos caminos con dobles deterministas.
+
+## Fase 14 — Outlook falso y Outlook COM
+
+Se definieron en Core los contratos, modelos redactados, validaciones y errores estables de Outlook. `PamAutomation.Outlook` incorpora Microsoft Office Interop Outlook 15.0.4797.1004, resolución exacta de cuenta por `SmtpAddress`, comprobación mediante mensaje temporal descartado, creación de un mensaje nuevo por envío, asignación previa de `SendUsingAccount`, ejecución en un hilo STA y liberación explícita de referencias COM. Las pruebas usan un seam COM falso: no abren Outlook ni envían correo. Como todavía no se consulta Enviados, un `Send()` correcto se informa honestamente como `SubmittedUnconfirmed`, no como entrega confirmada.
+
+Las fases 8 y 14 fueron integradas y validadas conjuntamente en `Release | x64`: la solución compiló sin errores y las 116 pruebas terminaron correctamente. Permanece una advertencia MSTest heredada fuera de estas fases.
+
 ## Fases pendientes
 
 La clasificación siguiente se refiere únicamente a dependencias entre fases pendientes:
@@ -52,14 +62,12 @@ La clasificación siguiente se refiere únicamente a dependencias entre fases pe
 
 | Fase | Clasificación | Dependencias pendientes | Alcance y posibilidad de paralelismo |
 |---|---|---|---|
-| 8 — Autenticación PAM simulada | **Independiente condicionada** | Ninguna fase pendiente; fases 6 y 7 completadas. | Ya puede comenzar sobre los contratos integrados de hora y navegador. Puede avanzar en paralelo con la fase 14 si se congelan esos contratos y no se comparten archivos. |
-| 9 — Autenticación PAM real visible | **Dependiente** | Fase 8 y autorización explícita del usuario. | Es una validación real y secuencial; no se delega en paralelo con operaciones reales de PAM. |
+| 9 — Autenticación PAM real visible | **Dependiente** | Autorización explícita del usuario; fase 8 completada. | Es una implementación y validación real secuencial. Debe inspeccionar los selectores reales sin crear solicitudes y no puede comenzar una prueba contra PAM sin autorización. |
 | 10 — Navegación a Favorites | **Dependiente** | Fase 9. | Necesita una sesión autenticada confirmada y los selectores reales inspeccionados. |
 | 11 — Modo de prueba de solicitudes | **Dependiente** | Fase 10. | Necesita las cuentas descubiertas y el flujo de navegación estable; valida y descarta formularios sin enviarlos. |
 | 12 — Solicitudes reales | **Dependiente** | Fase 11 y confirmación explícita. | Reutiliza el mismo flujo y archivos de Browser; debe implementarse después de demostrar que el modo de prueba nunca envía solicitudes. |
 | 13 — Lectura y comparación de Pending | **Dependiente** | Fases 10, 11 y 12. | Aunque conceptualmente es lectura, comparte sesión, selectores y modelos de solicitudes con las fases anteriores; mantenerla secuencial evita conflictos en Browser. |
-| 14 — Outlook falso y Outlook COM | **Independiente** | Ninguna fase pendiente. | Es el segundo frente seguro de trabajo: puede desarrollarse en `PamAutomation.Outlook` y sus pruebas mientras otro agente trabaja en una fase PAM, sin enviar correos reales ni tocar Browser. |
-| 15 — HTML saneado y marcador Request ID | **Dependiente** | Fases 13 y 14. | Necesita el contrato final de resultados PAM y la abstracción de correo. Puede adelantarse solo si el coordinador congela ambos contratos, por lo que no se considera independiente por defecto. |
+| 15 — HTML saneado y marcador Request ID | **Dependiente** | Fase 13; fase 14 completada. | Ya dispone de la abstracción de Outlook, pero aún necesita el contrato final de resultados PAM para componer y validar los Request ID. |
 | 16 — Resultados en memoria e interfaz | **Dependiente** | Fases 13 y 15. | Necesita los resultados y estados finales que debe presentar; probablemente afecta App y la composición principal. |
 | 17 — Evidencias técnicas de desarrollo | **Dependiente** | Fase 16 y flujos operativos integrados. | Es transversal y debe conocer qué fallos pueden diagnosticarse sin persistir secretos. No conviene paralelizarla con cambios activos en esos flujos. |
 | 18 — Instalador y publicación autocontenida | **Dependiente** | Fases 6 a 17. | Requiere que la aplicación y sus dependencias externas estén definidas y validadas. |
@@ -68,19 +76,16 @@ La clasificación siguiente se refiere únicamente a dependencias entre fases pe
 ## Mapa recomendado de trabajo paralelo
 
 ```text
-Fases 6 y 7 completadas
+Fases 6, 7 y 8 completadas
        │
-       └──► Fase 8 ──► Fase 9 ──► Fase 10 ──► Fase 11 ──► Fase 12 ──► Fase 13
+       └──► Fase 9 ──► Fase 10 ──► Fase 11 ──► Fase 12 ──► Fase 13
 
-Fase 14 ────────────────────────────────────────────────────────────────────────────────┐
+Fase 14 completada ─────────────────────────────────────────────────────────────────────┐
                                                                                         ├──► Fase 15 ──► Fase 16 ──► Fase 17 ──► Fase 18 ──► Fase 19
 Fase 13 ────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-Con un máximo de dos subagentes, las combinaciones recomendadas son:
-
-1. **Siguiente oleada posible:** fase 8 y fase 14, porque autenticación simulada y Outlook pertenecen a módulos separados. Si alguna es pequeña en el estado real del repositorio, el coordinador debe asumirla directamente y usar solo un subagente.
-2. **Resto del flujo:** ejecutar de forma predominantemente secuencial. El coordinador solo podrá paralelizar una parte si vuelve a comprobar independencia, contratos congelados y ausencia de archivos compartidos.
+No queda actualmente otra fase clasificada como independiente. El flujo PAM debe continuar de forma secuencial desde la fase 9 y la fase 15 seguirá bloqueada hasta completar la fase 13. El coordinador solo podrá paralelizar una parte futura si vuelve a demostrar independencia, contratos congelados y ausencia de archivos compartidos.
 
 Esta clasificación es una guía de planificación, no una autorización automática para crear subagentes. Antes de cada oleada, el coordinador debe inspeccionar el diff y la estructura real; si el trabajo resultó pequeño o apareció solapamiento, debe conservarlo en el agente principal o ejecutarlo secuencialmente.
 

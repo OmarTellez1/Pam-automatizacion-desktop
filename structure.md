@@ -21,7 +21,7 @@ La aplicación anterior ubicada en `C:\pam automatizacion` no forma parte de est
 
 ## Estado actual
 
-La solución utiliza `PamAutomation.slnx`, .NET 10 y la plataforma `x64`. Actualmente existen los límites principales de la arquitectura, la persistencia JSON no sensible, el almacenamiento protegido de credenciales PAM, la generación TOTP, el reloj confiable derivado de HTTP `Date` y la sesión temporal restringida de Edge. Todavía no están implementadas la autenticación PAM, las solicitudes ni Outlook.
+La solución utiliza `PamAutomation.slnx`, .NET 10 y la plataforma `x64`. Actualmente existen los límites principales de la arquitectura, configuración y credenciales protegidas, TOTP, reloj HTTP, sesión temporal de Edge, autenticación PAM simulada y el adaptador testeable de Outlook clásico. Todavía no están implementadas la autenticación PAM real, Favorites, solicitudes, composición HTML ni la conexión de estos servicios con la interfaz.
 
 Las fases construidas hasta ahora son:
 
@@ -34,6 +34,8 @@ Las fases construidas hasta ahora son:
 - Fase 5: generación TOTP RFC 6238 y evaluación de ventana segura.
 - Fase 6: reloj confiable calibrado con HTTP `Date` y avance monotónico.
 - Fase 7: Edge externo visible y contexto Playwright temporal restringido al origen PAM.
+- Fase 8: autenticación PAM simulada con reloj confiable, ventana TOTP y reintento controlado.
+- Fase 14: contratos, validación, fake y adaptador Outlook clásico COM ejecutado en STA.
 
 Los directorios `.git`, `.vs`, `bin` y `obj` contienen metadatos o salidas generadas y se omiten en el árbol.
 
@@ -68,6 +70,12 @@ PamAutomation\
 ├── PamAutomation.Core\
 │   ├── PamAutomation.Core.csproj
 │   ├── Interfaces\
+│   │   ├── Authentication\
+│   │   │   ├── IAsyncDelay.cs
+│   │   │   ├── IPamAuthenticationPortal.cs
+│   │   │   ├── IPamAuthenticationPortalFactory.cs
+│   │   │   ├── PamCredentialSubmissionResult.cs
+│   │   │   └── PamTotpSubmissionResult.cs
 │   │   ├── Browser\
 │   │   │   ├── IPamBrowserSession.cs
 │   │   │   └── IPamBrowserSessionFactory.cs
@@ -77,11 +85,18 @@ PamAutomation\
 │   │   │   ├── CredentialStoreErrorCode.cs
 │   │   │   ├── CredentialStoreException.cs
 │   │   │   └── IPamCredentialStore.cs
+│   │   ├── Outlook\
+│   │   │   └── IOutlookClassicClient.cs
 │   │   └── Time\
 │   │       ├── IClock.cs
 │   │       ├── IPamClockFactory.cs
 │   │       ├── PamClockErrorCode.cs
 │   │       └── PamClockException.cs
+│   ├── Authentication\
+│   │   ├── PamAuthenticationErrorCode.cs
+│   │   ├── PamAuthenticationException.cs
+│   │   ├── PamAuthenticationService.cs
+│   │   └── TaskAsyncDelay.cs
 │   ├── Browser\
 │   │   ├── PamBrowserExceptions.cs
 │   │   └── PamNavigationResponse.cs
@@ -93,6 +108,18 @@ PamAutomation\
 │   │   └── Credentials\
 │   │       ├── PamCredentials.cs
 │   │       └── PamCredentialUpdate.cs
+│   ├── Outlook\
+│   │   ├── OutlookAccount.cs
+│   │   ├── OutlookAccountResolutionErrorCode.cs
+│   │   ├── OutlookAccountResolutionException.cs
+│   │   ├── OutlookDeliveryResult.cs
+│   │   ├── OutlookDeliveryStatus.cs
+│   │   ├── OutlookMessageValidator.cs
+│   │   ├── OutlookOperationErrorCode.cs
+│   │   ├── OutlookOperationException.cs
+│   │   ├── OutlookSendRequest.cs
+│   │   ├── OutlookValidationErrorCode.cs
+│   │   └── OutlookValidationException.cs
 │   ├── Totp\
 │   │   ├── Base32SecretDecoder.cs
 │   │   ├── InvalidBase32SecretException.cs
@@ -131,13 +158,21 @@ PamAutomation\
 │       └── PamHttpDateClockFactory.cs
 │
 ├── PamAutomation.Outlook\
-│   └── PamAutomation.Outlook.csproj
+│   ├── PamAutomation.Outlook.csproj
+│   ├── AssemblyInfo.cs
+│   ├── OutlookClassicClient.cs
+│   └── Interop\
+│       ├── OutlookComAbstractions.cs
+│       ├── OutlookComApplicationFactory.cs
+│       └── StaExecutor.cs
 │
 └── PamAutomation.Tests\
     ├── PamAutomation.Tests.csproj
     ├── TestExplorerSmokeTests.cs
     ├── MainWindowViewModelTests.cs
     ├── Core\
+    │   ├── Authentication\
+    │   │   └── PamAuthenticationServiceTests.cs
     │   ├── Configuration\
     │   │   ├── AppSettingsValidatorTests.cs
     │   │   └── RequestSettingsValidatorTests.cs
@@ -147,13 +182,15 @@ PamAutomation\
     │       └── TotpGeneratorTests.cs
     ├── Browser\
     │   └── PamBrowserSessionFactoryTests.cs
-    └── Infrastructure\
-        ├── Configuration\
-        │   └── JsonAppSettingsStoreTests.cs
-        ├── Credentials\
-        │   └── WindowsPamCredentialStoreTests.cs
-        └── Time\
-            └── PamHttpDateClockFactoryTests.cs
+    ├── Infrastructure\
+    │   ├── Configuration\
+    │   │   └── JsonAppSettingsStoreTests.cs
+    │   ├── Credentials\
+    │   │   └── WindowsPamCredentialStoreTests.cs
+    │   └── Time\
+    │       └── PamHttpDateClockFactoryTests.cs
+    └── Outlook\
+        └── OutlookClassicClientTests.cs
 ```
 
 ### Documentos de la raíz
@@ -215,7 +252,7 @@ No debe contener:
 
 ### `PamAutomation.Core`
 
-Biblioteca para `net10.0`, sin dependencia de WPF o Windows. Actualmente contiene configuración, credenciales, TOTP y contratos de tiempo y navegador:
+Biblioteca para `net10.0`, sin dependencia de WPF o Windows. Actualmente contiene configuración, credenciales, TOTP, autenticación simulada y contratos de tiempo, navegador y Outlook:
 
 - `Interfaces/Configuration`: contrato `IAppSettingsStore` para cargar y guardar configuración sin acoplar Core al sistema de archivos.
 - `Interfaces/Credentials`: contrato `IPamCredentialStore` y errores estables para el almacenamiento protegido.
@@ -226,6 +263,8 @@ Biblioteca para `net10.0`, sin dependencia de WPF o Windows. Actualmente contien
 - `Interfaces/Time`: reloj confiable, fábrica de calibración y errores estables sin dependencia del sistema.
 - `Interfaces/Browser`: contratos de fábrica y sesión que no exponen tipos Playwright.
 - `Browser`: respuesta de navegación reducida a URI, estado y HTTP `Date`, junto con errores controlados de inicialización y navegación.
+- `Authentication`: servicio de autenticación simulado, espera asincrónica, errores estables y contratos del puerto ligado a una sesión.
+- `Interfaces/Outlook` y `Outlook`: contrato del cliente clásico, modelos redactados, validaciones, resultados y errores seguros.
 
 Los validadores reciben explícitamente la hora actual de Ecuador y no acceden al reloj, sistema de archivos o servicios externos.
 
@@ -247,6 +286,7 @@ Biblioteca para `net10.0`. Referencia `PamAutomation.Core` e implementa la sesi�
 - `PamBrowserSession`: valida cada navegación y libera página, contexto, navegador y runtime en orden.
 - `PamOriginPolicy`: compara esquema, host y puerto efectivo y bloquea solicitudes HTTP(S) externas o malformadas.
 - `PlaywrightEngineFactory` y `BrowserAbstractions`: adaptadores internos que encapsulan Microsoft.Playwright y permiten pruebas sin abrir Edge.
+- `PamBrowserSession` mide monotónicamente el tiempo de ida y vuelta de cada navegación para calibrar el reloj HTTP.
 
 Dependencia NuGet actual: `Microsoft.Playwright` 1.62.0. Los adaptadores internos se exponen únicamente a `PamAutomation.Tests` mediante `InternalsVisibleTo`.
 
@@ -289,7 +329,12 @@ No debe conocer controles WPF, selectores PAM ni objetos COM de Outlook.
 
 ### `PamAutomation.Outlook`
 
-Biblioteca para `net10.0-windows`. Actualmente contiene únicamente su archivo de proyecto y referencia `PamAutomation.Core`.
+Biblioteca para `net10.0-windows`. Referencia `PamAutomation.Core` e implementa Outlook clásico mediante Microsoft Office Interop 15.0.4797.1004:
+
+- `OutlookClassicClient.cs`: resolución exacta de cuenta, validación mediante mensaje descartado y envío con estado no confirmado.
+- `Interop/OutlookComApplicationFactory.cs`: adaptadores propietarios de `Application`, `Account` y `MailItem` con liberación explícita.
+- `Interop/StaExecutor.cs`: ejecuta cada operación COM acotada en un hilo STA dedicado.
+- `Interop/OutlookComAbstractions.cs`: seam interno sustituido por pruebas sin abrir Outlook.
 
 Responsabilidad objetivo:
 
@@ -304,7 +349,7 @@ No debe contener vistas WPF, navegación PAM ni almacenamiento de credenciales P
 
 ### `PamAutomation.Tests`
 
-Proyecto MSTest para `net10.0-windows`. Actualmente referencia `PamAutomation.App`, `PamAutomation.Core`, `PamAutomation.Infrastructure` y `PamAutomation.Browser`.
+Proyecto MSTest para `net10.0-windows`. Actualmente referencia `PamAutomation.App`, `PamAutomation.Core`, `PamAutomation.Infrastructure`, `PamAutomation.Browser` y `PamAutomation.Outlook`.
 
 Contenido actual:
 
@@ -318,6 +363,8 @@ Contenido actual:
 - `Infrastructure/Credentials/WindowsPamCredentialStoreTests.cs`: valida creación, actualización parcial, límites, corrupción, borrado y limpieza de buffers mediante una API de Windows falsa.
 - `Infrastructure/Time/PamHttpDateClockFactoryTests.cs`: valida calibración, avance monotónico y errores sin consultar el reloj local.
 - `Browser/PamBrowserSessionFactoryTests.cs`: valida Edge visible, contexto temporal, origen exacto, respuesta segura, cancelación y liberación con adaptadores falsos.
+- `Core/Authentication/PamAuthenticationServiceTests.cs`: valida el flujo simulado, RTT, ventana TOTP, reintento único, errores y cancelación.
+- `Outlook/OutlookClassicClientTests.cs`: valida cuenta exacta, mensajes temporales, redacción, STA, liberación y envío no confirmado mediante COM falso.
 
 Responsabilidad objetivo:
 
