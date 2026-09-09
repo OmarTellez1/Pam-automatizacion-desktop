@@ -2,7 +2,7 @@
 
 ## Estado
 
-Este documento describe la lógica objetivo de la aplicación nueva. Ya existen la estructura base y el estado de presentación de la ventana principal, pero la implementación funcional todavía no existe.
+Este documento describe la lógica objetivo de la aplicación nueva. Ya existen la estructura base, el estado de presentación de la ventana principal, la configuración, el almacenamiento protegido de credenciales y la generación TOTP aislada. La automatización externa todavía no existe.
 
 ## Capas
 
@@ -107,6 +107,10 @@ Durante desarrollo, pruebas e integración controlada, se podrán crear en la ra
 Estas carpetas estarán excluidas de Git y no se incluirán en el instalador. Contendrán únicamente resultados y diagnóstico técnico sin secretos. El perfil de publicación debe usar un almacenamiento en memoria y no debe escribir esas carpetas aunque el ejecutable se inicie desde otra ubicación.
 
 ## Autenticación
+
+La fase 5 implementa en Core el cálculo RFC 6238 con HMAC-SHA1, intervalos de 30 segundos y códigos de seis dígitos. La clave de enrolamiento se decodifica como Base32 sin almacenarla; se aceptan mayúsculas, minúsculas y los espacios utilizados para mostrarla en grupos, mientras que símbolos, longitudes, padding o bits residuales inválidos se rechazan con un error que no reproduce la clave.
+
+El resultado TOTP incluye su inicio y expiración UTC y puede evaluar el requisito de al menos ocho segundos restantes. Su representación textual y del depurador está redactada. Los buffers binarios de clave y hash se sobrescriben al terminar el cálculo. Esta fase no decide la hora por sí misma: recibe una referencia explícita para conservar el algoritmo determinista. La fase 6 deberá suministrar exclusivamente una hora HTTP válida del portal mediante una abstracción de reloj; no podrá recurrir silenciosamente al reloj local.
 
 El flujo debe:
 

@@ -157,3 +157,16 @@ Cada cambio relevante debe registrar qué se decidió, por qué, qué se verific
 - Se eliminó de `README.md` una frase heredada sobre una carpeta común de datos que contradecía la regla canónica de no persistir archivos operativos.
 - La interfaz todavía no usa este almacén y no se implementaron TOTP, Edge, acceso a PAM, DPAPI de correo u Outlook.
 - La revisión estática queda a cargo de esta fase; la compilación y ejecución de pruebas quedan pendientes en Visual Studio.
+
+## 9 de septiembre de 2026 — Fase 5: generación TOTP
+
+- El usuario confirmó que la fase 4 compiló y que todas sus pruebas terminaron correctamente en Visual Studio con `Release | x64`.
+- Se agregó en Core un decodificador Base32 estricto que acepta el formato agrupado con espacios mostrado por Microsoft Authenticator, sin registrar ni reproducir la clave en errores.
+- Se implementó RFC 6238 con HMAC-SHA1, intervalos de 30 segundos y códigos de seis dígitos.
+- El resultado representa explícitamente el inicio y la expiración UTC del código y permite exigir al menos ocho segundos de vigencia antes de enviarlo.
+- El código TOTP se oculta en `ToString()` y en el depurador; las copias binarias administradas de la clave y del hash se limpian después del cálculo.
+- Se agregaron pruebas MSTest con vectores públicos RFC 6238, formatos Base32 válidos e inválidos, límites de ventana, vigencia mínima y redacción del resultado.
+- La validación inicial detectó una ambigüedad de precedencia entre el operador módulo y una expresión `switch`; se hizo explícito el residuo Base32 para rechazar correctamente longitudes de un solo símbolo.
+- Se completó `Fases.md` como resumen acumulativo de las etapas construidas y se añadió al inventario documental.
+- No se utilizó la clave real compartida por el usuario, no se leyeron credenciales protegidas, no se abrió Edge, no se contactó PAM y no se envió correo.
+- La hora HTTP del portal y su abstracción de reloj quedan para la fase 6. La revisión estática queda a cargo de esta fase; la compilación y ejecución de pruebas quedan pendientes en Visual Studio.

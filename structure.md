@@ -21,7 +21,7 @@ La aplicación anterior ubicada en `C:\pam automatizacion` no forma parte de est
 
 ## Estado actual
 
-La solución utiliza `PamAutomation.slnx`, .NET 10 y la plataforma `x64`. Actualmente existen los límites principales de la arquitectura, la persistencia JSON no sensible y el almacenamiento protegido de credenciales PAM; todavía no están implementadas las funciones de TOTP, PAM, Edge o Outlook.
+La solución utiliza `PamAutomation.slnx`, .NET 10 y la plataforma `x64`. Actualmente existen los límites principales de la arquitectura, la persistencia JSON no sensible, el almacenamiento protegido de credenciales PAM y la generación TOTP; todavía no están implementadas las funciones de hora HTTP, PAM, Edge u Outlook.
 
 Las fases construidas hasta ahora son:
 
@@ -31,6 +31,7 @@ Las fases construidas hasta ahora son:
 - Fase 3A: modelos y validación de configuración no sensible.
 - Fase 3B: contrato y persistencia JSON de configuración no sensible.
 - Fase 4: almacenamiento protegido de credenciales PAM.
+- Fase 5: generación TOTP RFC 6238 y evaluación de ventana segura.
 
 Los directorios `.git`, `.vs`, `bin` y `obj` contienen metadatos o salidas generadas y se omiten en el árbol.
 
@@ -44,6 +45,7 @@ PamAutomation\
 ├── LOGIC.md
 ├── History.md
 ├── structure.md
+├── Fases.md
 ├── .gitignore
 ├── PamAutomation.slnx
 │
@@ -77,6 +79,11 @@ PamAutomation\
 │   │   └── Credentials\
 │   │       ├── PamCredentials.cs
 │   │       └── PamCredentialUpdate.cs
+│   ├── Totp\
+│   │   ├── Base32SecretDecoder.cs
+│   │   ├── InvalidBase32SecretException.cs
+│   │   ├── TotpCode.cs
+│   │   └── TotpGenerator.cs
 │   └── Validation\
 │       ├── AppSettingsValidator.cs
 │       ├── ConfigurationValidationErrorCode.cs
@@ -113,8 +120,10 @@ PamAutomation\
     │   ├── Configuration\
     │   │   ├── AppSettingsValidatorTests.cs
     │   │   └── RequestSettingsValidatorTests.cs
-    │   └── Credentials\
-    │       └── PamCredentialsTests.cs
+    │   ├── Credentials\
+    │   │   └── PamCredentialsTests.cs
+    │   └── Totp\
+    │       └── TotpGeneratorTests.cs
     └── Infrastructure\
         ├── Configuration\
         │   └── JsonAppSettingsStoreTests.cs
@@ -132,6 +141,7 @@ PamAutomation\
 | `LOGIC.md` | Comportamientos, reglas de negocio y contratos previstos. |
 | `History.md` | Registro cronológico de decisiones y cambios relevantes. |
 | `structure.md` | Inventario físico y arquitectura actual y objetivo. |
+| `Fases.md` | Resumen acumulativo del alcance, ubicación e importancia de cada fase implementada. |
 | `.gitignore` | Exclusiones de Git para salidas, configuración local y artefactos de desarrollo. |
 | `PamAutomation.slnx` | Solución de Visual Studio que agrupa los seis proyectos en `x64`. |
 
@@ -179,13 +189,14 @@ No debe contener:
 
 ### `PamAutomation.Core`
 
-Biblioteca para `net10.0`, sin dependencia de WPF o Windows. Actualmente contiene los primeros módulos de configuración:
+Biblioteca para `net10.0`, sin dependencia de WPF o Windows. Actualmente contiene configuración, credenciales y TOTP:
 
 - `Interfaces/Configuration`: contrato `IAppSettingsStore` para cargar y guardar configuración sin acoplar Core al sistema de archivos.
 - `Interfaces/Credentials`: contrato `IPamCredentialStore` y errores estables para el almacenamiento protegido.
 - `Models/Configuration`: `AppSettings`, `RequestSettings` y `FinalAction`.
 - `Models/Credentials`: modelo completo de uso exclusivo de autenticación y modelo de actualización con campos opcionales.
 - `Validation`: resultado, fallas, códigos estables y validadores de configuración.
+- `Totp`: decodificación Base32, generación RFC 6238 y evaluación de la vigencia mínima antes del envío.
 
 Los validadores reciben explícitamente la hora actual de Ecuador y no acceden al reloj, sistema de archivos o servicios externos.
 
@@ -194,7 +205,7 @@ Responsabilidad objetivo:
 - Modelos y resultados del dominio.
 - Interfaces que abstraen navegador, Outlook, reloj, credenciales y persistencia.
 - Validación de solicitud y correo.
-- Implementación y reglas de TOTP.
+- Reglas TOTP y su coordinación futura con la hora confiable y la autenticación.
 - Reglas de ejecución, confirmación, conflictos y duplicados.
 
 Regla principal: `Core` no debe referenciar ningún otro proyecto de la solución.
@@ -265,6 +276,7 @@ Contenido actual:
 - `Core/Configuration/AppSettingsValidatorTests.cs`: valida valores predeterminados, configuración general y propagación de errores.
 - `Core/Configuration/RequestSettingsValidatorTests.cs`: valida fecha, hora, duración y razón de la solicitud.
 - `Core/Credentials/PamCredentialsTests.cs`: valida campos obligatorios y que los modelos sensibles no expongan valores al convertirse en texto.
+- `Core/Totp/TotpGeneratorTests.cs`: valida vectores públicos RFC 6238, Base32, ventanas de 30 segundos, vigencia mínima y redacción del código.
 - `Infrastructure/Configuration/JsonAppSettingsStoreTests.cs`: valida formato plano, carga, sustitución atómica, cancelación segura y errores de persistencia sin tocar la configuración real del usuario.
 - `Infrastructure/Credentials/WindowsPamCredentialStoreTests.cs`: valida creación, actualización parcial, límites, corrupción, borrado y limpieza de buffers mediante una API de Windows falsa.
 

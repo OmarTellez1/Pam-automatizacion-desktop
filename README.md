@@ -6,9 +6,9 @@ Aplicación de escritorio Windows para automatizar BeyondInsight Password Safe d
 
 La raíz oficial del repositorio es `C:\pam automatizacion dotnet\PamAutomation`.
 
-La solución `PamAutomation.slnx` contiene la aplicación WPF `PamAutomation.App` y los proyectos base `PamAutomation.Core`, `PamAutomation.Browser`, `PamAutomation.Outlook`, `PamAutomation.Infrastructure` y `PamAutomation.Tests`. Las fases 3A y 3B incorporan el dominio, la validación y la persistencia JSON de la configuración no sensible. La fase 4 incorpora el almacenamiento protegido de credenciales PAM en Windows Credential Manager. Aún no existe implementación funcional de TOTP, PAM, Edge u Outlook y la interfaz todavía no está conectada a estos almacenamientos.
+La solución `PamAutomation.slnx` contiene la aplicación WPF `PamAutomation.App` y los proyectos base `PamAutomation.Core`, `PamAutomation.Browser`, `PamAutomation.Outlook`, `PamAutomation.Infrastructure` y `PamAutomation.Tests`. Las fases 3A y 3B incorporan el dominio, la validación y la persistencia JSON de la configuración no sensible. La fase 4 incorpora el almacenamiento protegido de credenciales PAM en Windows Credential Manager. La fase 5 incorpora la generación TOTP RFC 6238 y la evaluación de su ventana segura. Aún no existe implementación funcional de hora HTTP, PAM, Edge u Outlook y la interfaz todavía no está conectada a estos servicios.
 
-`PamAutomation.Tests` utiliza MSTest con Microsoft Testing Platform e incluye pruebas del estado de presentación, validación, persistencia de configuración y almacenamiento protegido simulado. Las fases 1, 2, 2B, 3A y 3B fueron compiladas y revisadas por el usuario en Visual Studio con `Release | x64`. El diseño 2B fue aprobado funcional y visualmente, aunque queda pendiente reducir la escala de sus elementos. La fase 4 queda pendiente de compilación y pruebas en el IDE.
+`PamAutomation.Tests` utiliza MSTest con Microsoft Testing Platform e incluye pruebas del estado de presentación, validación, persistencia de configuración, almacenamiento protegido simulado y TOTP con vectores públicos. Las fases 1, 2, 2B, 3A, 3B y 4 fueron compiladas y revisadas por el usuario en Visual Studio con `Release | x64`. El diseño 2B fue aprobado funcional y visualmente, aunque queda pendiente reducir la escala de sus elementos. La fase 5 queda pendiente de compilación y pruebas en el IDE.
 
 La compilación y las pruebas se administrarán exclusivamente desde Visual Studio. No se presupone disponibilidad de `dotnet` o `msbuild` en la línea de comandos.
 
@@ -39,6 +39,7 @@ La configuración de Outlook tendrá además una comprobación manual independie
 - LOGIC.md: lógica prevista y contratos del sistema.
 - History.md: historial propio de este proyecto nuevo.
 - structure.md: estructura física actual, responsabilidades de proyectos y arquitectura objetivo.
+- Fases.md: resumen acumulativo de lo incorporado y la importancia de cada fase.
 
 ## Referencia histórica
 
@@ -145,4 +146,4 @@ La primera versión ejecutará Edge de forma visible tanto para la validación d
 
 ## Próximo paso
 
-Abrir `PamAutomation.slnx` en Visual Studio, compilar en `Release | x64` y ejecutar todas las pruebas desde Test Explorer. No comenzar TOTP hasta que el almacenamiento protegido de la fase 4 compile y sus pruebas terminen correctamente.
+Abrir `PamAutomation.slnx` en Visual Studio, compilar en `Release | x64` y ejecutar todas las pruebas desde Test Explorer. No comenzar la fase 6 de hora HTTP hasta que la generación TOTP de la fase 5 compile y sus pruebas terminen correctamente.

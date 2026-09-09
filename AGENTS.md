@@ -13,9 +13,10 @@ Antes de analizar, modificar o crear código, leer completamente:
 - LOGIC.md
 - History.md
 - structure.md
+- Fases.md
 
-Debes mantener actualizado structure.md, este markdown se trata de documentar la estructura del proyecto e indicar que hace cada paquete, subpaquete y modulos. 
-
+Debes mantener actualizado structure.md, este markdown se trata de documentar la estructura del proyecto e indicar que hace cada paquete, subpaquete y modulos.
+Manten siempre actualizado Fases.md con todas las fases que se ha desarrollado en el proyecto, explicando que incorporo al desarrollo y en donde y por que fue importante implementar esa fase, tambien en ese markdown describe las fases completadas y las fases pendientes por hacer y completar.
 ## Tecnología obligatoria
 
 - C# y .NET 10 LTS, salvo restricción corporativa documentada.
