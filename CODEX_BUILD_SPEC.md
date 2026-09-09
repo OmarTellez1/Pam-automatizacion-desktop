@@ -574,7 +574,7 @@ No se requieren .NET MAUI, WinUI, C++, ASP.NET, Azure, Node.js, Python, Java ni 
 
 ## Reglas obligatorias para Codex
 
-1. Leer `AGENTS.md`, `README.md`, `LOGIC.md` y `History.md` antes de analizar o modificar el proyecto.
+1. El agente principal debe leer la documentación completa exigida por `AGENTS.md` antes de analizar o modificar el proyecto. Un subagente debe obedecer `AGENTS.md` y leer únicamente los archivos y secciones que el coordinador asigne en su paquete de contexto; no debe recorrer todo el repositorio ni todos los Markdown por defecto.
 2. Mantener actualizados `README.md`, `LOGIC.md` y `History.md` después de cambios relevantes.
 3. No crear archivos `.js`, `.mjs`, `.ts`, `.py`, `.ps1` ni proyectos Node.
 4. No cambiar la decisión de utilizar Edge externo sin una autorización explícita.
@@ -708,7 +708,7 @@ Cuando existan diferencias entre fuentes, utilizar este orden:
 
 Si una fuente contradice a otra, Codex debe detenerse, describir la contradicción y solicitar una decisión. No debe elegir silenciosamente una de las versiones.
 
-## Archivos que Codex debe leer antes de implementar
+## Archivos que el agente principal debe leer antes de implementar
 
 En el nuevo proyecto, ubicado en `C:\pam automatizacion dotnet\PamAutomation`, deben existir como mínimo:
 
@@ -717,9 +717,9 @@ C:\pam automatizacion dotnet\PamAutomation\AGENTS.md
 C:\pam automatizacion dotnet\PamAutomation\CODEX_BUILD_SPEC.md
 ```
 
-Antes de modificar código, Codex debe leer completamente esos dos archivos.
+Antes de modificar código, el agente principal debe leer completamente esos dos archivos y las demás lecturas vigentes definidas en `AGENTS.md`.
 
-Después debe inspeccionar, como referencia de solo lectura, el proyecto anterior:
+Después, cuando la fase lo necesite, el agente principal debe inspeccionar como referencia de solo lectura las partes pertinentes del proyecto anterior:
 
 ```text
 C:\pam automatizacion\README.md
@@ -732,97 +732,15 @@ C:\pam automatizacion\test
 
 No se deben copiar al nuevo proyecto `node_modules`, `.env`, `.env.mail`, `logs`, `run-artifacts`, `run-results`, cookies, perfiles de navegador ni secretos.
 
-## Primer encargo para Codex
+Los subagentes no repiten estas lecturas completas. El coordinador debe proporcionarles el contexto, la ruta absoluta del worktree, la rama, los archivos permitidos y las secciones exactas que necesiten. Un subagente solo puede ampliar la lectura para resolver una dependencia directa, un riesgo de seguridad o una contradicción, y debe informar esa ampliación. La lectura global queda reservada para tareas que el coordinador defina expresamente como auditorías, revisiones arquitectónicas o reconciliaciones documentales.
 
-La primera tarea de Codex debe ser únicamente de análisis. No debe crear proyectos ni modificar archivos.
-
-Prompt recomendado:
-
-```text
-Estamos construyendo desde cero una nueva aplicación Windows en C# y .NET.
-
-El nuevo proyecto está ubicado en:
-
-C:\pam automatizacion dotnet\PamAutomation
-
-Lee completamente estos archivos del nuevo proyecto antes de hacer cualquier otra cosa:
-
-- C:\pam automatizacion dotnet\PamAutomation\AGENTS.md
-- C:\pam automatizacion dotnet\PamAutomation\CODEX_BUILD_SPEC.md
-
-Existe una aplicación anterior en:
-
-C:\pam automatizacion
-
-La aplicación anterior está escrita en JavaScript/Node.js y es únicamente una referencia funcional, histórica y visual. Debes leerla, pero no modificarla y no copiar su arquitectura.
-
-Inspecciona como referencia de solo lectura:
-
-- C:\pam automatizacion\README.md
-- C:\pam automatizacion\LOGIC.md
-- C:\pam automatizacion\History.md
-- C:\pam automatizacion\src
-- C:\pam automatizacion\web
-- C:\pam automatizacion\test
-
-En esta primera tarea NO escribas código, NO crees proyectos, NO instales dependencias y NO modifiques archivos.
-
-Entrega un informe que incluya:
-
-1. Comportamientos funcionales que deben conservarse.
-2. Decisiones técnicas que deben descartarse.
-3. Arquitectura C#/.NET propuesta.
-4. Estructura de la solución.
-5. Dependencias .NET necesarias.
-6. Riesgos técnicos.
-7. Diferencias entre documentación y código actual.
-8. Plan de implementación por fases.
-9. Pruebas necesarias para cada fase.
-
-Presta especial atención a Playwright .NET con Edge instalado, TOTP basado en la hora HTTP de PAM, Outlook clásico mediante COM, el editor enriquecido de correo sin JavaScript, la seguridad de credenciales y la publicación autocontenida.
-
-Espera confirmación antes de modificar cualquier archivo.
-```
-
-## Forma correcta de continuar
-
-Después del informe inicial, construir una sola fase por tarea.
-
-Ejemplo de primera fase:
-
-```text
-Implementa únicamente la solución .NET, la aplicación WPF y los proyectos Core, Browser, Outlook, Infrastructure y Tests definidos en CODEX_BUILD_SPEC.md.
-
-No implementes todavía login, TOTP, PAM ni Outlook.
-No agregues JavaScript, Node.js, Python, PowerShell, WebView2 ni Electron.
-
-Compila en Release y ejecuta las pruebas disponibles. No continúes a la siguiente fase hasta informar el resultado.
-```
-
-Ejemplo de fase de TOTP:
-
-```text
-Implementa únicamente el generador TOTP y la referencia de hora HTTP del portal.
-
-Añade pruebas unitarias para RFC 6238, claves Base32 inválidas, desfase de reloj, ventana segura y límite de un solo reintento.
-
-No abras Edge, no contactes PAM, no leas credenciales reales y no implementes todavía solicitudes ni Outlook.
-```
-
-Ejemplo de fase de Playwright:
-
-```text
-Implementa únicamente el adaptador Playwright .NET para lanzar Microsoft Edge instalado mediante Channel = "msedge".
-
-No descargues Chromium, no reutilices el perfil personal del usuario y no implementes todavía solicitudes reales.
-
-Añade una prueba simulada y un diagnóstico claro cuando Edge no esté instalado.
-```
 
 ## Reglas de colaboración con Codex
 
 - Codex debe inspeccionar el estado actual antes de modificar archivos.
 - Cada tarea debe tener un alcance pequeño y una lista explícita de archivos permitidos.
+- El agente principal debe conservar el contexto global; los subagentes recibirán contexto mínimo suficiente y lecturas documentales concretas conforme a `Subagentes.md`.
+- No pedir a todos los subagentes que relean toda la documentación o el repositorio cuando su tarea sea acotada.
 - Codex debe restaurar cuando corresponda, compilar y ejecutar desde la terminal las pruebas relacionadas con cada cambio.
 - No aceptar frases como “debería funcionar” sin evidencia de compilación o pruebas.
 - Si una prueba falla, reparar únicamente la causa demostrada.

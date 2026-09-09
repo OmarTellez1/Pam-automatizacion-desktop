@@ -40,6 +40,7 @@ La configuración de Outlook tendrá además una comprobación manual independie
 - History.md: historial propio de este proyecto nuevo.
 - structure.md: estructura física actual, responsabilidades de proyectos y arquitectura objetivo.
 - Fases.md: resumen acumulativo de lo incorporado y la importancia de cada fase.
+- Subagentes.md: protocolo de delegación, contexto acotado, aislamiento, revisión, integración y control de consumo para trabajo multiagente.
 
 ## Referencia histórica
 

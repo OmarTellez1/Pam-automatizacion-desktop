@@ -46,6 +46,7 @@ PamAutomation\
 ├── History.md
 ├── structure.md
 ├── Fases.md
+├── Subagentes.md
 ├── .gitignore
 ├── PamAutomation.slnx
 │
@@ -142,6 +143,7 @@ PamAutomation\
 | `History.md` | Registro cronológico de decisiones y cambios relevantes. |
 | `structure.md` | Inventario físico y arquitectura actual y objetivo. |
 | `Fases.md` | Resumen acumulativo del alcance, ubicación e importancia de cada fase implementada. |
+| `Subagentes.md` | Protocolo para coordinar subagentes, aislar sus cambios e integrar únicamente trabajo validado. |
 | `.gitignore` | Exclusiones de Git para salidas, configuración local y artefactos de desarrollo. |
 | `PamAutomation.slnx` | Solución .NET que agrupa los seis proyectos en `x64` para operar mediante la CLI `dotnet`. |
 
@@ -332,6 +334,7 @@ PamAutomation\
 │   ├── LOGIC.md
 │   ├── History.md
 │   ├── structure.md
+│   ├── Subagentes.md
 │   └── PamAutomation.slnx
 │
 ├── PamAutomation.App\

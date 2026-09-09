@@ -179,3 +179,15 @@ Cada cambio relevante debe registrar qué se decidió, por qué, qué se verific
 - El intento con `dotnet test` confirmó que el destino VSTest no es compatible con Microsoft Testing Platform 2.1 bajo .NET 10 sin seleccionar el runner MTP.
 - El runner integrado se ejecutó directamente mediante `dotnet run` sobre `PamAutomation.Tests`: 71 pruebas correctas, 0 fallidas y 0 omitidas.
 - La documentación canónica se actualizó para usar exclusivamente los comandos `dotnet` desde la terminal y dejar de requerir un entorno gráfico de desarrollo.
+
+## 9 de septiembre de 2026 — Protocolo de trabajo con subagentes
+
+- Se documentó en `Subagentes.md` el uso recomendado de GPT-5.6 Sol `medium` como coordinador y hasta dos GPT-5.6 Terra `medium` como implementadores.
+- Se estableció que el coordinador conserva la responsabilidad de dividir, revisar, integrar y validar todo el trabajo.
+- Se aclaró que el aislamiento no debe asumirse: las escrituras paralelas requieren ramas y worktrees preparados explícitamente, cuya base es una instantánea y no se sincroniza automáticamente.
+- Se definieron contratos de delegación, límites de archivos, integración secuencial, validación `Release | x64`, protección de secretos y condiciones obligatorias para detenerse.
+- Se incluyeron medidas para limitar el consumo de tokens y reservar razonamiento `high` para revisiones puntuales complejas o de seguridad.
+- Se distinguió la política de lectura por rol: el coordinador conserva la lectura completa y entrega a cada subagente un paquete de contexto con rutas, alcance, restricciones y secciones concretas.
+- Los subagentes no deben recorrer todo el repositorio ni releer todos los Markdown por defecto; solo pueden ampliar la lectura ante una dependencia directa, un riesgo de seguridad o una contradicción, dejando constancia de ello.
+- Se alinearon `AGENTS.md`, `CODEX_BUILD_SPEC.md` y `Subagentes.md` para eliminar la obligación contradictoria de repetir toda la documentación en cada agente delegado.
+- Este cambio fue exclusivamente documental; no se modificó código, no se ejecutaron integraciones reales y no se crearon subagentes.

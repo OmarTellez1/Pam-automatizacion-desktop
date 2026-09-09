@@ -6,7 +6,7 @@ Este repositorio es una aplicación nueva construida desde cero para Windows. La
 
 La raíz oficial del repositorio es `C:\pam automatizacion dotnet\PamAutomation` y la solución utiliza el formato moderno `PamAutomation.slnx`.
 
-Antes de analizar, modificar o crear código, leer completamente:
+Antes de analizar, modificar o crear código, el agente principal o coordinador debe leer completamente:
 
 - CODEX_BUILD_SPEC.md
 - README.md
@@ -14,9 +14,19 @@ Antes de analizar, modificar o crear código, leer completamente:
 - History.md
 - structure.md
 - Fases.md
+- Subagentes.md
+
+Esta lectura completa no se repite automáticamente en cada subagente. Los subagentes deben obedecer este `AGENTS.md` y recibir del coordinador un paquete de contexto acotado con la ruta de trabajo, la rama, el objetivo, los archivos permitidos, las restricciones, los criterios de aceptación y los archivos o secciones documentales que deben leer. No deben recorrer todo el repositorio ni leer todos los Markdown por defecto.
+
+Un subagente solo leerá los archivos fuente, pruebas y secciones documentales asignados. Puede ampliar esa lectura únicamente cuando sea imprescindible para resolver una dependencia directa, comprobar seguridad o aclarar una contradicción; debe explicar al coordinador qué contexto adicional necesitó. Si el contexto suministrado no basta para tomar una decisión segura, debe detenerse y solicitarlo en lugar de asumir. Las auditorías globales, reconciliaciones documentales o revisiones arquitectónicas pueden requerir una lectura más amplia cuando el coordinador la indique expresamente.
+
+Si el rol no está claro, el agente debe considerarse principal y realizar la lectura completa.
 
 Debes mantener actualizado structure.md, este markdown se trata de documentar la estructura del proyecto e indicar que hace cada paquete, subpaquete y modulos.
 Manten siempre actualizado Fases.md con todas las fases que se ha desarrollado en el proyecto, explicando que incorporo al desarrollo y en donde y por que fue importante implementar esa fase, tambien en ese markdown describe las fases completadas y las fases pendientes por hacer y completar.
+
+Cuando se trabaje con subagentes de IA, el agente principal debe leer `Subagentes.md` y aplicar su protocolo de delegación. Debe trasladar al prompt del subagente las reglas relevantes; no debe obligarlo a releer el documento completo salvo que su tarea lo requiera expresamente.
+
 ## Tecnología obligatoria
 
 - C# y .NET 10 LTS, salvo restricción corporativa documentada.
