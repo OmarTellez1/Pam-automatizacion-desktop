@@ -6,6 +6,8 @@ Este documento define cómo debe coordinar el agente principal el trabajo delega
 
 La finalidad de los subagentes es reducir tiempo y ruido de contexto al repartir trabajos verdaderamente independientes. No deben utilizarse por costumbre ni para dividir una modificación pequeña que un solo agente puede completar y validar con claridad.
 
+Si el trabajo es pequeño, está concentrado en pocos archivos o no ofrece paralelismo real, el agente principal debe implementarlo y validarlo directamente. Crear un subagente en esos casos duplica contexto, revisión e integración, por lo que aumenta el consumo de tokens y puede tardar más que resolver el cambio en el thread principal.
+
 ## Configuración recomendada
 
 - Agente principal o coordinador: GPT-5.6 Sol con razonamiento `medium`.
@@ -54,6 +56,10 @@ Una lectura documental amplia solo se justifica cuando el subagente recibe expre
 
 ## Cuándo delegar
 
+Antes de delegar, el coordinador debe comparar el ahorro esperado de tiempo con el costo de preparar contexto, aislar cambios, revisar resultados e integrarlos. Debe conservar el trabajo en el agente principal cuando pueda completarlo de forma segura y focalizada sin bloquear otra unidad independiente.
+
+El coordinador debe consultar la clasificación vigente de `Fases.md` como punto de partida, pero no tratarla como autorización automática. El estado real del código, los contratos y los archivos modificados tienen prioridad para decidir si dos trabajos siguen siendo independientes.
+
 Los subagentes son apropiados para:
 
 - Exploraciones de solo lectura con preguntas distintas.
@@ -64,6 +70,7 @@ Los subagentes son apropiados para:
 
 No se debe paralelizar:
 
+- Un cambio pequeño que el agente principal pueda implementar, probar y revisar directamente.
 - Dos cambios sobre el mismo archivo o la misma responsabilidad.
 - Una interfaz de Core y su consumidor mientras el contrato todavía cambia.
 - La implementación de una característica en un subagente y las pruebas de esa misma característica en otro cuando el segundo deba esperar el resultado del primero.
@@ -192,6 +199,7 @@ Cada subagente consume sus propios tokens de modelo y herramientas. Para limitar
 
 - Utilizar uno o dos subagentes solo cuando exista paralelismo real.
 - No superar dos subagentes en un mismo task ni reemplazar un subagente finalizado por un tercero para eludir el límite.
+- Ejecutar directamente en el agente principal los cambios pequeños para evitar el costo de contexto, seguimiento, revisión e integración de una delegación innecesaria.
 - Mantener `medium` como razonamiento normal.
 - Entregar contexto relevante y rutas concretas, evitando exploraciones completas duplicadas.
 - No hacer que cada subagente relea todos los Markdown ni todo el historial del chat.

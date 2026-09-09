@@ -194,4 +194,7 @@ Cada cambio relevante debe registrar qué se decidió, por qué, qué se verific
 - Se convirtió el máximo de dos subagentes en un límite absoluto por task, no en una cantidad que deba agotarse.
 - Cada subagente de implementación debe recibir una unidad vertical independiente y ser responsable de su código, sus pruebas relacionadas y su validación focalizada; queda descartado dividir una misma característica entre un productor de código y otro agente que espere para escribir sus pruebas.
 - Se adoptó un trabajo por oleadas: el coordinador fija primero contratos y propietarios de archivos compartidos, delega hasta dos tareas que puedan avanzar sin esperarse, e integra y valida un resultado a la vez antes de iniciar trabajo dependiente.
+- Se hizo explícito que un cambio pequeño, concentrado o sin paralelismo real debe implementarlo directamente el agente principal para evitar el consumo adicional de contexto, supervisión, revisión e integración.
+- `Fases.md` ahora clasifica cada fase pendiente como independiente, independiente condicionada o dependiente, registra sus prerrequisitos y propone únicamente dos combinaciones iniciales de paralelismo: fases 6 con 7 y, después de integrarlas, fase 8 con 14.
+- La clasificación de paralelismo no autoriza automáticamente a crear subagentes: el coordinador debe volver a comprobar contratos, archivos y tamaño real antes de cada oleada.
 - Este cambio fue exclusivamente documental; no se modificó código, no se ejecutaron integraciones reales y no se crearon subagentes.

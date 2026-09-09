@@ -742,6 +742,7 @@ Los subagentes no repiten estas lecturas completas. El coordinador debe proporci
 - El agente principal debe conservar el contexto global; los subagentes recibirán contexto mínimo suficiente y lecturas documentales concretas conforme a `Subagentes.md`.
 - No pedir a todos los subagentes que relean toda la documentación o el repositorio cuando su tarea sea acotada.
 - No utilizar más de dos subagentes en un mismo task. El límite no obliga a usar ambos cuando no exista paralelismo real.
+- Si un cambio es pequeño, está concentrado en pocos archivos o no puede avanzar en paralelo con otra unidad independiente, el agente principal debe implementarlo directamente para evitar consumo adicional de tokens y coordinación.
 - Cada subagente de implementación debe recibir una unidad vertical independiente y hacerse cargo del código, las pruebas relacionadas y la validación focalizada de su alcance.
 - No separar entre dos subagentes la implementación y las pruebas de una misma característica cuando uno deba esperar al otro.
 - Fijar primero los contratos y archivos compartidos; ejecutar el trabajo independiente por oleadas e integrar un resultado a la vez.

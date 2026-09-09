@@ -29,7 +29,7 @@ Usar este índice para seleccionar la lectura mínima necesaria:
 - `LOGIC.md`: comportamiento funcional, reglas de negocio y contratos.
 - `History.md`: origen cronológico de decisiones y contradicciones.
 - `structure.md`: estructura física, responsabilidades y dependencias entre proyectos.
-- `Fases.md`: alcance completado, fase actual y trabajo pendiente.
+- `Fases.md`: alcance completado, fase actual, dependencias pendientes y oportunidades condicionadas de paralelismo.
 - `Subagentes.md`: delegación, contexto, aislamiento, integración y límites multiagente.
 
 Esta lectura completa tampoco se repite automáticamente en cada subagente. Los subagentes deben obedecer este `AGENTS.md` y recibir del coordinador un paquete de contexto acotado con la ruta de trabajo, la rama, el objetivo, los archivos permitidos, las restricciones, los criterios de aceptación y los archivos o secciones documentales que deben leer. No deben recorrer todo el repositorio ni leer todos los Markdown por defecto.

@@ -142,7 +142,7 @@ PamAutomation\
 | `LOGIC.md` | Comportamientos, reglas de negocio y contratos previstos. |
 | `History.md` | Registro cronológico de decisiones y cambios relevantes. |
 | `structure.md` | Inventario físico y arquitectura actual y objetivo. |
-| `Fases.md` | Resumen acumulativo del alcance, ubicación e importancia de cada fase implementada. |
+| `Fases.md` | Resumen acumulativo de las fases, sus dependencias pendientes y las oportunidades condicionadas de trabajo paralelo. |
 | `Subagentes.md` | Protocolo para coordinar un máximo de dos subagentes en unidades verticales independientes, aislar sus cambios e integrar únicamente trabajo validado. |
 | `.gitignore` | Exclusiones de Git para salidas, configuración local y artefactos de desarrollo. |
 | `PamAutomation.slnx` | Solución .NET que agrupa los seis proyectos en `x64` para operar mediante la CLI `dotnet`. |
