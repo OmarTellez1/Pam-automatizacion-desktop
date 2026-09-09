@@ -128,6 +128,46 @@ Cada subagente debe recibir estas reglas explícitas:
 - No revertir cambios que no le pertenezcan.
 - Detenerse y reportar si detecta solapamiento, cambios inesperados o una contradicción documental.
 
+## Prevención y resolución de problemas frecuentes
+
+Antes de crear un subagente, el coordinador debe completar esta secuencia de preparación:
+
+1. Confirmar la versión del CLI y que la función multiagente está disponible mediante `codex --version` y `codex features list`. Cuando el entorno interactivo exponga `/subagents` o herramientas nativas de colaboración, utilizarlas como primera opción.
+2. Comprobar con `git status --short --branch` que la rama coordinadora está en el estado esperado. Los cambios del usuario deben preservarse y no pueden incorporarse accidentalmente al punto de partida.
+3. Fijar un commit base exacto y crear una rama y un worktree distintos por unidad de trabajo. Registrar las rutas y comprobarlas con `git worktree list`.
+4. Entrar en cada worktree y ejecutar `git rev-parse --show-toplevel` y `git status --short --branch`. La raíz devuelta debe coincidir exactamente con la ruta asignada y la rama debe ser la prevista.
+5. Definir antes de delegar los contratos compartidos, el propietario de cada archivo y las listas de archivos permitidos y prohibidos. Si dos tareas necesitan modificar el mismo contrato, no deben ejecutarse en paralelo.
+6. Restaurar desde el coordinador cualquier paquete nuevo que pueda no existir en la caché local. Esto es especialmente importante cuando el sandbox del subagente no dispone de acceso a NuGet.
+7. Indicar al subagente que use rutas relativas al worktree en todos los parches, que no imprima diffs completos y que entregue un informe final breve con comandos y resultados.
+8. Iniciar como máximo dos subagentes y verificar inmediatamente que cada uno informa la raíz y rama correctas antes de permitir cambios sustanciales.
+
+Los problemas siguientes deben tratarse de forma explícita:
+
+| Problema | Cómo detectarlo | Resolución segura | Prevención |
+|---|---|---|---|
+| CLI desactualizado o función multiagente no disponible | `/subagents` no existe, la herramienta nativa no aparece o `codex features list` no muestra `multi_agent` habilitado. | Detener la delegación, actualizar o corregir el CLI y volver a comprobar la capacidad. Si el CLI la soporta pero el runtime actual no expone la herramienta nativa, comunicarlo y utilizar una sesión aislada de `codex exec` únicamente como alternativa controlada, manteniendo un solo subagente lógico por tarea. | Ejecutar las comprobaciones de versión y funciones al inicio, antes de crear ramas o worktrees. |
+| El subagente está en una raíz o rama incorrecta | `git rev-parse --show-toplevel` o `git status --short --branch` no coincide con la asignación. | Interrumpirlo antes de que escriba, conservar cualquier evidencia y reiniciarlo en el worktree correcto. No mover cambios a ciegas entre directorios. | Incluir la ruta y rama exactas en el prompt y exigir que las confirme como primera acción. |
+| Escrituras fuera del worktree | Aparecen archivos o directorios hermanos de la raíz oficial, o el diff esperado no contiene archivos que el subagente afirma haber creado. | Interrumpir inmediatamente al subagente. Resolver y verificar las rutas absolutas afectadas con operaciones de solo lectura; eliminar únicamente los archivos accidentales plenamente identificados y comprobar después tanto la rama principal como el worktree. Si el alcance exacto no puede demostrarse, pedir instrucciones al usuario. | Usar `apply_patch` con rutas relativas y un directorio de trabajo fijado al worktree. Evitar rutas absolutas de Windows dentro del parche y mantener el sandbox limitado a esa raíz. |
+| Dos agentes modifican el mismo archivo o contrato | Los estados o diffs muestran rutas coincidentes, o una tarea necesita esperar una interfaz todavía cambiante. | Detener una de las tareas y convertir el trabajo en secuencial. El coordinador integra primero al propietario del contrato, actualiza la segunda rama de forma controlada y vuelve a validar. | Congelar contratos y construir una tabla de propiedad de archivos durante la oleada 0. |
+| El sandbox no puede acceder a NuGet | `dotnet restore` falla con `NU1301`, errores de socket o paquetes que no existen en la caché local. | El subagente debe reportar la limitación sin afirmar que validó. El coordinador restaura en un entorno autorizado, compila y ejecuta las pruebas antes de integrar. | Restaurar dependencias nuevas en cada worktree antes de delegar y permitir al subagente usar `--no-restore` cuando la caché ya esté preparada. |
+| Prompt de seguimiento interpretado como argumentos del CLI | `codex exec resume` termina con `unexpected argument` u otro error de parsing. | Confirmar el código de salida; el mensaje fallido no debe considerarse entregado. Repetirlo con quoting seguro y comprobar que la sesión muestra el prompt completo. | En PowerShell, envolver prompts largos con comillas simples y evitar comillas anidadas o ejemplos innecesarios dentro del argumento. |
+| Salida excesiva y consumo innecesario de contexto | El subagente repite diffs completos, archivos enteros o resultados sin cambios en cada actualización. | Pedir en la misma sesión un resumen compacto y detener el sondeo frecuente. El coordinador inspeccionará el diff directamente desde Git. | Incluir en el contrato: no imprimir diffs completos; informar solo decisiones, archivos, validación, fallos y bloqueos. Usar esperas largas en lugar de sondeos continuos. |
+| El subagente afirma que terminó sin evidencia | El informe no incluye comandos, resultados o limitaciones, o solo dice que el cambio “debería funcionar”. | Revisar el diff real y ejecutar la validación faltante. No integrar hasta contar con evidencia proporcional al cambio. | Hacer que implementación, pruebas relacionadas y validación focalizada formen parte de los criterios de aceptación. |
+| Cancelación o fallo deja recursos o cambios parciales | El subagente termina durante un parche, una compilación o una creación de recursos y el estado queda incierto. | Inspeccionar `git status`, `git diff --check` y los archivos afectados antes de reanudar. Reutilizar el mismo subagente lógico cuando proceda; no crear otro para eludir el límite. | Diseñar tareas reanudables, hacer cambios pequeños y exigir limpieza explícita de recursos creados parcialmente. |
+| La rama coordinadora avanzó mientras trabajaba el subagente | La base del worktree ya no coincide con la rama de integración. | Integrar un resultado a la vez. Actualizar la rama delegada mediante una operación Git deliberada y repetir sus pruebas antes del siguiente cherry-pick o merge. | Registrar el commit base de cada worktree y no asumir sincronización automática. |
+| Advertencias de finales de línea se confunden con errores | Git informa que LF será reemplazado por CRLF, pero `git diff --check` no reporta errores reales. | Revisar el diff y la configuración existente; no hacer una normalización masiva ajena a la fase. Tratar la advertencia como informativa salvo que cambie contenido o genere ruido material. | Preservar la convención del repositorio y evitar herramientas que reescriban archivos completos sin necesidad. |
+| El trabajo delegado intenta usar secretos o producir efectos externos | El subagente solicita credenciales, propone abrir PAM, crear solicitudes, escribir cookies o enviar correo. | Interrumpir la tarea y solicitar autorización explícita cuando corresponda. Eliminar de forma segura cualquier dato sensible que se haya materializado y reportar el incidente. | No incluir secretos en prompts; repetir las restricciones de PAM, Credential Manager, TOTP y Outlook en cada delegación relacionada. |
+
+Una recuperación no se considera completa hasta comprobar como mínimo:
+
+- `git status --short --branch` en la rama coordinadora y en todos los worktrees afectados.
+- Ausencia de archivos inesperados dentro y fuera de las raíces asignadas.
+- `git diff --check` en cada resultado pendiente.
+- Rama y commit base correctos antes de integrar.
+- Restauración, compilación y pruebas relacionadas en un entorno que realmente pueda ejecutarlas.
+
+Los worktrees y sus ramas deben conservarse hasta que el coordinador termine la revisión, integración y validación consolidada. Su eliminación es una operación posterior y deliberada; nunca debe utilizarse para ocultar un estado incierto o descartar trabajo sin inspeccionarlo.
+
 ## Contrato mínimo de cada delegación
 
 El prompt de un subagente debe incluir:
