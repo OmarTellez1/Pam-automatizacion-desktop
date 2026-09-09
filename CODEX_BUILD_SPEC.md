@@ -456,7 +456,7 @@ Dependencias principales:
 - `Microsoft.Extensions.Logging`.
 - `Microsoft.Office.Interop.Outlook` o referencia COM oficial a Outlook Object Library.
 - `System.Security.Cryptography.ProtectedData` si se utiliza DPAPI mediante paquete.
-- MSTest con Microsoft Testing Platform para pruebas y Test Explorer de Visual Studio.
+- MSTest con Microsoft Testing Platform y su runner integrado para pruebas desde la terminal.
 
 Usar primero las APIs incluidas en .NET:
 
@@ -523,7 +523,7 @@ Las pruebas COM reales deben:
 
 ## Empaquetado
 
-Publicar desde Visual Studio para Windows x64 como aplicación autocontenida, configurando el perfil de publicación con `Release`, runtime `win-x64`, `self-contained = true`, archivo único y trimming deshabilitado. La compilación, las pruebas y la publicación se operarán mediante el IDE; no dependerán de `dotnet` o `msbuild` disponibles en `PATH` ni de scripts PowerShell.
+Publicar desde la terminal para Windows x64 como aplicación autocontenida mediante `dotnet publish`, con configuración `Release`, runtime `win-x64`, `self-contained = true`, archivo único y trimming deshabilitado. La restauración, compilación, ejecución, pruebas y publicación dependerán del SDK x64 de .NET 10 y de `dotnet` disponible en `PATH`; no crear scripts PowerShell ni otros envoltorios auxiliares.
 
 No activar trimming ni Native AOT durante la primera versión porque COM, reflexión y algunas dependencias pueden presentar incompatibilidades.
 
@@ -548,23 +548,29 @@ Si desarrollo o soporte necesita información adicional, implementar en una fase
 
 Windows o Playwright pueden crear temporales internos en `%TEMP%` durante la ejecución. No considerarlos almacenamiento persistente de la aplicación, no escribir secretos allí y limpiar lo creado por la aplicación cuando sea posible.
 
-## Entorno de desarrollo Visual Studio
+## Entorno de desarrollo por terminal
 
-Instalar en Visual Studio Installer la carga de trabajo **Desarrollo de escritorio de .NET**. Es la única carga de trabajo necesaria para esta solución WPF con C# y .NET 10 LTS.
+Instalar el SDK x64 de .NET 10 LTS y mantener `dotnet` disponible en `PATH`. El SDK incluye la compilación de WPF y los runtimes de desarrollo necesarios; no instalar runtimes independientes para construir la solución.
 
-No seleccionar como requisito del proyecto:
+Verificar el entorno con:
 
-- Desarrollo de la interfaz de usuario de aplicaciones multiplataforma (.NET MAUI).
-- Desarrollo de aplicaciones WinUI.
-- Desarrollo para escritorio con C++.
-- Desarrollo móvil con C++.
-- Desarrollo de ASP.NET y web.
-- Azure, Node.js, Python o Java.
-- Entity Framework 6, ML.NET Model Builder, WCF, Blend, Copilot, IntelliCode o herramientas de perfiles, salvo que una decisión posterior los justifique.
+```text
+dotnet --info
+dotnet --list-sdks
+```
 
-El instalador de Visual Studio puede mostrar componentes opcionales ya seleccionados. No son dependencias de la aplicación; deben dejarse sin seleccionar si no se necesitan. El SDK de .NET y las herramientas de desarrollo de .NET que la carga de escritorio marque como requeridas sí deben conservarse.
+Desde la raíz del repositorio, el flujo obligatorio es:
 
-Referencias oficiales: [tutorial WPF de Microsoft](https://learn.microsoft.com/en-us/visualstudio/get-started/csharp/tutorial-wpf?view=visualstudio) y [componentes de la carga Desarrollo de escritorio de .NET](https://learn.microsoft.com/en-us/visualstudio/install/workload-component-id-vs-professional).
+```text
+dotnet restore PamAutomation.slnx -p:Platform=x64
+dotnet build PamAutomation.slnx -c Release -p:Platform=x64 --no-restore
+dotnet run --project PamAutomation.Tests\PamAutomation.Tests.csproj -c Release -p:Platform=x64 --no-build
+dotnet run --project PamAutomation.App\PamAutomation.App.csproj -c Release -p:Platform=x64 --no-build
+```
+
+Las pruebas usan el runner integrado de Microsoft Testing Platform. Mientras no se defina MTP en `global.json`, ejecutar el proyecto de pruebas con `dotnet run`; no utilizar `dotnet test`, porque .NET 10 puede seleccionar el destino VSTest incompatible con la configuración actual.
+
+No se requieren .NET MAUI, WinUI, C++, ASP.NET, Azure, Node.js, Python, Java ni herramientas web para construir esta solución.
 
 ## Reglas obligatorias para Codex
 
@@ -817,7 +823,7 @@ Añade una prueba simulada y un diagnóstico claro cuando Edge no esté instalad
 
 - Codex debe inspeccionar el estado actual antes de modificar archivos.
 - Cada tarea debe tener un alcance pequeño y una lista explícita de archivos permitidos.
-- Codex debe compilar y ejecutar desde Visual Studio las pruebas relacionadas con cada cambio.
+- Codex debe restaurar cuando corresponda, compilar y ejecutar desde la terminal las pruebas relacionadas con cada cambio.
 - No aceptar frases como “debería funcionar” sin evidencia de compilación o pruebas.
 - Si una prueba falla, reparar únicamente la causa demostrada.
 - No permitir que Codex avance automáticamente a otra fase después de una tarea incompleta.

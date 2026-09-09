@@ -45,9 +45,9 @@
 - Se descartó guardar resultados, logs, artefactos y temporales operativos en la PC del usuario. Los resultados vivirán en memoria durante la ejecución y no habrá auditoría local por defecto.
 - La configuración utilizará schemaVersion y escrituras atómicas.
 
-## 8 de septiembre de 2026 — Instalación de Visual Studio
+## 8 de septiembre de 2026 — Entorno de desarrollo inicial
 
-- Para desarrollar la aplicación se utilizará la carga de trabajo Desarrollo de escritorio de .NET.
+- Para desarrollar la aplicación se utilizarán las herramientas de escritorio de .NET.
 - No se requieren .NET MAUI, WinUI, C++, desarrollo móvil, ASP.NET, Node.js, Python, Java ni componentes opcionales como Blend o Copilot.
 - La solución se desarrollará con WPF, XAML, C# y .NET 10 LTS.
 
@@ -70,8 +70,8 @@
 - Se confirmó que la raíz oficial es `C:\pam automatizacion dotnet\PamAutomation`.
 - Se confirmó que la solución existente utiliza `PamAutomation.slnx`; no se requiere convertirla a `.sln`.
 - Se actualizó el estado documental: ya existe `PamAutomation.App`, un proyecto WPF mínimo para `net10.0-windows`; todavía faltan los demás proyectos y toda la implementación funcional.
-- Se estableció que la compilación y las pruebas se operarán desde Visual Studio, sin depender de `dotnet` o `msbuild` en `PATH`.
-- Se eligió MSTest con Microsoft Testing Platform por su integración directa con Visual Studio y su soporte para pruebas STA necesarias alrededor de Outlook COM.
+- Inicialmente se estableció un flujo de compilación y pruebas dependiente de un entorno gráfico; esta decisión fue sustituida posteriormente por el uso exclusivo de la terminal y la CLI `dotnet`.
+- Se eligió MSTest con Microsoft Testing Platform por su runner integrado y su soporte para pruebas STA necesarias alrededor de Outlook COM.
 - Se definió `testModeEnabled`, falso por defecto, como opción no sensible para habilitar el botón de prueba. El usuario podrá cambiarla desde una sección avanzada de Configuración de solicitud y el botón requerirá configuración válida.
 - Se autorizó el envío manual de correos del modo de prueba únicamente a `tellezoe@hitss.com`, sin CC, con confirmación explícita y asunto `[PRUEBA]`.
 - Se decidió conservar las reglas funcionales comprobadas del flujo anterior, pero utilizar Edge visible y un contexto temporal en la primera versión; no se reutilizarán perfiles y no se habilitará headless inicialmente.
@@ -83,10 +83,10 @@
 
 - Se agregaron a `PamAutomation.slnx` los proyectos Core, Browser, Outlook, Infrastructure y Tests junto al proyecto WPF existente.
 - App referencia Browser, Core, Infrastructure y Outlook. Browser, Infrastructure y Outlook referencian únicamente Core. Tests referencia inicialmente Core.
-- Se configuró MSTest SDK 4.1.0 con Microsoft Testing Platform y una prueba mínima de descubrimiento para Test Explorer.
+- Se configuró MSTest SDK 4.1.0 con Microsoft Testing Platform y una prueba mínima de descubrimiento del runner.
 - Se eliminaron `using` y espacios vacíos innecesarios de la plantilla WPF, sin agregar comportamiento funcional.
 - No se agregaron Playwright, Outlook Interop, Credential Manager, DPAPI, TOTP ni lógica PAM.
-- La compilación Release y la ejecución de la prueba quedan pendientes en Visual Studio porque esta sesión no expuso acceso a aplicaciones nativas de Windows y las reglas del proyecto prohíben sustituir el IDE con comandos de terminal.
+- La compilación Release y la ejecución de la prueba quedaron pendientes en ese momento porque el flujo inicial todavía no autorizaba comandos de terminal.
 - No se accedió a PAM, no se utilizaron credenciales reales, no se crearon solicitudes y no se enviaron correos.
 
 ## Regla histórica
@@ -100,17 +100,17 @@ Cada cambio relevante debe registrar qué se decidió, por qué, qué se verific
 - Se centralizaron colores y estilos XAML para facilitar consistencia, escalado y mantenimiento.
 - La aplicación inicia con configuración incompleta; la automatización real permanece deshabilitada hasta cumplir sus requisitos y el botón de prueba requiere modo de prueba y configuración válida.
 - Se agregaron pruebas unitarias para el estado inicial seguro, el bloqueo durante una ejecución y las condiciones de visibilidad del modo de prueba.
-- Se verificó estáticamente que los archivos XAML son XML válido y que el diff no contiene errores de espacios. La restauración de paquetes, compilación y ejecución de pruebas quedan pendientes en Visual Studio.
+- Se verificó estáticamente que los archivos XAML son XML válido y que el diff no contiene errores de espacios. La restauración de paquetes, compilación y ejecución de pruebas quedaron pendientes en ese momento.
 - Esta fase no agregó persistencia, credenciales, Playwright, acceso a PAM, Outlook ni envío de correo; no produjo efectos externos.
 
 ## 8 de septiembre de 2026 — Fase 2B: alineación visual con la aplicación anterior
 
-- El usuario confirmó que la fase 2 compiló, pasó sus comprobaciones y pudo visualizarse correctamente en Visual Studio.
+- El usuario confirmó que la fase 2 compiló, pasó sus comprobaciones y pudo visualizarse correctamente.
 - Se realineó la portada con las capturas de la aplicación anterior: encabezado `Accesos PAM`, marca con la letra P, fondo claro con degradado, selector Outlook superior, acción azul principal centrada y tres accesos horizontales de configuración.
 - Se conservaron el ViewModel, las condiciones seguras de habilitación, el botón de prueba condicionado y las pruebas de presentación existentes.
 - Se aclaró que existen dos acciones diferentes: la verificación manual de Outlook puede enviar a la misma cuenta configurada; el correo de resultados del modo de prueba PAM continúa limitado a `tellezoe@hitss.com`.
 - El rediseño utiliza únicamente WPF/XAML y recursos nativos; no se copió código, HTML, CSS o JavaScript de la aplicación anterior.
-- Se comprobó estáticamente la estructura XML de los XAML. La compilación, las pruebas y la revisión visual del nuevo diseño quedan pendientes en Visual Studio.
+- Se comprobó estáticamente la estructura XML de los XAML. La compilación, las pruebas y la revisión visual del nuevo diseño quedaron pendientes en ese momento.
 - No se accedió a PAM, no se utilizaron credenciales, no se crearon solicitudes y no se envió correo.
 
 ## 8 de septiembre de 2026 — Documentación de estructura
@@ -123,18 +123,18 @@ Cada cambio relevante debe registrar qué se decidió, por qué, qué se verific
 
 ## 9 de septiembre de 2026 — Fase 3A: dominio de configuración no sensible
 
-- El usuario confirmó que la fase 2B compiló y se visualizó correctamente en Visual Studio con `Release | x64`; la composición fue aprobada, pero sus elementos se perciben demasiado grandes y su escala queda pendiente de ajuste.
+- El usuario confirmó que la fase 2B compiló y se visualizó correctamente con `Release | x64`; la composición fue aprobada, pero sus elementos se perciben demasiado grandes y su escala queda pendiente de ajuste.
 - Se agregaron en Core `AppSettings`, `RequestSettings` y `FinalAction`, sin dependencias de WPF o Windows.
 - Los valores predeterminados mantienen `schemaVersion = 1`, `America/Guayaquil`, visualización de IDs y modo de prueba deshabilitado.
 - Se agregaron validadores para esquema, acción final, zona horaria, fecha, hora, duración de 1 a 8 horas y razón obligatoria.
 - La hora actual de Ecuador se recibe como entrada del validador para permitir pruebas deterministas sin implementar todavía un reloj del sistema.
 - Se agregaron pruebas MSTest unitarias para escenarios válidos, nulos, límites y múltiples errores simultáneos.
 - No se implementó persistencia, interfaz de configuración, Credential Manager, DPAPI, TOTP, Edge, PAM u Outlook.
-- La revisión estática queda a cargo de esta fase; la compilación y ejecución de pruebas quedan pendientes en Visual Studio.
+- La revisión estática quedó a cargo de esta fase; la compilación y ejecución de pruebas quedaron pendientes en ese momento.
 
 ## 9 de septiembre de 2026 — Fase 3B: persistencia JSON no sensible
 
-- El usuario confirmó que la fase 3A compiló y que todas sus pruebas terminaron correctamente en Visual Studio con `Release | x64`.
+- El usuario confirmó que la fase 3A compiló y que todas sus pruebas terminaron correctamente con `Release | x64`.
 - Se agregó `IAppSettingsStore` en Core para separar el dominio del almacenamiento físico.
 - Se implementó `JsonAppSettingsStore` en Infrastructure con la ruta predeterminada `%LOCALAPPDATA%\PamAutomation\config\app-settings.json`.
 - El formato persistido es plano, versionado y estricto; utiliza representaciones ISO para `DateOnly` y `TimeOnly` y rechaza JSON inválido, propiedades desconocidas, valores faltantes y esquemas incompatibles.
@@ -142,11 +142,11 @@ Cada cambio relevante debe registrar qué se decidió, por qué, qué se verific
 - Se agregaron pruebas MSTest aisladas para valores predeterminados, formato JSON, ida y vuelta, reemplazo, cancelación segura, limpieza de temporales, contenido inválido y versión incompatible.
 - `PamAutomation.Tests` ahora referencia `PamAutomation.Infrastructure` para probar la implementación concreta.
 - No se conectó todavía la persistencia con la interfaz y no se implementaron Credential Manager, DPAPI, correo, TOTP, Edge o PAM.
-- La revisión estática queda a cargo de esta fase; la compilación y ejecución de pruebas quedan pendientes en Visual Studio.
+- La revisión estática quedó a cargo de esta fase; la compilación y ejecución de pruebas quedaron pendientes en ese momento.
 
 ## 9 de septiembre de 2026 — Fase 4: credenciales PAM protegidas
 
-- El usuario confirmó que las fases 3A y 3B compilaron y que todas sus pruebas terminaron correctamente en Visual Studio con `Release | x64`.
+- El usuario confirmó que las fases 3A y 3B compilaron y que todas sus pruebas terminaron correctamente con `Release | x64`.
 - Se agregaron en Core `PamCredentials`, `PamCredentialUpdate`, `IPamCredentialStore` y errores estables de almacenamiento.
 - Se implementó `WindowsPamCredentialStore` sobre `CredReadW`, `CredWriteW`, `CredDeleteW` y `CredFree`, sin dependencias NuGet nuevas.
 - Usuario, contraseña y semilla TOTP se guardan juntos en una única credencial genérica versionada bajo `PamAutomation/PamCredentials/v1`.
@@ -156,11 +156,11 @@ Cada cambio relevante debe registrar qué se decidió, por qué, qué se verific
 - Se agregaron pruebas MSTest con una API de Windows falsa para no crear, leer, modificar ni eliminar credenciales reales.
 - Se eliminó de `README.md` una frase heredada sobre una carpeta común de datos que contradecía la regla canónica de no persistir archivos operativos.
 - La interfaz todavía no usa este almacén y no se implementaron TOTP, Edge, acceso a PAM, DPAPI de correo u Outlook.
-- La revisión estática queda a cargo de esta fase; la compilación y ejecución de pruebas quedan pendientes en Visual Studio.
+- La revisión estática quedó a cargo de esta fase; la compilación y ejecución de pruebas quedaron pendientes en ese momento.
 
 ## 9 de septiembre de 2026 — Fase 5: generación TOTP
 
-- El usuario confirmó que la fase 4 compiló y que todas sus pruebas terminaron correctamente en Visual Studio con `Release | x64`.
+- El usuario confirmó que la fase 4 compiló y que todas sus pruebas terminaron correctamente con `Release | x64`.
 - Se agregó en Core un decodificador Base32 estricto que acepta el formato agrupado con espacios mostrado por Microsoft Authenticator, sin registrar ni reproducir la clave en errores.
 - Se implementó RFC 6238 con HMAC-SHA1, intervalos de 30 segundos y códigos de seis dígitos.
 - El resultado representa explícitamente el inicio y la expiración UTC del código y permite exigir al menos ocho segundos de vigencia antes de enviarlo.
@@ -169,4 +169,13 @@ Cada cambio relevante debe registrar qué se decidió, por qué, qué se verific
 - La validación inicial detectó una ambigüedad de precedencia entre el operador módulo y una expresión `switch`; se hizo explícito el residuo Base32 para rechazar correctamente longitudes de un solo símbolo.
 - Se completó `Fases.md` como resumen acumulativo de las etapas construidas y se añadió al inventario documental.
 - No se utilizó la clave real compartida por el usuario, no se leyeron credenciales protegidas, no se abrió Edge, no se contactó PAM y no se envió correo.
-- La hora HTTP del portal y su abstracción de reloj quedan para la fase 6. La revisión estática queda a cargo de esta fase; la compilación y ejecución de pruebas quedan pendientes en Visual Studio.
+- La hora HTTP del portal y su abstracción de reloj quedan para la fase 6.
+
+## 9 de septiembre de 2026 — Flujo de desarrollo exclusivo por terminal
+
+- El usuario sustituyó la decisión anterior y estableció que restauración, compilación, ejecución, pruebas y publicación deben realizarse desde la terminal.
+- Se confirmó `dotnet` en `PATH` con el SDK x64 de .NET 10.0.400.
+- La solución se restauró y compiló con `Release | x64`: 0 errores y una advertencia heredada en `TestExplorerSmokeTests.cs` por una aserción siempre verdadera.
+- El intento con `dotnet test` confirmó que el destino VSTest no es compatible con Microsoft Testing Platform 2.1 bajo .NET 10 sin seleccionar el runner MTP.
+- El runner integrado se ejecutó directamente mediante `dotnet run` sobre `PamAutomation.Tests`: 71 pruebas correctas, 0 fallidas y 0 omitidas.
+- La documentación canónica se actualizó para usar exclusivamente los comandos `dotnet` desde la terminal y dejar de requerir un entorno gráfico de desarrollo.

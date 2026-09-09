@@ -62,4 +62,4 @@ HTML, CSS y JavaScript no forman parte de la interfaz propia. Playwright puede i
 
 ## Validación
 
-La compilación, ejecución y administración de pruebas se realizarán mediante Visual Studio y su IDE; no asumir que `dotnet` o `msbuild` están disponibles en `PATH` ni crear scripts auxiliares. Primero inspeccionar la solución y ejecutar desde Visual Studio las configuraciones definidas por el proyecto. Las pruebas reales contra PAM y Outlook requieren autorización explícita.
+La restauración, compilación, ejecución, pruebas y publicación se realizarán desde la terminal con el SDK x64 de .NET 10 disponible en `PATH`. Usar directamente `dotnet restore`, `dotnet build`, el runner integrado de MSTest mediante `dotnet run` y `dotnet publish`; no crear scripts auxiliares para envolver estos comandos. La configuración canónica de desarrollo es `Release | x64`. Las pruebas reales contra PAM y Outlook requieren autorización explícita.

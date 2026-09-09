@@ -143,7 +143,7 @@ PamAutomation\
 | `structure.md` | Inventario físico y arquitectura actual y objetivo. |
 | `Fases.md` | Resumen acumulativo del alcance, ubicación e importancia de cada fase implementada. |
 | `.gitignore` | Exclusiones de Git para salidas, configuración local y artefactos de desarrollo. |
-| `PamAutomation.slnx` | Solución de Visual Studio que agrupa los seis proyectos en `x64`. |
+| `PamAutomation.slnx` | Solución .NET que agrupa los seis proyectos en `x64` para operar mediante la CLI `dotnet`. |
 
 ## Proyectos actuales
 
@@ -271,7 +271,7 @@ Proyecto MSTest para `net10.0-windows`. Actualmente referencia `PamAutomation.Ap
 
 Contenido actual:
 
-- `TestExplorerSmokeTests.cs`: comprueba el descubrimiento del proyecto en Test Explorer.
+- `TestExplorerSmokeTests.cs`: comprueba el descubrimiento del proyecto por el runner MSTest.
 - `MainWindowViewModelTests.cs`: valida el estado inicial seguro, el bloqueo durante una ejecución y las condiciones del botón de prueba.
 - `Core/Configuration/AppSettingsValidatorTests.cs`: valida valores predeterminados, configuración general y propagación de errores.
 - `Core/Configuration/RequestSettingsValidatorTests.cs`: valida fecha, hora, duración y razón de la solicitud.

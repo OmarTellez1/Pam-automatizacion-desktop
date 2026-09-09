@@ -8,9 +8,9 @@ La raíz oficial del repositorio es `C:\pam automatizacion dotnet\PamAutomation`
 
 La solución `PamAutomation.slnx` contiene la aplicación WPF `PamAutomation.App` y los proyectos base `PamAutomation.Core`, `PamAutomation.Browser`, `PamAutomation.Outlook`, `PamAutomation.Infrastructure` y `PamAutomation.Tests`. Las fases 3A y 3B incorporan el dominio, la validación y la persistencia JSON de la configuración no sensible. La fase 4 incorpora el almacenamiento protegido de credenciales PAM en Windows Credential Manager. La fase 5 incorpora la generación TOTP RFC 6238 y la evaluación de su ventana segura. Aún no existe implementación funcional de hora HTTP, PAM, Edge u Outlook y la interfaz todavía no está conectada a estos servicios.
 
-`PamAutomation.Tests` utiliza MSTest con Microsoft Testing Platform e incluye pruebas del estado de presentación, validación, persistencia de configuración, almacenamiento protegido simulado y TOTP con vectores públicos. Las fases 1, 2, 2B, 3A, 3B y 4 fueron compiladas y revisadas por el usuario en Visual Studio con `Release | x64`. El diseño 2B fue aprobado funcional y visualmente, aunque queda pendiente reducir la escala de sus elementos. La fase 5 queda pendiente de compilación y pruebas en el IDE.
+`PamAutomation.Tests` utiliza MSTest con Microsoft Testing Platform e incluye pruebas del estado de presentación, validación, persistencia de configuración, almacenamiento protegido simulado y TOTP con vectores públicos. Las fases 1, 2, 2B, 3A, 3B, 4 y 5 fueron compiladas y validadas con `Release | x64`. La fase 5 tiene 71 pruebas aprobadas. El diseño 2B fue aprobado funcional y visualmente, aunque queda pendiente reducir la escala de sus elementos.
 
-La compilación y las pruebas se administrarán exclusivamente desde Visual Studio. No se presupone disponibilidad de `dotnet` o `msbuild` en la línea de comandos.
+Todo el flujo de desarrollo se administra exclusivamente desde la terminal con el SDK x64 de .NET 10: restauración, compilación, pruebas, ejecución y publicación.
 
 ## Objetivo
 
@@ -100,23 +100,29 @@ El repositorio de desarrollo sí podrá generar información técnica para que e
 
 Estas carpetas serán exclusivas de las ejecuciones de desarrollo, pruebas e integración. Deben estar excluidas de Git, no deben copiarse al instalador y nunca deben contener contraseñas, semillas TOTP, códigos TOTP, cookies, tokens ni perfiles del navegador. La aplicación publicada debe desactivar esta escritura en la raíz del repositorio y mantener únicamente los resultados en memoria.
 
-## Instalación de Visual Studio para desarrollar
+## Entorno de desarrollo por terminal
 
-En Visual Studio Installer instalar únicamente la carga de trabajo **Desarrollo de escritorio de .NET**. Esta carga es la necesaria para crear y depurar la aplicación WPF con C# y .NET. El proyecto debe seleccionar el SDK de .NET 10 LTS cuando esté disponible en la instalación.
+Instalar el SDK x64 de .NET 10 LTS y comprobar que `dotnet` esté disponible en `PATH`. El SDK incluye los componentes necesarios para compilar la aplicación WPF y sus pruebas; no es necesario instalar runtimes por separado.
 
-No es necesario instalar para este proyecto:
+Comprobación del entorno:
 
-- Desarrollo de la interfaz de usuario de aplicaciones multiplataforma (.NET MAUI).
-- Desarrollo de aplicaciones WinUI.
-- Desarrollo para escritorio con C++.
-- Desarrollo móvil con C++.
-- Desarrollo de ASP.NET y web.
-- Desarrollo de Azure, Node.js, Python, Java o herramientas web.
-- Entity Framework 6, ML.NET Model Builder, WCF o componentes de compatibilidad de .NET Framework, salvo que otra dependencia corporativa los exija.
+```text
+dotnet --info
+dotnet --list-sdks
+```
 
-Dentro de los componentes opcionales de **Desarrollo de escritorio de .NET**, no es necesario agregar Blend, IntelliCode, GitHub Copilot, .NET Copilot Skills, Modernización de GitHub Copilot ni herramientas de perfiles para que la aplicación compile. Pueden instalarse por preferencia del desarrollador, pero no son dependencias del producto.
+Flujo canónico desde la raíz del repositorio:
 
-La carga recomendada corresponde a la guía oficial de [crear una aplicación WPF con C#](https://learn.microsoft.com/en-us/visualstudio/get-started/csharp/tutorial-wpf?view=visualstudio) y al listado oficial de componentes de [Desarrollo de escritorio de .NET](https://learn.microsoft.com/en-us/visualstudio/install/workload-component-id-vs-professional).
+```text
+dotnet restore PamAutomation.slnx -p:Platform=x64
+dotnet build PamAutomation.slnx -c Release -p:Platform=x64 --no-restore
+dotnet run --project PamAutomation.Tests\PamAutomation.Tests.csproj -c Release -p:Platform=x64 --no-build
+dotnet run --project PamAutomation.App\PamAutomation.App.csproj -c Release -p:Platform=x64 --no-build
+```
+
+`PamAutomation.Tests` usa el runner integrado de Microsoft Testing Platform. Mientras la solución no defina el runner MTP mediante `global.json`, las pruebas se ejecutan con `dotnet run` sobre el proyecto de pruebas y no con `dotnet test`.
+
+No se requieren .NET MAUI, WinUI, C++, ASP.NET, Azure, Node.js, Python, Java, runtimes independientes ni herramientas web para compilar esta solución.
 
 ## Plataforma objetivo
 
@@ -136,7 +142,7 @@ La primera versión ejecutará Edge de forma visible tanto para la validación d
 
 ## Decisiones de implementación confirmadas
 
-- Framework de pruebas: MSTest con Microsoft Testing Platform, integrado con Test Explorer de Visual Studio.
+- Framework de pruebas: MSTest con Microsoft Testing Platform y runner integrado ejecutado desde la terminal.
 - Presentación: MVVM con CommunityToolkit.Mvvm; los estados y comandos se mantienen fuera del code-behind. La aplicación anterior es la referencia visual para la portada y los formularios, reconstruidos con WPF/XAML nativo.
 - Solución: `PamAutomation.slnx`.
 - Credenciales PAM: una credencial genérica versionada en Windows Credential Manager, vinculada al usuario actual y sin archivos de secretos.
@@ -146,4 +152,4 @@ La primera versión ejecutará Edge de forma visible tanto para la validación d
 
 ## Próximo paso
 
-Abrir `PamAutomation.slnx` en Visual Studio, compilar en `Release | x64` y ejecutar todas las pruebas desde Test Explorer. No comenzar la fase 6 de hora HTTP hasta que la generación TOTP de la fase 5 compile y sus pruebas terminen correctamente.
+Implementar la fase 6 de hora HTTP confiable del portal. Después de cada cambio, restaurar cuando corresponda, compilar la solución en `Release | x64` y ejecutar el proyecto de pruebas desde la terminal.
