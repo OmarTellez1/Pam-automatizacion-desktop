@@ -30,6 +30,15 @@ namespace PamAutomation.App
                 new PamHttpDateClockFactory(TimeProvider.System),
                 new TotpGenerator(),
                 delay);
+            var credentialStore = new WindowsPamCredentialStore();
+            var outlookClient = new OutlookClassicClient();
+            var outlookAccountStore = new DpapiOutlookAccountSettingsStore();
+            var mailSettingsStore = new DpapiMailSettingsStore();
+            var credentialWorkflow = new CredentialConfigurationWorkflow(
+                credentialStore,
+                authentication,
+                outlookAccountStore,
+                outlookClient);
             var favorites = new PamFavoritesService(authentication, new PamFavoritesPortalFactory());
             var execution = new PamAutomationExecutionService(
                 favorites,
@@ -46,19 +55,19 @@ namespace PamAutomation.App
                     requestValidator),
                 settingsValidator,
                 TimeProvider.System,
-                new OutlookClassicClient(),
+                outlookClient,
                 new MailSettingsValidator());
             var viewModel = new MainWindowViewModel(
                 execution,
                 new JsonAppSettingsStore(),
-                new WindowsPamCredentialStore(),
+                credentialStore,
                 new WpfUserDialogService(),
                 settingsValidator,
                 TimeProvider.System,
-                new WpfConfigurationDialogService(),
-                new DpapiMailSettingsStore(),
-                new OutlookClassicClient(),
-                new MailSettingsValidator());
+                new WpfConfigurationDialogService(credentialWorkflow),
+                mailSettingsStore,
+                new MailSettingsValidator(),
+                outlookAccountStore);
             var window = new MainWindow { DataContext = viewModel };
             MainWindow = window;
             window.Show();

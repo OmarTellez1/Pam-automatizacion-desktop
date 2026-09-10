@@ -145,6 +145,26 @@ public sealed class MainWindowViewModelTests
         Assert.IsTrue(context.Execution.LastEmailWasTest);
     }
 
+    [TestMethod]
+    public async Task InitializeAsync_LegacyMailSettings_MigratesOutlookAccountSeparately()
+    {
+        var now = new DateTimeOffset(2026, 9, 10, 16, 0, 0, TimeSpan.FromHours(-5));
+        var accountStore = new FakeOutlookAccountSettingsStore();
+        var viewModel = new MainWindowViewModel(
+            new FakeExecutionService(now),
+            new FakeSettingsStore(new AppSettings()),
+            new FakeCredentialStore(),
+            new FakeDialogs(confirm: true),
+            new AppSettingsValidator(new RequestSettingsValidator()),
+            new FixedTimeProvider(now.ToUniversalTime()),
+            mailSettingsStore: new FakeMailSettingsStore(),
+            outlookAccountSettingsStore: accountStore);
+
+        await viewModel.InitializeAsync();
+
+        Assert.AreEqual("sender@example.test", accountStore.LastSaved?.SmtpAddress);
+    }
+
     private static MainWindowViewModel CreateConfiguredViewModel()
     {
         return new MainWindowViewModel
@@ -183,7 +203,7 @@ public sealed class MainWindowViewModelTests
             viewModel = new MainWindowViewModel(
                 execution, settingsStore, new FakeCredentialStore(), new FakeDialogs(confirm),
                 new AppSettingsValidator(new RequestSettingsValidator()), new FixedTimeProvider(now.ToUniversalTime()),
-                mailSettingsStore: new FakeMailSettingsStore(), outlookClient: new FakeOutlookClient());
+                mailSettingsStore: new FakeMailSettingsStore());
         }
         return new TestContext(viewModel, execution, settingsStore);
     }
@@ -221,6 +241,19 @@ public sealed class MainWindowViewModelTests
         public bool Exists() => true;
         public Task<MailSettings?> LoadAsync(CancellationToken cancellationToken = default) => Task.FromResult<MailSettings?>(Settings);
         public Task SaveAsync(MailSettings settings, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    }
+
+    private sealed class FakeOutlookAccountSettingsStore : IOutlookAccountSettingsStore
+    {
+        public OutlookAccountSettings? LastSaved { get; private set; }
+        public bool Exists() => LastSaved is not null;
+        public Task<OutlookAccountSettings?> LoadAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<OutlookAccountSettings?>(null);
+        public Task SaveAsync(OutlookAccountSettings settings, CancellationToken cancellationToken = default)
+        {
+            LastSaved = settings;
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class FakeOutlookClient : IOutlookClassicClient

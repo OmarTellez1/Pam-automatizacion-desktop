@@ -24,12 +24,13 @@ public sealed partial class MainWindowViewModel : ObservableObject
     private readonly IUserDialogService? dialogs;
     private readonly IConfigurationDialogService? configurationDialogs;
     private readonly IMailSettingsStore? mailSettingsStore;
-    private readonly IOutlookClassicClient? outlookClient;
+    private readonly IOutlookAccountSettingsStore? outlookAccountSettingsStore;
     private readonly MailSettingsValidator mailSettingsValidator;
     private readonly AppSettingsValidator settingsValidator;
     private readonly TimeProvider timeProvider;
     private AppSettings settings = new();
     private MailSettings? mailSettings;
+    private string outlookSmtpAddress = string.Empty;
     private readonly SemaphoreSlim settingsSaveGate = new(1, 1);
 
     [ObservableProperty] private bool areCredentialsConfigured;
@@ -59,8 +60,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
         TimeProvider timeProvider,
         IConfigurationDialogService? configurationDialogs = null,
         IMailSettingsStore? mailSettingsStore = null,
-        IOutlookClassicClient? outlookClient = null,
-        MailSettingsValidator? mailSettingsValidator = null)
+        MailSettingsValidator? mailSettingsValidator = null,
+        IOutlookAccountSettingsStore? outlookAccountSettingsStore = null)
     {
         this.executionService = executionService;
         this.settingsStore = settingsStore;
@@ -68,12 +69,12 @@ public sealed partial class MainWindowViewModel : ObservableObject
         this.dialogs = dialogs;
         this.configurationDialogs = configurationDialogs;
         this.mailSettingsStore = mailSettingsStore;
-        this.outlookClient = outlookClient;
+        this.outlookAccountSettingsStore = outlookAccountSettingsStore;
         this.mailSettingsValidator = mailSettingsValidator ?? new MailSettingsValidator();
         this.settingsValidator = settingsValidator ?? throw new ArgumentNullException(nameof(settingsValidator));
         this.timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
 
-        ConfigureCredentialsCommand = new RelayCommand(ConfigureCredentials, () => AreControlsEnabled);
+        ConfigureCredentialsCommand = new AsyncRelayCommand(ConfigureCredentialsAsync, () => AreControlsEnabled);
         ConfigureRequestCommand = new AsyncRelayCommand(ConfigureRequestAsync, () => AreControlsEnabled);
         ConfigureMailCommand = new AsyncRelayCommand(ConfigureMailAsync, () => AreControlsEnabled);
         StartTestCommand = new AsyncRelayCommand(StartTestAsync, () => IsTestActionEnabled);
@@ -81,7 +82,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         ToggleFinalActionCommand = new AsyncRelayCommand(ToggleFinalActionAsync, () => AreControlsEnabled);
     }
 
-    public IRelayCommand ConfigureCredentialsCommand { get; }
+    public IAsyncRelayCommand ConfigureCredentialsCommand { get; }
     public IRelayCommand ConfigureRequestCommand { get; }
     public IRelayCommand ConfigureMailCommand { get; }
     public IAsyncRelayCommand StartTestCommand { get; }
@@ -113,6 +114,20 @@ public sealed partial class MainWindowViewModel : ObservableObject
             SendEmailAtEnd = settings.FinalAction == FinalAction.SendEmail;
             mailSettings = mailSettingsStore is null ? null : await mailSettingsStore.LoadAsync(cancellationToken);
             if (mailSettings is not null) mailSettings = mailSettingsValidator.ValidateAndNormalize(mailSettings);
+            OutlookAccountSettings? outlookAccount = outlookAccountSettingsStore is null
+                ? null
+                : await outlookAccountSettingsStore.LoadAsync(cancellationToken);
+            if (outlookAccount is null && mailSettings is not null && outlookAccountSettingsStore is not null)
+            {
+                outlookAccount = new OutlookAccountSettings { SmtpAddress = mailSettings.SmtpAddress };
+                await outlookAccountSettingsStore.SaveAsync(outlookAccount, cancellationToken);
+            }
+            outlookSmtpAddress = outlookAccount?.SmtpAddress ?? mailSettings?.SmtpAddress ?? string.Empty;
+            if (mailSettings is not null && !string.IsNullOrWhiteSpace(outlookSmtpAddress))
+            {
+                mailSettings = mailSettingsValidator.ValidateAndNormalize(
+                    mailSettings with { SmtpAddress = outlookSmtpAddress });
+            }
             IsMailConfigured = mailSettings is not null;
             StatusMessage = IsConfigurationComplete
                 ? "La configuración está lista para ejecutar."
@@ -170,7 +185,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         }
     }
 
-    private void ConfigureCredentials()
+    private async Task ConfigureCredentialsAsync()
     {
         if (credentialStore is null || configurationDialogs is null)
         {
@@ -180,11 +195,21 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
         try
         {
-            PamCredentialUpdate? update = configurationDialogs.EditCredentials(AreCredentialsConfigured);
-            if (update is null) return;
-            credentialStore.Save(update);
-            AreCredentialsConfigured = credentialStore.HasCredentials();
-            StatusMessage = "Credenciales guardadas de forma segura en Windows Credential Manager.";
+            var currentState = new CredentialConfigurationState(
+                AreCredentialsConfigured,
+                !string.IsNullOrWhiteSpace(outlookSmtpAddress),
+                outlookSmtpAddress);
+            CredentialConfigurationState state = await configurationDialogs.EditCredentialsAsync(currentState);
+            AreCredentialsConfigured = state.HasPamCredentials;
+            outlookSmtpAddress = state.OutlookSmtpAddress;
+            if (mailSettings is not null && !string.IsNullOrWhiteSpace(outlookSmtpAddress))
+            {
+                mailSettings = mailSettingsValidator.ValidateAndNormalize(
+                    mailSettings with { SmtpAddress = outlookSmtpAddress });
+            }
+            StatusMessage = state == currentState
+                ? "Configuración de credenciales sin cambios."
+                : "Configuración de credenciales actualizada.";
         }
         catch (Exception exception)
         {
@@ -278,36 +303,30 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     private async Task ConfigureMailAsync()
     {
-        if (configurationDialogs is null || mailSettingsStore is null || outlookClient is null)
+        if (configurationDialogs is null || mailSettingsStore is null)
         {
             ShowPendingFeature("La configuración de correo no está disponible en este contexto.");
             return;
         }
 
-        MailConfigurationEdit? edit = configurationDialogs.EditMail(mailSettings);
+        if (string.IsNullOrWhiteSpace(outlookSmtpAddress))
+        {
+            dialogs?.ShowError("Configura y verifica primero tu cuenta de Outlook en Editar credenciales.");
+            return;
+        }
+
+        MailConfigurationEdit? edit = configurationDialogs.EditMail(mailSettings, outlookSmtpAddress);
         if (edit is null) return;
         IsRunning = true;
-        StatusMessage = "Validando la cuenta en Outlook clásico sin enviar correo…";
+        StatusMessage = "Validando y guardando la configuración de correo…";
         try
         {
-            MailSettings normalized = mailSettingsValidator.ValidateAndNormalize(edit.Settings);
-            await outlookClient.ValidateAccountAsync(normalized.SmtpAddress);
+            MailSettings normalized = mailSettingsValidator.ValidateAndNormalize(
+                edit.Settings with { SmtpAddress = outlookSmtpAddress });
             await mailSettingsStore.SaveAsync(normalized);
             mailSettings = normalized;
             IsMailConfigured = true;
             StatusMessage = "Configuración de correo validada y guardada de forma protegida.";
-            if (edit.SendTestRequested && dialogs?.ConfirmOutlookTestEmail(normalized.SmtpAddress) == true)
-            {
-                string body = "<p>Prueba de configuración de Pam Automation.</p>";
-                OutlookDeliveryResult result = await outlookClient.SendAsync(new OutlookSendRequest(
-                    normalized.SmtpAddress,
-                    "[PRUEBA OUTLOOK] Pam Automation",
-                    body,
-                    [normalized.SmtpAddress],
-                    [],
-                    []));
-                StatusMessage = result.Message;
-            }
         }
         catch (Exception exception)
         {

@@ -104,6 +104,18 @@ La protección de correo combina una huella en memoria con una propiedad privada
 
 La validación ordinaria compiló en `Release | x64`, ejecutó 243 pruebas correctas y arrancó la ventana WPF sin cierre inesperado. No se abrió PAM, no se envió correo y no se consumió ninguna de las diez pruebas reales autorizadas.
 
+## Fase 16.5 — Paridad funcional y claridad de configuración
+
+Se revisó en Edge visible la aplicación JavaScript anterior y se compararon su portada, `Editar credenciales`, `Editar solicitud` y `Editar envío de correo` con las ventanas WPF. El objetivo no fue copiar píxeles ni reutilizar código anterior, sino conservar su orientación al usuario y alcanzar paridad funcional sobre la arquitectura segura de C#.
+
+`Configurar credenciales` reúne ahora dos tarjetas sin mezclar sus mecanismos de almacenamiento. PAM muestra si existe una credencial, conserva los secretos vacíos durante edición, permite mostrar u ocultar solo los valores recién escritos y ofrece `Guardar cambios y probar acceso`; la prueba abre una sesión temporal visible, confirma el dashboard y se cierra sin navegar a `Favorites` ni crear solicitudes. Outlook explica que es opcional, que exige Outlook clásico y que no guarda contraseña; permite guardar y verificar la cuenta exacta y mantiene el correo de prueba como una acción separada, confirmada y dirigida desde y hacia esa misma cuenta.
+
+La cuenta SMTP se desacopló de la plantilla mediante `OutlookAccountSettings` y `outlook-account.dat`, protegido con DPAPI `CurrentUser`, esquema versionado y escritura atómica. Una configuración anterior que solo tenga `mail-settings.dat` migra su remitente automáticamente. El editor de correo muestra la cuenta como solo lectura, incluye ayuda de destinatarios, conserva formato, tablas e imágenes y agrega una acción para insertar `{{REQUEST_IDS}}` en el cursor con estado visible de unicidad.
+
+`Configurar solicitud` presenta la fecha completa localizada, un único campo `hh:mm` con `AM/PM`, duración y razón en bloques separados, modo de prueba secundario y errores dentro del formulario. Las tres ventanas comparten tarjetas, avisos, botones principales amplios, desplazamiento y estados visuales coherentes con la portada.
+
+La validación compiló en `Release | x64` y ejecutó 253 pruebas correctas, incluidas la carga STA conjunta de las tres ventanas, coordinación no destructiva de credenciales, orden verificar-guardar de Outlook, destinatario único de prueba, validación SMTP, persistencia DPAPI y migración. Las pruebas automatizadas no abrieron PAM ni Outlook, no enviaron correos y no crearon solicitudes reales.
+
 ## Fases pendientes
 
 La clasificación siguiente se refiere únicamente a dependencias entre fases pendientes:
@@ -114,7 +126,7 @@ La clasificación siguiente se refiere únicamente a dependencias entre fases pe
 
 | Fase | Clasificación | Dependencias pendientes | Alcance y posibilidad de paralelismo |
 |---|---|---|---|
-| 17 — Evidencias técnicas de desarrollo | **Dependiente** | Fase 16 y flujos operativos integrados. | Es transversal y debe conocer qué fallos pueden diagnosticarse sin persistir secretos. No conviene paralelizarla con cambios activos en esos flujos. |
+| 17 — Evidencias técnicas de desarrollo | **Dependiente** | Fases 16 y 16.5, con flujos operativos integrados. | Es transversal y debe conocer qué fallos pueden diagnosticarse sin persistir secretos. No conviene paralelizarla con cambios activos en esos flujos. |
 | 18 — Instalador y publicación autocontenida | **Dependiente** | Fases 6 a 17. | Requiere que la aplicación y sus dependencias externas estén definidas y validadas. |
 | 19 — Pruebas finales administradas | **Dependiente** | Fase 18. | Es la validación final del producto publicado en el entorno Windows objetivo. |
 | 20 — Colecciones personalizadas post-migración | **Dependiente** | Migración inicial y fase 19 completadas. | Permitirá seleccionar subconjuntos editables de `Favorites` rows, guardar configuración general y posibles sobrescrituras por fila. Es alcance nuevo y no debe mezclarse con las fases 12 a 19. |
@@ -122,12 +134,12 @@ La clasificación siguiente se refiere únicamente a dependencias entre fases pe
 ## Mapa recomendado de trabajo paralelo
 
 ```text
-Fases 6 a 16 completadas ──► Fase 17 ──► Fase 18 ──► Fase 19
+Fases 6 a 16.5 completadas ──► Fase 17 ──► Fase 18 ──► Fase 19
 
 Fase 19 ──► Fase 20 (ampliación posterior a la migración)
 ```
 
-La fase 17 constituye el siguiente paso y depende de los flujos integrados en fase 16. El coordinador solo podrá paralelizar una parte futura si vuelve a demostrar independencia, contratos congelados y ausencia de archivos compartidos.
+La fase 17 constituye el siguiente paso y depende de los flujos integrados y de configuración cerrados en las fases 16 y 16.5. El coordinador solo podrá paralelizar una parte futura si vuelve a demostrar independencia, contratos congelados y ausencia de archivos compartidos.
 
 La fase 20 registra una ampliación solicitada para después de terminar la migración: colecciones locales nombradas y editables que seleccionan cualquier subconjunto de Favorites. Su diseño preliminar, navegación, reconciliación y seguridad se detallan en `PAM_NAVIGATION.md`; no modifica el alcance ni la autorización de la fase 12.
 

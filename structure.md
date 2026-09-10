@@ -21,7 +21,7 @@ La aplicación anterior ubicada en `C:\pam automatizacion` no forma parte de est
 
 ## Estado actual
 
-La solución utiliza `PamAutomation.slnx`, .NET 10 y la plataforma `x64`. Actualmente existen los límites principales de la arquitectura, configuración y credenciales protegidas, TOTP, reloj HTTP, sesión temporal de Edge, autenticación PAM simulada y real visible, lectura de Favorites, validación y descarte seguro de formularios, solicitudes reales confirmadas, lectura y reconciliación de Pending, composición HTML saneada, el adaptador testeable de Outlook clásico y la coordinación del flujo PAM con resultados WPF mantenidos en memoria.
+La solución utiliza `PamAutomation.slnx`, .NET 10 y la plataforma `x64`. Actualmente existen los límites principales de la arquitectura, configuración y credenciales protegidas, TOTP, reloj HTTP, sesión temporal de Edge, autenticación PAM simulada y real visible, lectura de Favorites, validación y descarte seguro de formularios, solicitudes reales confirmadas, lectura y reconciliación de Pending, composición HTML saneada, el adaptador testeable de Outlook clásico y la coordinación del flujo PAM con resultados WPF mantenidos en memoria. La fase 16.5 añadió paridad funcional y estados claros a las ventanas de configuración sin copiar la implementación JavaScript anterior.
 
 Las fases construidas hasta ahora son:
 
@@ -43,6 +43,7 @@ Las fases construidas hasta ahora son:
 - Fase 14: contratos, validación, fake y adaptador Outlook clásico COM ejecutado en STA.
 - Fase 15: saneamiento XHTML, sustitución única de Request ID y validación defensiva previa a COM.
 - Fase 16: configuración WPF de credenciales y solicitud, confirmación real y resultados en memoria.
+- Fase 16.5: paridad funcional de configuración, pruebas no destructivas y cuenta Outlook desacoplada.
 
 Los directorios `.git`, `.vs`, `bin` y `obj` contienen metadatos o salidas generadas y se omiten en el árbol.
 
@@ -70,7 +71,11 @@ PamAutomation\
 │   ├── MainWindow.xaml
 │   ├── MainWindow.xaml.cs
 │   ├── Services\
+│   │   ├── ConfigurationOperationResult.cs
+│   │   ├── CredentialConfigurationState.cs
+│   │   ├── CredentialConfigurationWorkflow.cs
 │   │   ├── FlowDocumentHtmlConverter.cs
+│   │   ├── ICredentialConfigurationWorkflow.cs
 │   │   ├── IConfigurationDialogService.cs
 │   │   ├── IUserDialogService.cs
 │   │   ├── MailConfigurationEdit.cs
@@ -105,7 +110,8 @@ PamAutomation\
 │   │   │   └── IPamBrowserSessionFactory.cs
 │   │   ├── Configuration\
 │   │   │   ├── IAppSettingsStore.cs
-│   │   │   └── IMailSettingsStore.cs
+│   │   │   ├── IMailSettingsStore.cs
+│   │   │   └── IOutlookAccountSettingsStore.cs
 │   │   ├── Credentials\
 │   │   │   ├── CredentialStoreErrorCode.cs
 │   │   │   ├── CredentialStoreException.cs
@@ -152,6 +158,7 @@ PamAutomation\
 │   │   │   ├── AppSettings.cs
 │   │   │   ├── FinalAction.cs
 │   │   │   ├── MailSettings.cs
+│   │   │   ├── OutlookAccountSettings.cs
 │   │   │   └── RequestSettings.cs
 │   │   └── Credentials\
 │   │       ├── PamCredentials.cs
@@ -241,6 +248,7 @@ PamAutomation\
 │   │   ├── AppSettingsPersistenceErrorCode.cs
 │   │   ├── AppSettingsPersistenceException.cs
 │   │   ├── DpapiMailSettingsStore.cs
+│   │   ├── DpapiOutlookAccountSettingsStore.cs
 │   │   └── JsonAppSettingsStore.cs
 │   ├── Credentials\
 │   │   ├── CredentialManagerEntry.cs
@@ -266,6 +274,8 @@ PamAutomation\
     ├── TestExplorerSmokeTests.cs
     ├── MainWindowViewModelTests.cs
     ├── App\
+    │   ├── ConfigurationWindowSmokeTests.cs
+    │   ├── CredentialConfigurationWorkflowTests.cs
     │   └── FlowDocumentHtmlConverterTests.cs
     ├── Core\
     │   ├── Authentication\
@@ -298,8 +308,9 @@ PamAutomation\
     │   ├── PamRequestTestPortalTests.cs
     │   └── PamRealAuthenticationTests.cs
     ├── Infrastructure\
-│   ├── Configuration\
+    │   ├── Configuration\
     │   │   ├── DpapiMailSettingsStoreTests.cs
+    │   │   ├── DpapiOutlookAccountSettingsStoreTests.cs
     │   │   └── JsonAppSettingsStoreTests.cs
     │   ├── Credentials\
     │   │   └── WindowsPamCredentialStoreTests.cs
@@ -339,8 +350,8 @@ Contenido actual:
 - `MainWindow.xaml`: portada nativa de la aplicación.
 - `MainWindow.xaml.cs`: inicialización mínima de la ventana; no contiene lógica de negocio.
 - `ViewModels/MainWindowViewModel.cs`: estado de presentación y comandos de la portada mediante `CommunityToolkit.Mvvm`.
-- `Views`: diálogos nativos para credenciales, solicitud y correo.
-- `Services`: confirmaciones, adaptación de diálogos y conversión bidireccional entre `FlowDocument` y XHTML/CID.
+- `Views`: diálogos nativos para credenciales PAM y Outlook, solicitud y plantilla de correo, con estados y validación visibles.
+- `Services`: confirmaciones, adaptación de diálogos, coordinación no destructiva de credenciales y conversión bidireccional entre `FlowDocument` y XHTML/CID.
 - `Resources/Colors.xaml`: colores y pinceles compartidos.
 - `Resources/Styles.xaml`: estilos y plantillas de controles WPF.
 - `AssemblyInfo.cs`: metadatos WPF del ensamblado.
@@ -373,9 +384,9 @@ No debe contener:
 
 Biblioteca para `net10.0`, sin dependencia de WPF o Windows. Actualmente contiene configuración, credenciales, TOTP, autenticación simulada, solicitudes, reconciliación de Pending y contratos de tiempo, navegador y Outlook:
 
-- `Interfaces/Configuration`: contratos `IAppSettingsStore` e `IMailSettingsStore` para cargar y guardar configuración sin acoplar Core al sistema de archivos.
+- `Interfaces/Configuration`: contratos `IAppSettingsStore`, `IMailSettingsStore` e `IOutlookAccountSettingsStore` para cargar y guardar configuración sin acoplar Core al sistema de archivos.
 - `Interfaces/Credentials`: contrato `IPamCredentialStore` y errores estables para el almacenamiento protegido.
-- `Models/Configuration`: `AppSettings`, `RequestSettings`, `MailSettings` y `FinalAction`.
+- `Models/Configuration`: `AppSettings`, `RequestSettings`, `MailSettings`, `OutlookAccountSettings` y `FinalAction`.
 - `Models/Credentials`: modelo completo de uso exclusivo de autenticación y modelo de actualización con campos opcionales.
 - `Validation`: resultado, fallas, códigos estables y validadores de configuración.
 - `Totp`: decodificación Base32, generación RFC 6238 y evaluación de la vigencia mínima antes del envío.
@@ -445,6 +456,7 @@ Biblioteca para `net10.0-windows`. Referencia `PamAutomation.Core` e implementa 
 - `Configuration/AppSettingsDocument.cs`: representación JSON plana y conversión explícita hacia y desde el modelo de Core.
 - `Configuration/JsonAppSettingsStore.cs`: carga desde la ruta privada del usuario y escritura atómica mediante un temporal en la misma carpeta.
 - `Configuration/DpapiMailSettingsStore.cs`: cifra el documento privado de correo con DPAPI `CurrentUser` y lo sustituye atómicamente.
+- `Configuration/DpapiOutlookAccountSettingsStore.cs`: mantiene la cuenta SMTP clásica en un documento DPAPI independiente, versionado y atómico.
 - `Configuration/AppSettingsPersistenceErrorCode.cs` y `AppSettingsPersistenceException.cs`: errores controlados para contenido inválido, esquema incompatible y fallos de lectura o escritura.
 - `Credentials/WindowsPamCredentialStore.cs`: implementación del contrato de Core mediante una única credencial genérica del usuario actual.
 - `Credentials/CredentialPayloadCodec.cs`: formato binario versionado que mantiene juntas contraseña y semilla TOTP y aplica el límite del blob de Windows.
@@ -493,6 +505,8 @@ Contenido actual:
 
 - `TestExplorerSmokeTests.cs`: comprueba el descubrimiento del proyecto por el runner MSTest.
 - `MainWindowViewModelTests.cs`: valida el estado inicial seguro, el bloqueo durante una ejecución y las condiciones del botón de prueba.
+- `App/ConfigurationWindowSmokeTests.cs`: carga en STA las tres ventanas de configuración y detecta errores de XAML o construcción sin abrir servicios externos.
+- `App/CredentialConfigurationWorkflowTests.cs`: valida guardado y login PAM no destructivo, mensajes seguros, orden verificar-guardar de Outlook y correo de prueba dirigido a la misma cuenta.
 - `App/FlowDocumentHtmlConverterTests.cs`: valida ida y vuelta de formato, tablas, marcador e imágenes CID.
 - `Core/Configuration/AppSettingsValidatorTests.cs`: valida valores predeterminados, configuración general y propagación de errores.
 - `Core/Configuration/RequestSettingsValidatorTests.cs`: valida fecha, hora, duración y razón de la solicitud.
@@ -501,6 +515,7 @@ Contenido actual:
 - `Core/Totp/TotpGeneratorTests.cs`: valida vectores públicos RFC 6238, Base32, ventanas de 30 segundos, vigencia mínima y redacción del código.
 - `Infrastructure/Configuration/JsonAppSettingsStoreTests.cs`: valida formato plano, carga, sustitución atómica, cancelación segura y errores de persistencia sin tocar la configuración real del usuario.
 - `Infrastructure/Configuration/DpapiMailSettingsStoreTests.cs`: valida cifrado CurrentUser, ida y vuelta y rechazo de ciphertext corrupto en una carpeta temporal.
+- `Infrastructure/Configuration/DpapiOutlookAccountSettingsStoreTests.cs`: valida el documento separado de cuenta Outlook, su cifrado CurrentUser y el rechazo de SMTP inválido o contenido corrupto.
 - `Infrastructure/Credentials/WindowsPamCredentialStoreTests.cs`: valida creación, actualización parcial, límites, corrupción, borrado y limpieza de buffers mediante una API de Windows falsa.
 - `Infrastructure/Time/PamHttpDateClockFactoryTests.cs`: valida calibración, avance monotónico y errores sin consultar el reloj local.
 - `Browser/PamBrowserSessionFactoryTests.cs`: valida Edge visible, contexto temporal, origen exacto, respuesta segura, cancelación y liberación con adaptadores falsos.
@@ -697,11 +712,13 @@ La aplicación instalada solo podrá mantener esta configuración privada por us
 └── config\
     ├── app-settings.json
     ├── mail-settings.dat
+    ├── outlook-account.dat
     └── collections.dat                   futuro, fase 20
 ```
 
 - `app-settings.json`: configuración no secreta, con `schemaVersion` y escritura atómica.
 - `mail-settings.dat`: configuración de correo protegida con DPAPI `CurrentUser`.
+- `outlook-account.dat`: cuenta SMTP exacta de Outlook clásico, versionada y protegida con DPAPI `CurrentUser`.
 - `collections.dat`: colecciones post-migración con identidades y razones, versionadas y protegidas con DPAPI `CurrentUser`.
 - Usuario, contraseña y semilla TOTP: Windows Credential Manager.
 - Resultados, Request ID, conflictos y estado: únicamente en memoria.

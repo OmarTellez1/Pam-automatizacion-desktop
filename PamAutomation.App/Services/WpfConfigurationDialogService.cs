@@ -7,10 +7,23 @@ namespace PamAutomation.App.Services;
 
 public sealed class WpfConfigurationDialogService : IConfigurationDialogService
 {
-    public PamCredentialUpdate? EditCredentials(bool hasExistingCredentials)
+    private readonly ICredentialConfigurationWorkflow credentialWorkflow;
+
+    public WpfConfigurationDialogService(ICredentialConfigurationWorkflow credentialWorkflow)
     {
-        var dialog = new CredentialsWindow(hasExistingCredentials) { Owner = Application.Current.MainWindow };
-        return dialog.ShowDialog() == true ? dialog.Update : null;
+        this.credentialWorkflow = credentialWorkflow ?? throw new ArgumentNullException(nameof(credentialWorkflow));
+    }
+
+    public Task<CredentialConfigurationState> EditCredentialsAsync(
+        CredentialConfigurationState current,
+        CancellationToken cancellationToken = default)
+    {
+        var dialog = new CredentialsWindow(current, credentialWorkflow, cancellationToken)
+        {
+            Owner = Application.Current.MainWindow
+        };
+        dialog.ShowDialog();
+        return Task.FromResult(dialog.CurrentState);
     }
 
     public RequestConfigurationEdit? EditRequest(RequestSettings current, bool testModeEnabled, DateOnly ecuadorToday)
@@ -19,11 +32,11 @@ public sealed class WpfConfigurationDialogService : IConfigurationDialogService
         return dialog.ShowDialog() == true ? dialog.Edit : null;
     }
 
-    public MailConfigurationEdit? EditMail(MailSettings? current)
+    public MailConfigurationEdit? EditMail(MailSettings? current, string smtpAddress)
     {
-        var dialog = new MailSettingsWindow(current) { Owner = Application.Current.MainWindow };
+        var dialog = new MailSettingsWindow(current, smtpAddress) { Owner = Application.Current.MainWindow };
         return dialog.ShowDialog() == true && dialog.Settings is not null
-            ? new MailConfigurationEdit(dialog.Settings, dialog.SendTestRequested)
+            ? new MailConfigurationEdit(dialog.Settings)
             : null;
     }
 }

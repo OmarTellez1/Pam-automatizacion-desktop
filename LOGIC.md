@@ -27,6 +27,10 @@ La aplicación comienza en estado incompleto y seguro. `Iniciar automatización`
 
 El botón de prueba permanece separado del botón real. Solo es visible cuando `testModeEnabled` está activo y toda la configuración requerida es válida. La interfaz permite guardar credenciales sin volver a mostrar secretos y editar fecha, hora `AM/PM`, duración, razón y modo de prueba. La acción real hace una prelectura de `Favorites`, muestra el conteo y la configuración en una confirmación modal y conserva los controles bloqueados hasta terminar o fallar.
 
+La fase 16.5 toma la aplicación JavaScript anterior únicamente como referencia funcional y de claridad. `Editar credenciales` presenta dos tarjetas: PAM muestra si existen secretos, permite revelar temporalmente únicamente lo recién escrito y ejecuta un login visible no destructivo después de guardar; Outlook explica los requisitos, muestra su estado, verifica la cuenta clásica exacta y separa el correo de prueba confirmado. Los mensajes de operación permanecen dentro de la ventana y nunca reproducen secretos ni detalles internos.
+
+`Editar solicitud` muestra la fecha completa en español, conserva un campo `hh:mm` con selector `AM/PM`, separa duración y razón y presenta errores junto al formulario. `Editar envío de correo` informa la incompatibilidad del nuevo Outlook, muestra la cuenta remitente sin permitir cambiarla allí, explica `Para` y `CC`, conserva las herramientas enriquecidas e inserta `{{REQUEST_IDS}}` en el cursor mostrando si existe exactamente una vez.
+
 `PamAutomationExecutionService` vuelve a verificar el conteo y la configuración después de confirmar, ejecuta las solicitudes, espera la consistencia de `Pending` y produce un `PamExecutionResult` defensivo. La vista mantiene únicamente en memoria el conteo de filas, procesadas, conflictos, hora final, Request ID y estado del correo; los errores desconocidos se sustituyen por un texto fijo sin detalles internos. Un fallo después de procesar alguna fila presenta explícitamente el conteo parcial y exige revisar `Pending` antes de reintentar.
 
 ## Persistencia y configuración
@@ -77,13 +81,18 @@ La configuración de correo se guardará en:
 
     %LOCALAPPDATA%\PamAutomation\config\mail-settings.dat
 
-El archivo contendrá remitente, Para, CC, asunto y HTML enriquecido con el marcador REQUEST_IDS. Debe protegerse con DPAPI CurrentUser.
+El archivo contendrá remitente, Para, CC, asunto y HTML enriquecido con el marcador REQUEST_IDS. Debe protegerse con DPAPI CurrentUser. La cuenta seleccionada en Outlook clásico se mantiene separada para poder verificarla antes de que exista una plantilla completa:
+
+    %LOCALAPPDATA%\PamAutomation\config\outlook-account.dat
+
+`outlook-account.dat` contiene únicamente `schemaVersion` y la dirección SMTP exacta, también protegidos con DPAPI `CurrentUser` y escritura atómica. Cuando una instalación existente solo tiene `mail-settings.dat`, la aplicación migra el remitente a este documento sin perder la plantilla.
 
 La única persistencia propia de la aplicación será:
 
     %LOCALAPPDATA%\PamAutomation\config\
     ├── app-settings.json
-    └── mail-settings.dat
+    ├── mail-settings.dat
+    └── outlook-account.dat
 
 No persistir `results`, `logs`, `artifacts`, `temp`, `last-run`, `last-email` ni `delivery-state`. El resultado de una ejecución se representará mediante un modelo en memoria que contenga Request ID, conflictos, estado y errores. La interfaz lo mostrará mientras la aplicación permanezca abierta.
 
@@ -91,7 +100,7 @@ Si la acción final es correo, la aplicación debe preparar, validar y enviar el
 
 No habrá auditoría local ni debugging persistente por defecto. Un modo de diagnóstico futuro, si se necesita, deberá activarse explícitamente y exportar manualmente la información a una ubicación seleccionada por el desarrollador o soporte. No debe formar parte del almacenamiento normal.
 
-Las escrituras de `app-settings.json` y `mail-settings.dat` son atómicas, incluyen `schemaVersion` y permiten migraciones futuras. `mail-settings.dat` cifra con DPAPI `CurrentUser` remitente, destinatarios, asunto, XHTML saneado y bytes PNG de imágenes inline. No se escribe configuración dentro de `Program Files` ni junto al ejecutable.
+Las escrituras de `app-settings.json`, `mail-settings.dat` y `outlook-account.dat` son atómicas, incluyen `schemaVersion` y permiten migraciones futuras. Los dos documentos `.dat` se cifran con DPAPI `CurrentUser`; `mail-settings.dat` protege remitente, destinatarios, asunto, XHTML saneado y bytes PNG de imágenes inline. No se escribe configuración dentro de `Program Files` ni junto al ejecutable.
 
 Windows o Playwright pueden utilizar `%TEMP%` para archivos internos transitorios durante el lanzamiento del navegador. No tratar esa ubicación como almacenamiento persistente, no escribir secretos allí y limpiar lo creado por la aplicación cuando sea posible.
 
