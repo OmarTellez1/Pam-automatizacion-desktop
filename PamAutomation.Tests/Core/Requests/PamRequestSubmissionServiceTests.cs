@@ -132,6 +132,20 @@ public sealed class PamRequestSubmissionServiceTests
     }
 
     [TestMethod]
+    public async Task ExecuteAsync_FailureAfterKnownOutcome_ReportsPartialProcessedCount()
+    {
+        var harness = new SubmissionHarness([PamRequestPortalOutcome.Submitted()]);
+
+        PamRequestSubmissionException exception = await Assert.ThrowsExactlyAsync<PamRequestSubmissionException>(() =>
+            harness.Service.ExecuteAsync(
+                CreateCredentials(), CreateSettings(), EcuadorNow,
+                PamRequestRunAuthorization.Confirm(2, CreateSettings())));
+
+        Assert.AreEqual(1, exception.ProcessedCount);
+        Assert.AreEqual(PamRequestSubmissionErrorCode.PortalUnavailable, exception.ErrorCode);
+    }
+
+    [TestMethod]
     public void FormData_FiveMinutes_IsValidAndTextIsRedacted()
     {
         var form = new PamRequestFormData(

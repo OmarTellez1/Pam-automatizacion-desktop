@@ -8,14 +8,20 @@ public sealed class PamRequestSubmissionException : Exception
     /// <param name="innerException">Underlying technical failure when available.</param>
     public PamRequestSubmissionException(
         PamRequestSubmissionErrorCode errorCode,
-        Exception? innerException = null)
+        Exception? innerException = null,
+        int processedCount = 0)
         : base(GetMessage(errorCode), innerException)
     {
+        if (processedCount < 0) throw new ArgumentOutOfRangeException(nameof(processedCount));
         ErrorCode = errorCode;
+        ProcessedCount = processedCount;
     }
 
     /// <summary>Gets the stable failure category.</summary>
     public PamRequestSubmissionErrorCode ErrorCode { get; }
+
+    /// <summary>Gets how many rows reached a known terminal outcome before the failure.</summary>
+    public int ProcessedCount { get; }
 
     private static string GetMessage(PamRequestSubmissionErrorCode errorCode) => errorCode switch
     {

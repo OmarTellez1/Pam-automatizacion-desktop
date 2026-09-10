@@ -71,6 +71,18 @@ public static class OutlookHtmlComposer
         string htmlBody,
         IReadOnlyList<string>? expectedRequestIds)
     {
+        if (expectedRequestIds is { Count: 0 })
+        {
+            XElement bodyRoot = ParseAndSanitize(htmlBody);
+            string safeBody = SerializeFragment(bodyRoot);
+            if (!string.Equals(htmlBody, safeBody, StringComparison.Ordinal) ||
+                bodyRoot.DescendantNodes().OfType<XText>().Any(text => text.Value.Contains(RequestIdsMarker, StringComparison.Ordinal)))
+            {
+                throw new OutlookHtmlCompositionException(OutlookHtmlCompositionErrorCode.UnsafeComposedBody);
+            }
+            return;
+        }
+
         string[] validatedRequestIds = ValidateRequestIds(expectedRequestIds);
         XElement root = ParseAndSanitize(htmlBody);
         string sanitized = SerializeFragment(root);

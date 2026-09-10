@@ -313,3 +313,19 @@ Cada cambio relevante debe registrar qué se decidió, por qué, qué se verific
 - `OutlookMessageValidator` valida otra vez el cuerpo final antes de crear COM. Rechaza HTML alterado, contenido que aún tenga el marcador y cuerpos que no contengan todos los Request ID como tokens numéricos completos.
 - Se documentó que el adaptador WPF desde `FlowDocument`, la persistencia DPAPI del editor y la materialización de adjuntos CID siguen pendientes; esta fase establece el límite seguro que deberán consumir.
 - La solución compiló en `Release | x64` con 0 errores y la suite ordinaria ejecutó 225 pruebas correctas. Solo permanece la advertencia heredada `MSTEST0032`, fuera del alcance de esta fase.
+
+## 10 de septiembre de 2026 — Fase 16: resultados en memoria e interfaz
+
+- El usuario autorizó desarrollar la fase con el agente principal y hasta diez pruebas reales. No fue necesario abrir PAM ni crear solicitudes; la cuota consumida fue cero.
+- Se introdujo `IPamAutomationExecutionService` y su implementación en Core para preparar el conteo dinámico de `Favorites`, ejecutar el modo real detrás de una confirmación de un uso, reconciliar `Pending` y devolver resultados defensivos exclusivamente en memoria.
+- `PamExecutionResult` conserva modo, hora, acción final, conteos, conflictos y Request ID mediante copias defensivas; su representación textual no enumera identificadores.
+- La aplicación ahora compone las implementaciones reales en `App.xaml.cs`, carga `app-settings.json` y Windows Credential Manager, y conecta comandos asíncronos de prueba y ejecución real.
+- Se añadieron ventanas WPF nativas para guardar credenciales sin recuperar secretos y configurar fecha, hora de 12 horas con `AM/PM`, duración, razón y `testModeEnabled`.
+- Antes de crear solicitudes, un diálogo modal muestra el conteo y la configuración exacta. Rechazarlo termina sin invocar el envío. Durante todo el flujo los controles permanecen deshabilitados.
+- El panel y diálogo de resultado muestran procesadas, Request ID, conflictos y hora final. Los errores controlados mantienen sus mensajes seguros y los desconocidos se sustituyen por un texto fijo.
+- Se completó `mail-settings.dat` con escritura atómica y cifrado DPAPI `CurrentUser`. Contiene remitente, destinatarios, asunto, XHTML saneado e imágenes PNG inline; las representaciones textuales permanecen redactadas.
+- El editor WPF usa `RichTextBox`/`FlowDocument` y admite negrita, cursiva, subrayado, listas, tablas e imágenes pegadas. Su convertidor realiza ida y vuelta con XHTML permitido y genera referencias `cid:`; Outlook materializa cada PNG en un temporal único, lo agrega y elimina el temporal en `finally`.
+- Guardar correo valida la cuenta mediante un mensaje descartado. El envío de prueba de Outlook y el correo del modo de prueba PAM son acciones distintas, con destinatarios y confirmaciones independientes según la especificación.
+- Se implementó protección contra duplicados en memoria y mediante una propiedad privada de Outlook con el asunto y conjunto exacto de Request ID. Se consultan Enviados, Bandeja de salida y Borradores antes y después de enviar; la Bandeja de salida se mueve a Borradores y los estados ambiguos no se marcan como confirmados.
+- Los fallos parciales de envío PAM conservan el conteo procesado y la interfaz lo presenta sin identidades ni detalles sensibles, indicando revisar `Pending` antes de reintentar.
+- La compilación final en `Release | x64` tuvo 0 errores y la suite ordinaria ejecutó 243 pruebas correctas. No se abrió PAM ni Outlook, no se creó ninguna solicitud y no se envió correo; se consumieron cero de las diez pruebas reales autorizadas. Computer Use no expuso superficies nativas en esta sesión, por lo que la revisión visual final queda para el usuario en Visual Studio.

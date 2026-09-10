@@ -1,0 +1,28 @@
+- main [ref=e2]:
+  - generic [ref=e3]:
+    - link "Inicio de Accesos PAM" [ref=e4] [cursor=pointer]:
+      - /url: /
+      - generic [ref=e5]: P
+      - generic [ref=e6]:
+        - strong [ref=e7]: Accesos PAM
+        - generic [ref=e8]: BeyondInsight Password Safe
+    - button "Mostrar IDs al final" [disabled] [ref=e9]:
+      - generic [ref=e10]: Mostrar IDs al final
+  - region "Acciones de Accesos PAM" [ref=e13]:
+    - heading "Acciones de Accesos PAM" [level=1] [ref=e14]
+    - generic "Acciones disponibles" [ref=e15]:
+      - button "Iniciar automatización" [disabled] [ref=e17]
+      - navigation "Configuración" [ref=e18]:
+        - link "Editar credenciales" [ref=e19] [cursor=pointer]:
+          - /url: /credenciales
+          - generic [ref=e20]: Editar credenciales
+          - generic [ref=e21]: →
+        - link "Editar solicitud" [ref=e22] [cursor=pointer]:
+          - /url: /solicitud
+          - generic [ref=e23]: Editar solicitud
+          - generic [ref=e24]: →
+        - link "Configurar envío de correo" [ref=e25] [cursor=pointer]:
+          - /url: /correo
+          - generic [ref=e26]: Configurar envío de correo
+          - generic [ref=e27]: →
+    - status [ref=e28]

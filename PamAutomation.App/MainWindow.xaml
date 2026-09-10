@@ -1,7 +1,6 @@
 <Window x:Class="PamAutomation.App.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:viewModels="clr-namespace:PamAutomation.App.ViewModels"
         Title="Accesos PAM"
         Width="1180"
         Height="720"
@@ -11,10 +10,6 @@
         Background="{StaticResource AppBackgroundBrush}"
         FontFamily="Segoe UI"
         TextOptions.TextFormattingMode="Display">
-    <Window.DataContext>
-        <viewModels:MainWindowViewModel />
-    </Window.DataContext>
-
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -60,7 +55,8 @@
                 <ToggleButton Grid.Column="1"
                               VerticalAlignment="Center"
                               AutomationProperties.Name="Seleccionar acción final"
-                              IsChecked="{Binding SendEmailAtEnd}"
+                              Command="{Binding ToggleFinalActionCommand}"
+                              IsChecked="{Binding SendEmailAtEnd, Mode=OneWay}"
                               IsEnabled="{Binding AreControlsEnabled}"
                               Style="{StaticResource OutlookActionToggleStyle}" />
             </Grid>
@@ -128,6 +124,44 @@
                            Text="{Binding StatusMessage}"
                            TextAlignment="Center"
                            TextWrapping="Wrap" />
+
+                <Border Width="585"
+                        MaxHeight="190"
+                        Margin="0,18,0,0"
+                        Padding="20"
+                        Background="White"
+                        BorderBrush="{StaticResource BorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="14"
+                        AutomationProperties.Name="Resultado de la automatización">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding HasResult}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <StackPanel>
+                        <TextBlock Foreground="{StaticResource TextPrimaryBrush}"
+                                   FontSize="17"
+                                   FontWeight="Bold"
+                                   Text="{Binding ResultTitle}" />
+                        <TextBlock Margin="0,7,0,0"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   Text="{Binding ResultSummary}"
+                                   TextWrapping="Wrap" />
+                        <ScrollViewer MaxHeight="95"
+                                      Margin="0,10,0,0"
+                                      VerticalScrollBarVisibility="Auto">
+                            <TextBlock FontFamily="Consolas"
+                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                       Text="{Binding RequestIdsText}" />
+                        </ScrollViewer>
+                    </StackPanel>
+                </Border>
             </StackPanel>
 
                 <UniformGrid Grid.Row="1"

@@ -17,6 +17,8 @@ public sealed class OutlookValidationException : Exception
 
     private static string GetMessage(OutlookValidationErrorCode errorCode) => errorCode switch
     {
+        OutlookValidationErrorCode.InvalidMailSettingsVersion => "La versión de la configuración de correo no es compatible.",
+        OutlookValidationErrorCode.InvalidInlineImage => "Una imagen inline del correo no es válida o no coincide con su Content-ID.",
         OutlookValidationErrorCode.InvalidSmtpAddress => "La cuenta de Outlook configurada no es válida.",
         OutlookValidationErrorCode.MissingSubject => "El asunto del correo es obligatorio.",
         OutlookValidationErrorCode.MissingHtmlBody => "El contenido del correo es obligatorio.",

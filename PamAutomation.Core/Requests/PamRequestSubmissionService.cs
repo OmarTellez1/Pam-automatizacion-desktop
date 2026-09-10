@@ -58,6 +58,7 @@ public sealed class PamRequestSubmissionService
             .CreateAuthenticatedAsync(credentials, cancellationToken)
             .ConfigureAwait(false);
 
+        var results = new List<PamRequestAccountResult>();
         try
         {
             IReadOnlyList<PamFavoriteAccount> accounts = await favoritesService
@@ -71,7 +72,7 @@ public sealed class PamRequestSubmissionService
 
             IPamRequestSubmissionPortal portal = portalFactory.Create(session);
             PamRequestFormData form = PamRequestFormData.FromSettings(settings);
-            var results = new List<PamRequestAccountResult>(accounts.Count);
+            results.Capacity = accounts.Count;
             foreach (PamFavoriteAccount account in accounts)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -87,15 +88,17 @@ public sealed class PamRequestSubmissionService
         {
             throw;
         }
-        catch (PamRequestSubmissionException)
+        catch (PamRequestSubmissionException exception)
         {
-            throw;
+            if (results.Count == 0) throw;
+            throw new PamRequestSubmissionException(exception.ErrorCode, exception, results.Count);
         }
         catch (Exception exception)
         {
             throw new PamRequestSubmissionException(
                 PamRequestSubmissionErrorCode.PortalUnavailable,
-                exception);
+                exception,
+                results.Count);
         }
     }
 }

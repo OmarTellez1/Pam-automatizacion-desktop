@@ -90,6 +90,20 @@ La plantilla debe contener `{{REQUEST_IDS}}` exactamente una vez en un nodo de t
 
 Esta fase no implementa todavía el adaptador WPF desde `FlowDocument`, la persistencia protegida de la configuración de correo ni adjuntos CID; define y prueba el límite seguro que esos componentes deberán utilizar. No abrió PAM ni Outlook y no creó solicitudes ni correos. La solución compiló en `Release | x64` y la suite ordinaria ejecutó 225 pruebas correctas.
 
+## Fase 16 — Resultados en memoria e interfaz
+
+Se agregó `PamAutomationExecutionService` como coordinador de aplicación en Core. Una preparación real lee dinámicamente todas las `Favorites` rows y entrega a WPF un snapshot no sensible; el diálogo muestra conteo, fecha, hora, duración y razón. Solo después de una respuesta afirmativa se crea una autorización de un uso. El servicio real vuelve a comprobar el snapshot, procesa solicitudes y consulta `Pending` en una sesión autenticada para recuperar los Request ID exactos de las filas enviadas.
+
+`MainWindowViewModel` carga la configuración no sensible y el estado de Windows Credential Manager, bloquea todas las acciones durante una ejecución y conecta comandos asíncronos separados para prueba y modo real. La aplicación permite configurar credenciales sin recuperar secretos y editar la solicitud con hora `AM/PM`; los resultados muestran conteos, conflictos, Request ID y hora final en memoria, además de un diálogo modal. Los fallos conocidos conservan mensajes controlados y cualquier excepción desconocida se presenta mediante un mensaje fijo sin detalles internos.
+
+La configuración de correo se completa mediante un editor nativo `RichTextBox`/`FlowDocument` para texto con formato, listas, tablas e imágenes pegadas. El convertidor genera únicamente XHTML saneado; las imágenes se convierten a PNG, se persisten dentro de `mail-settings.dat` protegido con DPAPI `CurrentUser` y se materializan como adjuntos CID en una carpeta temporal única que se elimina inmediatamente después de agregarlos a Outlook.
+
+Antes de guardar se valida la cuenta mediante un mensaje temporal descartado. La acción manual `Guardar y enviar prueba` exige confirmación y solo puede enviar desde y hacia la cuenta SMTP configurada. El correo del modo de prueba PAM exige otra confirmación inmediata, utiliza únicamente `tellezoe@hitss.com`, deja CC vacío, antepone `[PRUEBA]` y usa la lista simulada canónica. El modo real utiliza sus Request ID reconciliados.
+
+La protección de correo combina una huella en memoria con una propiedad privada de Outlook que representa el asunto y el conjunto exacto de Request ID. Antes y después de enviar se consultan Enviados, Bandeja de salida y Borradores; un duplicado no se vuelve a crear y un mensaje idéntico en Bandeja de salida se mueve a Borradores. El resultado muestra el estado de entrega sin afirmar confirmación cuando Outlook no puede demostrarla. Los fallos parciales de PAM muestran cuántas `Favorites` rows alcanzaron un resultado conocido y advierten revisar `Pending` antes de reintentar.
+
+La validación ordinaria compiló en `Release | x64`, ejecutó 243 pruebas correctas y arrancó la ventana WPF sin cierre inesperado. No se abrió PAM, no se envió correo y no se consumió ninguna de las diez pruebas reales autorizadas.
+
 ## Fases pendientes
 
 La clasificación siguiente se refiere únicamente a dependencias entre fases pendientes:
@@ -100,7 +114,6 @@ La clasificación siguiente se refiere únicamente a dependencias entre fases pe
 
 | Fase | Clasificación | Dependencias pendientes | Alcance y posibilidad de paralelismo |
 |---|---|---|---|
-| 16 — Resultados en memoria e interfaz | **Independiente** | Ninguna; fase 15 completada. | Es la siguiente fase habilitada; debe integrar los servicios y estados ya disponibles en Core con App. |
 | 17 — Evidencias técnicas de desarrollo | **Dependiente** | Fase 16 y flujos operativos integrados. | Es transversal y debe conocer qué fallos pueden diagnosticarse sin persistir secretos. No conviene paralelizarla con cambios activos en esos flujos. |
 | 18 — Instalador y publicación autocontenida | **Dependiente** | Fases 6 a 17. | Requiere que la aplicación y sus dependencias externas estén definidas y validadas. |
 | 19 — Pruebas finales administradas | **Dependiente** | Fase 18. | Es la validación final del producto publicado en el entorno Windows objetivo. |
@@ -109,12 +122,12 @@ La clasificación siguiente se refiere únicamente a dependencias entre fases pe
 ## Mapa recomendado de trabajo paralelo
 
 ```text
-Fases 6 a 15 completadas ──► Fase 16 ──► Fase 17 ──► Fase 18 ──► Fase 19
+Fases 6 a 16 completadas ──► Fase 17 ──► Fase 18 ──► Fase 19
 
 Fase 19 ──► Fase 20 (ampliación posterior a la migración)
 ```
 
-La fase 16 es la única fase pendiente actualmente independiente y constituye el siguiente paso. El coordinador solo podrá paralelizar una parte futura si vuelve a demostrar independencia, contratos congelados y ausencia de archivos compartidos.
+La fase 17 constituye el siguiente paso y depende de los flujos integrados en fase 16. El coordinador solo podrá paralelizar una parte futura si vuelve a demostrar independencia, contratos congelados y ausencia de archivos compartidos.
 
 La fase 20 registra una ampliación solicitada para después de terminar la migración: colecciones locales nombradas y editables que seleccionan cualquier subconjunto de Favorites. Su diseño preliminar, navegación, reconciliación y seguridad se detallan en `PAM_NAVIGATION.md`; no modifica el alcance ni la autorización de la fase 12.
 

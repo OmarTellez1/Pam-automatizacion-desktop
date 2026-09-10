@@ -1,0 +1,35 @@
+<Window x:Class="PamAutomation.App.Views.RequestSettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Solicitud PAM" Width="610" Height="620" ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner" Background="{StaticResource AppBackgroundBrush}">
+    <Grid Margin="34">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <TextBlock FontSize="24" FontWeight="Bold" Foreground="{StaticResource TextPrimaryBrush}" Text="Configuración de solicitud"/>
+        <TextBlock Grid.Row="1" Margin="0,8,0,20" Foreground="{StaticResource TextSecondaryBrush}"
+                   Text="La fecha y hora se interpretan en America/Guayaquil."/>
+        <TextBlock Grid.Row="2" FontWeight="SemiBold" Text="Fecha de inicio"/>
+        <DatePicker x:Name="StartDatePicker" Grid.Row="3" Height="38" Margin="0,6,0,14" AutomationProperties.Name="Fecha de inicio"/>
+        <Grid Grid.Row="4" Margin="0,0,0,14">
+            <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
+            <StackPanel><TextBlock FontWeight="SemiBold" Text="Hora"/><TextBox x:Name="HourBox" Height="38" Margin="0,6,8,0"/></StackPanel>
+            <StackPanel Grid.Column="1"><TextBlock FontWeight="SemiBold" Text="Minutos"/><TextBox x:Name="MinuteBox" Height="38" Margin="8,6,8,0"/></StackPanel>
+            <StackPanel Grid.Column="2"><TextBlock FontWeight="SemiBold" Text="AM / PM"/><ComboBox x:Name="MeridiemBox" Height="38" Margin="8,6,8,0"><ComboBoxItem Content="AM"/><ComboBoxItem Content="PM"/></ComboBox></StackPanel>
+            <StackPanel Grid.Column="3"><TextBlock FontWeight="SemiBold" Text="Duración (horas)"/><TextBox x:Name="DurationBox" Height="38" Margin="8,6,0,0"/></StackPanel>
+        </Grid>
+        <TextBlock Grid.Row="5" FontWeight="SemiBold" Text="Razón de la petición"/>
+        <TextBox x:Name="ReasonBox" Grid.Row="6" Height="105" Margin="0,6,0,16" AcceptsReturn="True"
+                 TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" AutomationProperties.Name="Razón de la petición"/>
+        <CheckBox x:Name="TestModeBox" Grid.Row="7" Content="Habilitar modo de prueba" FontWeight="SemiBold"/>
+        <TextBlock Grid.Row="8" Margin="0,8,0,0" Foreground="{StaticResource TextMutedBrush}" TextWrapping="Wrap"
+                   Text="El modo de prueba llena, valida y descarta los formularios; nunca pulsa Submit Request."/>
+        <StackPanel Grid.Row="9" Orientation="Horizontal" HorizontalAlignment="Right">
+            <Button Margin="0,0,10,0" Content="Cancelar" IsCancel="True" Style="{StaticResource SecondaryButtonStyle}"/>
+            <Button Content="Guardar configuración" Click="Save_Click" Style="{StaticResource PrimaryButtonStyle}"/>
+        </StackPanel>
+    </Grid>
+</Window>

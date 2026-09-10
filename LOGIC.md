@@ -2,7 +2,7 @@
 
 ## Estado
 
-Este documento describe la lógica objetivo de la aplicación nueva. Ya existen la estructura base, el estado de presentación de la ventana principal, la configuración, el almacenamiento protegido de credenciales, TOTP, navegador restringido, autenticación PAM real visible, lectura de Favorites, solicitudes reales, validación segura de formularios, composición HTML saneada y Outlook clásico aislado. La coordinación desde la interfaz permanece pendiente.
+Este documento describe la lógica objetivo de la aplicación nueva. Ya existen la estructura base, la configuración, el almacenamiento protegido de credenciales, TOTP, navegador restringido, autenticación PAM real visible, lectura de Favorites, solicitudes reales, validación segura de formularios, composición HTML saneada, Outlook clásico aislado y la coordinación del flujo PAM desde la interfaz.
 
 ## Capas
 
@@ -25,7 +25,9 @@ La composición visual toma como referencia la aplicación anterior: encabezado 
 
 La aplicación comienza en estado incompleto y seguro. `Iniciar automatización` solo puede habilitarse cuando credenciales y solicitud estén configuradas y, si la acción final incluye correo, exista también una configuración de correo válida. Mientras una ejecución esté activa, los controles y comandos de configuración quedan deshabilitados.
 
-El botón de prueba permanece separado del botón real. Solo es visible cuando `testModeEnabled` está activo y toda la configuración requerida es válida. En esta fase los botones de configuración y ejecución únicamente informan que la función aún no está implementada; no abren Edge u Outlook, no escriben configuración y no producen efectos externos.
+El botón de prueba permanece separado del botón real. Solo es visible cuando `testModeEnabled` está activo y toda la configuración requerida es válida. La interfaz permite guardar credenciales sin volver a mostrar secretos y editar fecha, hora `AM/PM`, duración, razón y modo de prueba. La acción real hace una prelectura de `Favorites`, muestra el conteo y la configuración en una confirmación modal y conserva los controles bloqueados hasta terminar o fallar.
+
+`PamAutomationExecutionService` vuelve a verificar el conteo y la configuración después de confirmar, ejecuta las solicitudes, espera la consistencia de `Pending` y produce un `PamExecutionResult` defensivo. La vista mantiene únicamente en memoria el conteo de filas, procesadas, conflictos, hora final, Request ID y estado del correo; los errores desconocidos se sustituyen por un texto fijo sin detalles internos. Un fallo después de procesar alguna fila presenta explícitamente el conteo parcial y exige revisar `Pending` antes de reintentar.
 
 ## Persistencia y configuración
 
@@ -89,7 +91,7 @@ Si la acción final es correo, la aplicación debe preparar, validar y enviar el
 
 No habrá auditoría local ni debugging persistente por defecto. Un modo de diagnóstico futuro, si se necesita, deberá activarse explícitamente y exportar manualmente la información a una ubicación seleccionada por el desarrollador o soporte. No debe formar parte del almacenamiento normal.
 
-Las escrituras de `app-settings.json` y `mail-settings.dat` deben ser atómicas, incluir `schemaVersion` y permitir migraciones futuras. La primera de estas reglas ya está implementada para `app-settings.json`; `mail-settings.dat` permanece pendiente. No escribir configuración dentro de `Program Files` ni junto al ejecutable.
+Las escrituras de `app-settings.json` y `mail-settings.dat` son atómicas, incluyen `schemaVersion` y permiten migraciones futuras. `mail-settings.dat` cifra con DPAPI `CurrentUser` remitente, destinatarios, asunto, XHTML saneado y bytes PNG de imágenes inline. No se escribe configuración dentro de `Program Files` ni junto al ejecutable.
 
 Windows o Playwright pueden utilizar `%TEMP%` para archivos internos transitorios durante el lanzamiento del navegador. No tratar esa ubicación como almacenamiento persistente, no escribir secretos allí y limpiar lo creado por la aplicación cuando sea posible.
 
@@ -190,7 +192,7 @@ Los modelos que contienen dirección, asunto, HTML, destinatarios o Request ID r
 
 La fase 15 incorpora `OutlookHtmlComposer` como límite determinista previo a Outlook. Solo acepta fragmentos XHTML bien formados generados por la aplicación, con DTD prohibidos y un máximo de 8 millones de caracteres. Conserva párrafos, encabezados, negrita, cursiva, subrayado, listas, tablas, estilos explícitamente permitidos e imágenes locales referenciadas mediante `cid:`; elimina scripts, estilos activos, formularios, marcos, objetos, eventos, vínculos y recursos externos. No acepta HTML web arbitrario.
 
-La plantilla saneada debe contener `{{REQUEST_IDS}}` exactamente una vez dentro del texto. La composición valida Request ID numéricos y únicos, mantiene el orden recibido y los inserta separados por `<br />`. Antes de crear COM, `OutlookMessageValidator` exige que el cuerpo final sea idéntico a su versión saneada, que ya no contenga el marcador y que cada ID esperado aparezca como token numérico completo. El adaptador futuro de `FlowDocument` deberá producir este XHTML; no podrá evitar esta validación.
+La plantilla saneada debe contener `{{REQUEST_IDS}}` exactamente una vez dentro del texto. La composición valida Request ID numéricos y únicos, mantiene el orden recibido y los inserta separados por `<br />`. Antes de crear COM, `OutlookMessageValidator` exige que el cuerpo final sea idéntico a su versión saneada, que ya no contenga el marcador y que cada ID esperado aparezca como token numérico completo. `FlowDocumentHtmlConverter` produce ese XHTML y no puede evitar esta validación.
 
 La integración COM debe ejecutarse en STA, liberar referencias y no enviar mensajes durante pruebas automáticas.
 
@@ -202,7 +204,9 @@ La pantalla de configuración de credenciales y Outlook tendrá otra acción man
 
 La interfaz utilizará `RichTextBox` y `FlowDocument` como modelo nativo de edición. Solo se admitirán capacidades declaradas y testeadas: párrafos, negrita, cursiva, subrayado, listas, tablas, imágenes pegadas y el marcador `{{REQUEST_IDS}}`. Un convertidor C# propio recorrerá el `FlowDocument` y generará un subconjunto permitido de HTML para Outlook; no se aceptará HTML arbitrario ni se afirmará compatibilidad completa.
 
-El documento y sus imágenes se guardarán dentro de `mail-settings.dat` protegido con DPAPI CurrentUser. Las imágenes necesarias para adjuntos CID solo podrán materializarse como temporales durante la preparación del mensaje y deberán eliminarse al finalizar. Antes de desarrollar el editor completo se validará un prototipo de ida y vuelta, tablas, imágenes, marcador, saneamiento y renderizado en Outlook clásico.
+El documento y sus imágenes se guardan dentro de `mail-settings.dat` protegido con DPAPI CurrentUser. El editor convierte texto con formato, listas, tablas e imágenes pegadas a XHTML saneado. Cada imagen se normaliza a PNG y recibe un Content-ID; el adaptador COM crea un temporal único solo para `Attachments.Add`, configura el CID y lo elimina en el mismo bloque `finally`.
+
+Antes de enviar resultados se consulta el almacén asociado exactamente al `SmtpAddress` configurado por una propiedad privada que contiene el conjunto ordenado exacto de Request ID y se exige también el mismo asunto. La búsqueda recorre Enviados, Bandeja de salida y Borradores. La sesión actual conserva además una huella en memoria para impedir dos intentos concurrentes. Después de `Send()` se vuelve a consultar: Enviados confirma, Bandeja de salida se mueve a Borradores y cualquier estado no demostrado permanece `SubmittedUnconfirmed` o `NotConfirmed`.
 
 ## Seguridad
 

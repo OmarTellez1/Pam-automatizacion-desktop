@@ -99,6 +99,32 @@ public sealed class OutlookClassicClient : IOutlookClassicClient
         }
     }
 
+    public async Task<OutlookExistingMessageStatus> FindExistingAsync(
+        string smtpAddress,
+        string subject,
+        IReadOnlyList<string> requestIds,
+        CancellationToken cancellationToken = default)
+    {
+        OutlookMessageValidator.ValidateSmtpAddress(smtpAddress);
+        if (string.IsNullOrWhiteSpace(subject))
+            throw new OutlookValidationException(OutlookValidationErrorCode.MissingSubject);
+        string fingerprint = CreateFingerprint(requestIds);
+        try
+        {
+            return await staExecutor.ExecuteAsync(() =>
+            {
+                using IOutlookComApplication application = applicationFactory.Create();
+                return application.FindExistingMessage(smtpAddress, subject, fingerprint);
+            }, cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (OutlookValidationException) { throw; }
+        catch (Exception exception)
+        {
+            throw new OutlookOperationException(OutlookOperationErrorCode.DuplicateCheckFailed, exception);
+        }
+    }
+
     /// <inheritdoc />
     public async Task<OutlookDeliveryResult> SendAsync(OutlookSendRequest request, CancellationToken cancellationToken = default)
     {
@@ -139,9 +165,27 @@ public sealed class OutlookClassicClient : IOutlookClassicClient
             message.SetToRecipients(request.ToRecipients);
             message.SetCcRecipients(request.CcRecipients);
             message.SetSendUsingAccount(account);
+            if (request.ExpectedRequestIds.Count > 0)
+            {
+                message.SetRequestFingerprint(CreateFingerprint(request.ExpectedRequestIds));
+            }
+
+            foreach (OutlookInlineImage image in request.InlineImages)
+            {
+                message.AddInlineImage(image);
+            }
+
             message.Send();
             return OutlookDeliveryResult.SubmittedUnconfirmed();
         });
+    }
+
+    private static string CreateFingerprint(IReadOnlyList<string> requestIds)
+    {
+        ArgumentNullException.ThrowIfNull(requestIds);
+        if (requestIds.Count == 0 || requestIds.Any(static id => string.IsNullOrWhiteSpace(id) || !id.All(char.IsAsciiDigit)))
+            throw new OutlookValidationException(OutlookValidationErrorCode.MissingRequestId);
+        return string.Join(',', requestIds.Order(StringComparer.Ordinal));
     }
 
     private static void DiscardAndDisposeTemporaryMessage(IOutlookComMailItem message, Exception? primaryFailure)

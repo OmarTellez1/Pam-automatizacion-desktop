@@ -12,6 +12,7 @@ namespace PamAutomation.Core.Outlook;
 [DebuggerDisplay("{DebuggerDisplay,nq}")]
 public sealed record OutlookSendRequest(string SmtpAddress, string Subject, string HtmlBody, IReadOnlyList<string> ToRecipients, IReadOnlyList<string> CcRecipients, IReadOnlyList<string> ExpectedRequestIds)
 {
+    public IReadOnlyList<OutlookInlineImage> InlineImages { get; init; } = Array.Empty<OutlookInlineImage>();
     private string DebuggerDisplay => "OutlookSendRequest { Redacted }";
 
     /// <summary>Returns a redacted representation that does not expose private mail settings.</summary>

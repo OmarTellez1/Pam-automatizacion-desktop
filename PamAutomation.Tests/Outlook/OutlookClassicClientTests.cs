@@ -93,7 +93,7 @@ public sealed class OutlookClassicClientTests
         Assert.IsFalse(second.IsConfirmed);
         Assert.AreEqual(OutlookDeliveryStatus.SubmittedUnconfirmed, first.Status);
         Assert.AreEqual(2, harness.Messages.Count);
-        CollectionAssert.AreEqual(new[] { "subject", "html", "to", "cc", "account", "send", "dispose" }, harness.Messages[0].Events);
+        CollectionAssert.AreEqual(new[] { "subject", "html", "to", "cc", "account", "fingerprint", "send", "dispose" }, harness.Messages[0].Events);
         Assert.IsTrue(harness.AllResourcesDisposed);
     }
 
@@ -202,6 +202,49 @@ public sealed class OutlookClassicClientTests
     }
 
     [TestMethod]
+    public async Task FindExistingAsync_UsesOrderIndependentExactFingerprint()
+    {
+        OutlookHarness harness = new("sender@example.test") { ExistingStatus = OutlookExistingMessageStatus.Sent };
+        IOutlookClassicClient client = CreateClient(harness);
+
+        OutlookExistingMessageStatus result = await client.FindExistingAsync("sender@example.test", "Subject", ["20", "10"]);
+
+        Assert.AreEqual(OutlookExistingMessageStatus.Sent, result);
+        Assert.AreEqual("10,20", harness.LastFingerprint);
+    }
+
+    [TestMethod]
+    public async Task SendAsync_InlineImage_AddsCidAttachmentBeforeSend()
+    {
+        OutlookHarness harness = new("sender@example.test");
+        IOutlookClassicClient client = CreateClient(harness);
+        OutlookSendRequest request = ValidRequest() with
+        {
+            HtmlBody = OutlookHtmlComposer.Compose("<p>{{REQUEST_IDS}}</p><img src=\"cid:image@local\" />", ["150901"]),
+            InlineImages = [new OutlookInlineImage("image@local", "image.png", "image/png", [1, 2, 3])]
+        };
+
+        await client.SendAsync(request);
+
+        CollectionAssert.AreEqual(
+            new[] { "subject", "html", "to", "cc", "account", "fingerprint", "image", "send", "dispose" },
+            harness.Messages[0].Events);
+    }
+
+    [TestMethod]
+    public async Task SendAsync_ManualOutlookTestWithoutRequestIds_IsAllowedButHasNoFingerprint()
+    {
+        OutlookHarness harness = new("sender@example.test");
+        IOutlookClassicClient client = CreateClient(harness);
+        var request = new OutlookSendRequest(
+            "sender@example.test", "Test", "<p>Outlook test</p>", ["sender@example.test"], [], []);
+
+        await client.SendAsync(request);
+
+        Assert.DoesNotContain("fingerprint", harness.Messages[0].Events);
+    }
+
+    [TestMethod]
     public async Task SendAsync_UnsafeHtml_RejectsBeforeCreatingComApplication()
     {
         OutlookHarness harness = new("sender@example.test");
@@ -269,6 +312,8 @@ public sealed class OutlookClassicClientTests
         public bool ThrowOnDispose { get; init; }
         public bool ApplicationDisposed { get; private set; }
         public int CreateCalls { get; private set; }
+        public OutlookExistingMessageStatus ExistingStatus { get; set; }
+        public string? LastFingerprint { get; private set; }
         public bool AllAccountsDisposed => accounts.All(account => account.Disposed);
         public bool AllResourcesDisposed => ApplicationDisposed && AllAccountsDisposed && Messages.All(message => message.Disposed);
         public IOutlookComApplication Create() { CreateCalls++; return this; }
@@ -282,6 +327,11 @@ public sealed class OutlookClassicClientTests
             TestMailItem item = new(ThrowOnSend, ThrowOnAccountSetup, ThrowOnDiscard, ThrowOnDispose);
             Messages.Add(item);
             return item;
+        }
+        public OutlookExistingMessageStatus FindExistingMessage(string smtpAddress, string subject, string requestFingerprint)
+        {
+            LastFingerprint = requestFingerprint;
+            return ExistingStatus;
         }
         public void Dispose() => ApplicationDisposed = true;
     }
@@ -307,6 +357,8 @@ public sealed class OutlookClassicClientTests
         public void SetHtmlBody(string htmlBody) => Events.Add("html");
         public void SetToRecipients(IReadOnlyList<string> recipients) => Events.Add("to");
         public void SetCcRecipients(IReadOnlyList<string> recipients) => Events.Add("cc");
+        public void SetRequestFingerprint(string requestFingerprint) => Events.Add("fingerprint");
+        public void AddInlineImage(OutlookInlineImage image) => Events.Add("image");
         public void Send()
         {
             Events.Add("send");

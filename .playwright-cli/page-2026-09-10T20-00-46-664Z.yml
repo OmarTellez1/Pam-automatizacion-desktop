@@ -1,0 +1,53 @@
+- main [ref=e2]:
+  - generic [ref=e3]:
+    - link "Volver al inicio de Accesos PAM" [ref=e4] [cursor=pointer]:
+      - /url: /
+      - generic [ref=e5]: P
+      - generic [ref=e6]:
+        - strong [ref=e7]: Accesos PAM
+        - generic [ref=e8]: BeyondInsight Password Safe
+    - link "← Volver al inicio" [ref=e9] [cursor=pointer]:
+      - /url: /
+  - region "Configurar credenciales" [ref=e10]:
+    - heading "Configurar credenciales" [level=1] [ref=e11]
+    - generic [ref=e12]:
+      - region "Credenciales del PAM" [ref=e13]:
+        - heading "Credenciales del PAM" [level=2] [ref=e14]
+        - status [ref=e15]: Ya tienes credenciales del PAM configuradas.
+        - generic [ref=e16]:
+          - generic [ref=e17]:
+            - generic [ref=e18]: Usuario
+            - textbox "Usuario" [ref=e19]:
+              - /placeholder: Dejar vacío para conservar el usuario
+          - generic [ref=e20]:
+            - generic [ref=e21]: Contraseña
+            - generic [ref=e22]:
+              - textbox "Contraseña" [ref=e23]:
+                - /placeholder: Dejar vacío para conservar la contraseña
+              - button "Mostrar contraseña" [ref=e24] [cursor=pointer]: Mostrar
+          - generic [ref=e25]:
+            - generic [ref=e26]: Codigo alfanumerico del Two-Factor Authentication del pam
+            - generic [ref=e27]:
+              - textbox "Codigo alfanumerico del Two-Factor Authentication del pam" [ref=e28]:
+                - /placeholder: Dejar vacío para conservar la clave
+              - button "Mostrar clave del Authenticator" [ref=e29] [cursor=pointer]: Mostrar
+            - paragraph [ref=e30]: Usa la clave alfanumérica de configuración. No ingreses el código temporal de 6 dígitos.
+          - button "Guardar cambios y probar acceso" [ref=e31] [cursor=pointer]:
+            - generic [ref=e32]: Guardar cambios y probar acceso
+            - generic [ref=e33]: →
+      - region "Cuenta de Outlook" [ref=e34]:
+        - heading "Cuenta de Outlook" [level=2] [ref=e35]
+        - note [ref=e36]: Esta configuración es opcional. Requiere Outlook clásico instalado y una sesión iniciada en esta misma cuenta de Windows. No se guarda ninguna contraseña de Outlook.
+        - status [ref=e37]: Tu cuenta de Outlook está configurada.
+        - generic [ref=e38]:
+          - generic [ref=e39]:
+            - generic [ref=e40]: Tu correo de Outlook
+            - textbox "Tu correo de Outlook" [ref=e41]:
+              - /placeholder: tu.correo@empresa.com
+              - text: tellezoe@hitss.com
+            - paragraph [ref=e42]: Debe coincidir exactamente con la cuenta iniciada en Outlook clásico.
+          - button "Guardar cambios y verificar Outlook" [ref=e43] [cursor=pointer]:
+            - generic [ref=e44]: Guardar cambios y verificar Outlook
+            - generic [ref=e45]: →
+        - button "Enviar correo de prueba" [ref=e46] [cursor=pointer]
+        - paragraph [ref=e47]: El correo de prueba se enviará a la misma cuenta configurada.

@@ -3,6 +3,10 @@ namespace PamAutomation.Core.Outlook;
 /// <summary>Identifies an invalid input to an Outlook operation.</summary>
 public enum OutlookValidationErrorCode
 {
+    /// <summary>The persisted mail-settings schema is unsupported.</summary>
+    InvalidMailSettingsVersion,
+    /// <summary>An inline image or its CID mapping is invalid.</summary>
+    InvalidInlineImage,
     /// <summary>The configured sending account is absent or invalid.</summary>
     InvalidSmtpAddress,
     /// <summary>The message subject is absent.</summary>

@@ -17,6 +17,7 @@ public sealed class OutlookOperationException : Exception
 
     private static string GetMessage(OutlookOperationErrorCode errorCode) => errorCode switch
     {
+        OutlookOperationErrorCode.DuplicateCheckFailed => "No fue posible comprobar correos anteriores de Outlook.",
         OutlookOperationErrorCode.AccountResolutionFailed => "No fue posible consultar las cuentas de Outlook.",
         OutlookOperationErrorCode.AccountValidationFailed => "No fue posible validar la cuenta de Outlook.",
         _ => "No fue posible completar la operación de Outlook.",

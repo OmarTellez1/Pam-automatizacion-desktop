@@ -39,6 +39,7 @@ public static class OutlookMessageValidator
 
         ValidateRecipients(request.ToRecipients, recipients);
         ValidateRecipients(request.CcRecipients, recipients);
+        ValidateInlineImages(request.HtmlBody, request.InlineImages);
         try
         {
             OutlookHtmlComposer.ValidateComposedBody(request.HtmlBody, request.ExpectedRequestIds);
@@ -54,6 +55,32 @@ public static class OutlookMessageValidator
                     : OutlookValidationErrorCode.UnsafeHtmlBody;
             throw new OutlookValidationException(errorCode, exception);
         }
+    }
+
+    private static void ValidateInlineImages(string htmlBody, IReadOnlyList<OutlookInlineImage>? images)
+    {
+        OutlookInlineImage[] values = (images ?? []).ToArray();
+        if (values.Sum(static image => (long)image.Data.Length) > 10_000_000 ||
+            values.Any(static image => image.Data.Length == 0 || image.Data.Length > 5_000_000 ||
+                string.IsNullOrWhiteSpace(image.ContentId) ||
+                string.IsNullOrWhiteSpace(image.FileName) || image.FileName.Length > 128 ||
+                !string.Equals(Path.GetFileName(image.FileName), image.FileName, StringComparison.Ordinal) ||
+                !image.FileName.EndsWith(".png", StringComparison.OrdinalIgnoreCase) ||
+                !image.ContentId.All(static character => char.IsAsciiLetterOrDigit(character) || character is '-' or '_' or '@' or '.') ||
+                !string.Equals(image.ContentType, "image/png", StringComparison.Ordinal)) ||
+            values.Select(static image => image.ContentId).Distinct(StringComparer.Ordinal).Count() != values.Length ||
+            values.Any(image => !htmlBody.Contains($"src=\"cid:{image.ContentId}\"", StringComparison.Ordinal)) ||
+            CountOccurrences(htmlBody, "src=\"cid:") != values.Length)
+        {
+            throw new OutlookValidationException(OutlookValidationErrorCode.InvalidInlineImage);
+        }
+    }
+
+    private static int CountOccurrences(string value, string token)
+    {
+        int count = 0;
+        for (int index = 0; (index = value.IndexOf(token, index, StringComparison.Ordinal)) >= 0; index += token.Length) count++;
+        return count;
     }
 
     private static void ValidateRecipients(IReadOnlyList<string>? values, HashSet<string> recipients)

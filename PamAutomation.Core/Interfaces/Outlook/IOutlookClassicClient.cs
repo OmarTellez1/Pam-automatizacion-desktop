@@ -14,6 +14,12 @@ public interface IOutlookClassicClient
     /// <param name="smtpAddress">The exact configured SMTP address.</param>
     /// <param name="cancellationToken">Cancels before or between COM operations.</param>
     Task ValidateAccountAsync(string smtpAddress, CancellationToken cancellationToken = default);
+    /// <summary>Checks Sent, Outbox and Drafts for the exact subject and Request ID set.</summary>
+    Task<OutlookExistingMessageStatus> FindExistingAsync(
+        string smtpAddress,
+        string subject,
+        IReadOnlyList<string> requestIds,
+        CancellationToken cancellationToken = default);
     /// <summary>Creates a new message, assigns its account, and asks Outlook to send it.</summary>
     /// <param name="request">A fully composed and validated mail request.</param>
     /// <param name="cancellationToken">Cancels before or between COM operations.</param>

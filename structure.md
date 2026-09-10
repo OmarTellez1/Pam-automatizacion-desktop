@@ -21,7 +21,7 @@ La aplicación anterior ubicada en `C:\pam automatizacion` no forma parte de est
 
 ## Estado actual
 
-La solución utiliza `PamAutomation.slnx`, .NET 10 y la plataforma `x64`. Actualmente existen los límites principales de la arquitectura, configuración y credenciales protegidas, TOTP, reloj HTTP, sesión temporal de Edge, autenticación PAM simulada y real visible, lectura de Favorites, validación y descarte seguro de formularios, solicitudes reales confirmadas, lectura y reconciliación de Pending, composición HTML saneada y el adaptador testeable de Outlook clásico. Todavía no está implementada la conexión de estos servicios con la interfaz.
+La solución utiliza `PamAutomation.slnx`, .NET 10 y la plataforma `x64`. Actualmente existen los límites principales de la arquitectura, configuración y credenciales protegidas, TOTP, reloj HTTP, sesión temporal de Edge, autenticación PAM simulada y real visible, lectura de Favorites, validación y descarte seguro de formularios, solicitudes reales confirmadas, lectura y reconciliación de Pending, composición HTML saneada, el adaptador testeable de Outlook clásico y la coordinación del flujo PAM con resultados WPF mantenidos en memoria.
 
 Las fases construidas hasta ahora son:
 
@@ -42,6 +42,7 @@ Las fases construidas hasta ahora son:
 - Fase 13: lectura paginada de Pending y reconciliación estricta con la solicitud confirmada.
 - Fase 14: contratos, validación, fake y adaptador Outlook clásico COM ejecutado en STA.
 - Fase 15: saneamiento XHTML, sustitución única de Request ID y validación defensiva previa a COM.
+- Fase 16: configuración WPF de credenciales y solicitud, confirmación real y resultados en memoria.
 
 Los directorios `.git`, `.vs`, `bin` y `obj` contienen metadatos o salidas generadas y se omiten en el árbol.
 
@@ -68,6 +69,21 @@ PamAutomation\
 │   ├── AssemblyInfo.cs
 │   ├── MainWindow.xaml
 │   ├── MainWindow.xaml.cs
+│   ├── Services\
+│   │   ├── FlowDocumentHtmlConverter.cs
+│   │   ├── IConfigurationDialogService.cs
+│   │   ├── IUserDialogService.cs
+│   │   ├── MailConfigurationEdit.cs
+│   │   ├── RequestConfigurationEdit.cs
+│   │   ├── WpfConfigurationDialogService.cs
+│   │   └── WpfUserDialogService.cs
+│   ├── Views\
+│   │   ├── CredentialsWindow.xaml
+│   │   ├── CredentialsWindow.xaml.cs
+│   │   ├── MailSettingsWindow.xaml
+│   │   ├── MailSettingsWindow.xaml.cs
+│   │   ├── RequestSettingsWindow.xaml
+│   │   └── RequestSettingsWindow.xaml.cs
 │   ├── Resources\
 │   │   ├── Colors.xaml
 │   │   └── Styles.xaml
@@ -88,7 +104,8 @@ PamAutomation\
 │   │   │   ├── IPamBrowserSession.cs
 │   │   │   └── IPamBrowserSessionFactory.cs
 │   │   ├── Configuration\
-│   │   │   └── IAppSettingsStore.cs
+│   │   │   ├── IAppSettingsStore.cs
+│   │   │   └── IMailSettingsStore.cs
 │   │   ├── Credentials\
 │   │   │   ├── CredentialStoreErrorCode.cs
 │   │   │   ├── CredentialStoreException.cs
@@ -96,6 +113,8 @@ PamAutomation\
 │   │   ├── Favorites\
 │   │   │   ├── IPamFavoritesPortal.cs
 │   │   │   └── IPamFavoritesPortalFactory.cs
+│   │   ├── Execution\
+│   │   │   └── IPamAutomationExecutionService.cs
 │   │   ├── Requests\
 │   │   │   ├── IPamPendingPortal.cs
 │   │   │   ├── IPamPendingPortalFactory.cs
@@ -123,10 +142,16 @@ PamAutomation\
 │   │   ├── PamFavoritesErrorCode.cs
 │   │   ├── PamFavoritesException.cs
 │   │   └── PamFavoritesService.cs
+│   ├── Execution\
+│   │   ├── PamAutomationExecutionService.cs
+│   │   ├── PamExecutionMode.cs
+│   │   ├── PamExecutionPreparation.cs
+│   │   └── PamExecutionResult.cs
 │   ├── Models\
 │   │   ├── Configuration\
 │   │   │   ├── AppSettings.cs
 │   │   │   ├── FinalAction.cs
+│   │   │   ├── MailSettings.cs
 │   │   │   └── RequestSettings.cs
 │   │   └── Credentials\
 │   │       ├── PamCredentials.cs
@@ -140,6 +165,8 @@ PamAutomation\
 │   │   ├── OutlookAccountResolutionException.cs
 │   │   ├── OutlookDeliveryResult.cs
 │   │   ├── OutlookDeliveryStatus.cs
+│   │   ├── OutlookExistingMessageStatus.cs
+│   │   ├── OutlookInlineImage.cs
 │   │   ├── OutlookMessageValidator.cs
 │   │   ├── OutlookOperationErrorCode.cs
 │   │   ├── OutlookOperationException.cs
@@ -166,6 +193,7 @@ PamAutomation\
 │   │   ├── PamRequestTestErrorCode.cs
 │   │   ├── PamRequestTestException.cs
 │   │   ├── PamRequestTestResult.cs
+│   │   ├── PamRequestTestResultIds.cs
 │   │   └── PamRequestTestService.cs
 │   ├── Totp\
 │   │   ├── Base32SecretDecoder.cs
@@ -177,6 +205,7 @@ PamAutomation\
 │       ├── ConfigurationValidationErrorCode.cs
 │       ├── ConfigurationValidationFailure.cs
 │       ├── ConfigurationValidationResult.cs
+│       ├── MailSettingsValidator.cs
 │       └── RequestSettingsValidator.cs
 │
 ├── PamAutomation.Browser\
@@ -211,6 +240,7 @@ PamAutomation\
 │   │   ├── AppSettingsDocument.cs
 │   │   ├── AppSettingsPersistenceErrorCode.cs
 │   │   ├── AppSettingsPersistenceException.cs
+│   │   ├── DpapiMailSettingsStore.cs
 │   │   └── JsonAppSettingsStore.cs
 │   ├── Credentials\
 │   │   ├── CredentialManagerEntry.cs
@@ -235,11 +265,14 @@ PamAutomation\
     ├── PamAutomation.Tests.csproj
     ├── TestExplorerSmokeTests.cs
     ├── MainWindowViewModelTests.cs
+    ├── App\
+    │   └── FlowDocumentHtmlConverterTests.cs
     ├── Core\
     │   ├── Authentication\
     │   │   └── PamAuthenticationServiceTests.cs
     │   ├── Configuration\
-    │   │   ├── AppSettingsValidatorTests.cs
+│   │   ├── AppSettingsValidatorTests.cs
+    │   │   ├── MailSettingsValidatorTests.cs
     │   │   └── RequestSettingsValidatorTests.cs
     │   ├── Credentials\
     │   │   └── PamCredentialsTests.cs
@@ -265,7 +298,8 @@ PamAutomation\
     │   ├── PamRequestTestPortalTests.cs
     │   └── PamRealAuthenticationTests.cs
     ├── Infrastructure\
-    │   ├── Configuration\
+│   ├── Configuration\
+    │   │   ├── DpapiMailSettingsStoreTests.cs
     │   │   └── JsonAppSettingsStoreTests.cs
     │   ├── Credentials\
     │   │   └── WindowsPamCredentialStoreTests.cs
@@ -305,6 +339,8 @@ Contenido actual:
 - `MainWindow.xaml`: portada nativa de la aplicación.
 - `MainWindow.xaml.cs`: inicialización mínima de la ventana; no contiene lógica de negocio.
 - `ViewModels/MainWindowViewModel.cs`: estado de presentación y comandos de la portada mediante `CommunityToolkit.Mvvm`.
+- `Views`: diálogos nativos para credenciales, solicitud y correo.
+- `Services`: confirmaciones, adaptación de diálogos y conversión bidireccional entre `FlowDocument` y XHTML/CID.
 - `Resources/Colors.xaml`: colores y pinceles compartidos.
 - `Resources/Styles.xaml`: estilos y plantillas de controles WPF.
 - `AssemblyInfo.cs`: metadatos WPF del ensamblado.
@@ -337,9 +373,9 @@ No debe contener:
 
 Biblioteca para `net10.0`, sin dependencia de WPF o Windows. Actualmente contiene configuración, credenciales, TOTP, autenticación simulada, solicitudes, reconciliación de Pending y contratos de tiempo, navegador y Outlook:
 
-- `Interfaces/Configuration`: contrato `IAppSettingsStore` para cargar y guardar configuración sin acoplar Core al sistema de archivos.
+- `Interfaces/Configuration`: contratos `IAppSettingsStore` e `IMailSettingsStore` para cargar y guardar configuración sin acoplar Core al sistema de archivos.
 - `Interfaces/Credentials`: contrato `IPamCredentialStore` y errores estables para el almacenamiento protegido.
-- `Models/Configuration`: `AppSettings`, `RequestSettings` y `FinalAction`.
+- `Models/Configuration`: `AppSettings`, `RequestSettings`, `MailSettings` y `FinalAction`.
 - `Models/Credentials`: modelo completo de uso exclusivo de autenticación y modelo de actualización con campos opcionales.
 - `Validation`: resultado, fallas, códigos estables y validadores de configuración.
 - `Totp`: decodificación Base32, generación RFC 6238 y evaluación de la vigencia mínima antes del envío.
@@ -350,6 +386,7 @@ Biblioteca para `net10.0`, sin dependencia de WPF o Windows. Actualmente contien
 - `Interfaces/Favorites` y `Favorites`: lectura y validación de identidades únicas dentro de una sesión autenticada reutilizable.
 - `Interfaces/Requests` y `Requests`: contratos separados para prueba, envío y lectura; coordinación de solicitudes, resultados en memoria y reconciliación estricta de Pending.
 - `Interfaces/Outlook` y `Outlook`: contrato del cliente clásico, modelos redactados, validaciones, resultados y errores seguros; `OutlookHtmlComposer` sanea XHTML, valida el marcador y compone Request ID por línea.
+- `Interfaces/Execution` y `Execution`: preparación confirmable, coordinación completa y resultado exclusivamente en memoria.
 
 Los validadores reciben explícitamente la hora actual de Ecuador y no acceden al reloj, sistema de archivos o servicios externos.
 
@@ -403,10 +440,11 @@ No debe administrar configuración local, Outlook ni elementos WPF.
 
 ### `PamAutomation.Infrastructure`
 
-Biblioteca para `net10.0-windows`. Referencia `PamAutomation.Core` e implementa actualmente la persistencia no sensible, el almacenamiento protegido de credenciales y el reloj HTTP confiable:
+Biblioteca para `net10.0-windows`. Referencia `PamAutomation.Core` e implementa la persistencia no sensible, correo protegido, credenciales y reloj HTTP confiable:
 
 - `Configuration/AppSettingsDocument.cs`: representación JSON plana y conversión explícita hacia y desde el modelo de Core.
 - `Configuration/JsonAppSettingsStore.cs`: carga desde la ruta privada del usuario y escritura atómica mediante un temporal en la misma carpeta.
+- `Configuration/DpapiMailSettingsStore.cs`: cifra el documento privado de correo con DPAPI `CurrentUser` y lo sustituye atómicamente.
 - `Configuration/AppSettingsPersistenceErrorCode.cs` y `AppSettingsPersistenceException.cs`: errores controlados para contenido inválido, esquema incompatible y fallos de lectura o escritura.
 - `Credentials/WindowsPamCredentialStore.cs`: implementación del contrato de Core mediante una única credencial genérica del usuario actual.
 - `Credentials/CredentialPayloadCodec.cs`: formato binario versionado que mantiene juntas contraseña y semilla TOTP y aplica el límite del blob de Windows.
@@ -414,7 +452,7 @@ Biblioteca para `net10.0-windows`. Referencia `PamAutomation.Core` e implementa 
 - `Credentials/IWindowsCredentialApi.cs`: punto interno sustituible utilizado exclusivamente por pruebas; no forma parte del dominio público.
 - `Time/PamHttpDateClockFactory.cs`: valida HTTP `Date`, calibra el instante recibido y avanza mediante la marca monotónica de `TimeProvider`.
 
-No se agregaron paquetes NuGet para Credential Manager. El proyecto utiliza las API Win32 incluidas en Windows y expone sus tipos internos a `PamAutomation.Tests` únicamente para validar el adaptador sin tocar el almacén real.
+Credential Manager usa directamente las API Win32. Para DPAPI se referencia `System.Security.Cryptography.ProtectedData` 10.0.0. Los tipos internos de Win32 se exponen a `PamAutomation.Tests` únicamente para validar el adaptador sin tocar el almacén real.
 
 Responsabilidad objetivo:
 
@@ -431,8 +469,8 @@ No debe conocer controles WPF, selectores PAM ni objetos COM de Outlook.
 
 Biblioteca para `net10.0-windows`. Referencia `PamAutomation.Core` e implementa Outlook clásico mediante Microsoft Office Interop 15.0.4797.1004:
 
-- `OutlookClassicClient.cs`: resolución exacta de cuenta, validación mediante mensaje descartado y envío con estado no confirmado.
-- `Interop/OutlookComApplicationFactory.cs`: adaptadores propietarios de `Application`, `Account` y `MailItem` con liberación explícita.
+- `OutlookClassicClient.cs`: resolución exacta, validación descartable, búsqueda de duplicados y envío con estado comprobado cuando es observable.
+- `Interop/OutlookComApplicationFactory.cs`: adaptadores propietarios de `Application`, `Account` y `MailItem`, consulta de carpetas, huella privada, adjuntos CID y liberación explícita.
 - `Interop/StaExecutor.cs`: ejecuta cada operación COM acotada en un hilo STA dedicado.
 - `Interop/OutlookComAbstractions.cs`: seam interno sustituido por pruebas sin abrir Outlook.
 
@@ -455,11 +493,14 @@ Contenido actual:
 
 - `TestExplorerSmokeTests.cs`: comprueba el descubrimiento del proyecto por el runner MSTest.
 - `MainWindowViewModelTests.cs`: valida el estado inicial seguro, el bloqueo durante una ejecución y las condiciones del botón de prueba.
+- `App/FlowDocumentHtmlConverterTests.cs`: valida ida y vuelta de formato, tablas, marcador e imágenes CID.
 - `Core/Configuration/AppSettingsValidatorTests.cs`: valida valores predeterminados, configuración general y propagación de errores.
 - `Core/Configuration/RequestSettingsValidatorTests.cs`: valida fecha, hora, duración y razón de la solicitud.
+- `Core/Configuration/MailSettingsValidatorTests.cs`: valida normalización, saneamiento y correspondencia exacta de imágenes CID.
 - `Core/Credentials/PamCredentialsTests.cs`: valida campos obligatorios y que los modelos sensibles no expongan valores al convertirse en texto.
 - `Core/Totp/TotpGeneratorTests.cs`: valida vectores públicos RFC 6238, Base32, ventanas de 30 segundos, vigencia mínima y redacción del código.
 - `Infrastructure/Configuration/JsonAppSettingsStoreTests.cs`: valida formato plano, carga, sustitución atómica, cancelación segura y errores de persistencia sin tocar la configuración real del usuario.
+- `Infrastructure/Configuration/DpapiMailSettingsStoreTests.cs`: valida cifrado CurrentUser, ida y vuelta y rechazo de ciphertext corrupto en una carpeta temporal.
 - `Infrastructure/Credentials/WindowsPamCredentialStoreTests.cs`: valida creación, actualización parcial, límites, corrupción, borrado y limpieza de buffers mediante una API de Windows falsa.
 - `Infrastructure/Time/PamHttpDateClockFactoryTests.cs`: valida calibración, avance monotónico y errores sin consultar el reloj local.
 - `Browser/PamBrowserSessionFactoryTests.cs`: valida Edge visible, contexto temporal, origen exacto, respuesta segura, cancelación y liberación con adaptadores falsos.
@@ -476,10 +517,10 @@ Contenido actual:
 - `Browser/PamRealAuthenticationTests.cs`: integración explícitamente opt-in que lee Credential Manager y valida solo el login visible autorizado.
 - `Core/Favorites/PamFavoritesServiceTests.cs`: valida snapshot, identidades, duplicados, errores seguros y cierre de sesión.
 - `Core/Requests/PamRequestTestServiceTests.cs`: valida configuración previa, recorrido completo, detención segura, cierre de sesión y resultado invariablemente no enviado.
-- `Core/Requests/PamRequestSubmissionServiceTests.cs`: valida autorización por conteo y configuración, resultados, conflictos, duración técnica y cierre de sesión.
+- `Core/Requests/PamRequestSubmissionServiceTests.cs`: valida autorización por conteo y configuración, resultados, conflictos, fallos parciales, duración técnica y cierre de sesión.
 - `Core/Requests/PamPendingServiceTests.cs`: valida lectura, identidad, expiración, descripción, sufijo de Application, ambigüedad y consistencia eventual.
 - `Core/Authentication/PamAuthenticationServiceTests.cs`: valida el flujo simulado, RTT, ventana TOTP, reintento único, errores y cancelación.
-- `Outlook/OutlookClassicClientTests.cs`: valida cuenta exacta, mensajes temporales, redacción, STA, liberación y envío no confirmado mediante COM falso.
+- `Outlook/OutlookClassicClientTests.cs`: valida cuenta exacta, mensajes temporales, redacción, STA, huellas, duplicados, adjuntos CID, liberación y estados de envío mediante COM falso.
 - `Outlook/OutlookHtmlComposerTests.cs`: valida allowlist XHTML, contenido activo, recursos externos, estilos, marcador, Request ID y errores redactados.
 
 Responsabilidad objetivo:

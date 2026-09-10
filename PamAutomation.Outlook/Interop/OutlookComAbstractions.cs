@@ -1,5 +1,7 @@
 namespace PamAutomation.Outlook.Interop;
 
+using PamAutomation.Core.Outlook;
+
 internal interface IOutlookComApplicationFactory
 {
     IOutlookComApplication Create();
@@ -10,6 +12,8 @@ internal interface IOutlookComApplication : IDisposable
     IReadOnlyList<IOutlookComAccount> GetAccounts();
 
     IOutlookComMailItem CreateMailItem();
+
+    OutlookExistingMessageStatus FindExistingMessage(string smtpAddress, string subject, string requestFingerprint);
 }
 
 internal interface IOutlookComAccount : IDisposable
@@ -28,6 +32,10 @@ internal interface IOutlookComMailItem : IDisposable
     void SetToRecipients(IReadOnlyList<string> recipients);
 
     void SetCcRecipients(IReadOnlyList<string> recipients);
+
+    void SetRequestFingerprint(string requestFingerprint);
+
+    void AddInlineImage(OutlookInlineImage image);
 
     void Send();
 

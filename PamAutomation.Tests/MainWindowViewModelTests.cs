@@ -1,5 +1,16 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using PamAutomation.App.Services;
 using PamAutomation.App.ViewModels;
+using PamAutomation.Core.Execution;
+using PamAutomation.Core.Interfaces.Configuration;
+using PamAutomation.Core.Interfaces.Credentials;
+using PamAutomation.Core.Interfaces.Execution;
+using PamAutomation.Core.Interfaces.Outlook;
+using PamAutomation.Core.Models.Configuration;
+using PamAutomation.Core.Models.Credentials;
+using PamAutomation.Core.Outlook;
+using PamAutomation.Core.Requests;
+using PamAutomation.Core.Validation;
 
 namespace PamAutomation.Tests;
 
@@ -55,6 +66,85 @@ public sealed class MainWindowViewModelTests
         Assert.IsTrue(viewModel.IsTestActionVisible);
     }
 
+    [TestMethod]
+    public async Task RealExecution_WhenConfirmed_PresentsOnlyInMemoryResult()
+    {
+        TestContext context = CreateIntegratedViewModel(confirm: true);
+        await context.ViewModel.InitializeAsync();
+
+        await context.ViewModel.StartAutomationCommand.ExecuteAsync(null);
+
+        Assert.AreEqual(1, context.Execution.RealExecutionCount);
+        Assert.IsTrue(context.ViewModel.HasResult);
+        Assert.IsTrue(context.ViewModel.HasRequestIds);
+        Assert.Contains("Request ID: 2", context.ViewModel.ResultSummary);
+        Assert.AreEqual("8001" + Environment.NewLine + "8002", context.ViewModel.RequestIdsText);
+        Assert.IsFalse(context.ViewModel.IsRunning);
+    }
+
+    [TestMethod]
+    public async Task RealExecution_WhenConfirmationIsRejected_DoesNotExecute()
+    {
+        TestContext context = CreateIntegratedViewModel(confirm: false);
+        await context.ViewModel.InitializeAsync();
+
+        await context.ViewModel.StartAutomationCommand.ExecuteAsync(null);
+
+        Assert.AreEqual(0, context.Execution.RealExecutionCount);
+        Assert.Contains("No se creó ninguna solicitud", context.ViewModel.StatusMessage);
+        Assert.IsFalse(context.ViewModel.HasResult);
+    }
+
+    [TestMethod]
+    public async Task UnknownFailure_IsNotExposedInUserMessage()
+    {
+        TestContext context = CreateIntegratedViewModel(confirm: true);
+        context.Execution.Failure = new InvalidOperationException("internal-sensitive-detail");
+        await context.ViewModel.InitializeAsync();
+
+        await context.ViewModel.StartAutomationCommand.ExecuteAsync(null);
+
+        Assert.DoesNotContain("internal-sensitive-detail", context.ViewModel.StatusMessage);
+        Assert.Contains("no esperado", context.ViewModel.StatusMessage);
+    }
+
+    [TestMethod]
+    public async Task ToggleFinalAction_PersistsSelectedAction()
+    {
+        TestContext context = CreateIntegratedViewModel(confirm: true);
+        await context.ViewModel.InitializeAsync();
+
+        await context.ViewModel.ToggleFinalActionCommand.ExecuteAsync(null);
+
+        Assert.IsTrue(context.ViewModel.SendEmailAtEnd);
+        Assert.AreEqual(FinalAction.SendEmail, context.SettingsStore.LastSaved?.FinalAction);
+    }
+
+    [TestMethod]
+    public async Task TestEmail_WhenFinalConfirmationIsRejected_DoesNotSend()
+    {
+        TestContext context = CreateIntegratedViewModel(confirm: false, configureTestEmail: true);
+        await context.ViewModel.InitializeAsync();
+
+        await context.ViewModel.StartTestCommand.ExecuteAsync(null);
+
+        Assert.AreEqual(0, context.Execution.EmailSendCount);
+        Assert.Contains("cancelado", context.ViewModel.ResultSummary);
+    }
+
+    [TestMethod]
+    public async Task TestEmail_WhenConfirmed_UsesCanonicalIds()
+    {
+        TestContext context = CreateIntegratedViewModel(confirm: true, configureTestEmail: true);
+        await context.ViewModel.InitializeAsync();
+
+        await context.ViewModel.StartTestCommand.ExecuteAsync(null);
+
+        Assert.AreEqual(1, context.Execution.EmailSendCount);
+        CollectionAssert.AreEqual(PamRequestTestResultIds.Values.ToArray(), context.Execution.LastEmailIds);
+        Assert.IsTrue(context.Execution.LastEmailWasTest);
+    }
+
     private static MainWindowViewModel CreateConfiguredViewModel()
     {
         return new MainWindowViewModel
@@ -62,5 +152,137 @@ public sealed class MainWindowViewModelTests
             AreCredentialsConfigured = true,
             IsRequestConfigured = true
         };
+    }
+
+    private static TestContext CreateIntegratedViewModel(bool confirm, bool configureTestEmail = false)
+    {
+        var now = new DateTimeOffset(2026, 9, 10, 16, 0, 0, TimeSpan.FromHours(-5));
+        var settings = new AppSettings
+        {
+            FinalAction = configureTestEmail ? FinalAction.SendEmail : FinalAction.DisplayRequestIds,
+            TestModeEnabled = configureTestEmail,
+            Request = new RequestSettings
+            {
+                StartDate = new DateOnly(2026, 9, 10),
+                StartTime = new TimeOnly(17, 0),
+                SessionHours = 1,
+                RequestReason = "Prueba de interfaz"
+            }
+        };
+        var execution = new FakeExecutionService(now);
+        var settingsStore = new FakeSettingsStore(settings);
+        var viewModel = new MainWindowViewModel(
+            execution,
+            settingsStore,
+            new FakeCredentialStore(),
+            new FakeDialogs(confirm),
+            new AppSettingsValidator(new RequestSettingsValidator()),
+            new FixedTimeProvider(now.ToUniversalTime()));
+        if (configureTestEmail)
+        {
+            viewModel = new MainWindowViewModel(
+                execution, settingsStore, new FakeCredentialStore(), new FakeDialogs(confirm),
+                new AppSettingsValidator(new RequestSettingsValidator()), new FixedTimeProvider(now.ToUniversalTime()),
+                mailSettingsStore: new FakeMailSettingsStore(), outlookClient: new FakeOutlookClient());
+        }
+        return new TestContext(viewModel, execution, settingsStore);
+    }
+
+    private sealed record TestContext(
+        MainWindowViewModel ViewModel,
+        FakeExecutionService Execution,
+        FakeSettingsStore SettingsStore);
+
+    private sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => utcNow;
+    }
+
+    private sealed class FakeSettingsStore(AppSettings settings) : IAppSettingsStore
+    {
+        public AppSettings? LastSaved { get; private set; }
+        public Task<AppSettings> LoadAsync(CancellationToken cancellationToken = default) => Task.FromResult(settings);
+        public Task SaveAsync(AppSettings value, CancellationToken cancellationToken = default)
+        {
+            LastSaved = value;
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class FakeMailSettingsStore : IMailSettingsStore
+    {
+        private static readonly MailSettings Settings = new()
+        {
+            SmtpAddress = "sender@example.test",
+            ToRecipients = ["recipient@example.test"],
+            Subject = "Results",
+            HtmlTemplate = "<p>{{REQUEST_IDS}}</p>"
+        };
+        public bool Exists() => true;
+        public Task<MailSettings?> LoadAsync(CancellationToken cancellationToken = default) => Task.FromResult<MailSettings?>(Settings);
+        public Task SaveAsync(MailSettings settings, CancellationToken cancellationToken = default) => Task.CompletedTask;
+    }
+
+    private sealed class FakeOutlookClient : IOutlookClassicClient
+    {
+        public Task<OutlookAccount> ResolveAccountAsync(string smtpAddress, CancellationToken cancellationToken = default) => Task.FromResult(new OutlookAccount(smtpAddress));
+        public Task ValidateAccountAsync(string smtpAddress, CancellationToken cancellationToken = default) => Task.CompletedTask;
+        public Task<OutlookExistingMessageStatus> FindExistingAsync(string smtpAddress, string subject, IReadOnlyList<string> requestIds, CancellationToken cancellationToken = default) => Task.FromResult(OutlookExistingMessageStatus.None);
+        public Task<OutlookDeliveryResult> SendAsync(OutlookSendRequest request, CancellationToken cancellationToken = default) => Task.FromResult(OutlookDeliveryResult.SubmittedUnconfirmed());
+    }
+
+    private sealed class FakeCredentialStore : IPamCredentialStore
+    {
+        public bool HasCredentials() => true;
+        public PamCredentials? LoadForAuthentication() => new("user", "password", "JBSWY3DPEHPK3PXP");
+        public void Save(PamCredentialUpdate update) => throw new NotSupportedException();
+        public void Delete() => throw new NotSupportedException();
+    }
+
+    private sealed class FakeDialogs(bool confirm) : IUserDialogService
+    {
+        public bool ConfirmRealExecution(PamExecutionPreparation preparation, MailSettings? mailSettings) => confirm;
+        public bool ConfirmTestEmail(string recipient) => confirm;
+        public bool ConfirmOutlookTestEmail(string recipient) => confirm;
+        public void ShowResult(string title, string message) { }
+        public void ShowError(string message) { }
+    }
+
+    private sealed class FakeExecutionService(DateTimeOffset now) : IPamAutomationExecutionService
+    {
+        public int RealExecutionCount { get; private set; }
+        public Exception? Failure { get; set; }
+        public int EmailSendCount { get; private set; }
+        public string[] LastEmailIds { get; private set; } = [];
+        public bool LastEmailWasTest { get; private set; }
+
+        public Task<PamExecutionPreparation> PrepareRealAsync(PamCredentials credentials, AppSettings settings,
+            DateTimeOffset ecuadorNow, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new PamExecutionPreparation(2, settings.Request, settings.FinalAction));
+
+        public Task<PamExecutionResult> ExecuteRealAsync(PamCredentials credentials,
+            PamExecutionPreparation preparation, DateTimeOffset ecuadorNow,
+            MailSettings? mailSettings = null,
+            CancellationToken cancellationToken = default)
+        {
+            RealExecutionCount++;
+            if (Failure is not null) return Task.FromException<PamExecutionResult>(Failure);
+            return Task.FromResult(new PamExecutionResult(
+                PamExecutionMode.Real, now, FinalAction.DisplayRequestIds, 2, 2, 0, ["8001", "8002"]));
+        }
+
+        public Task<PamExecutionResult> ExecuteTestAsync(PamCredentials credentials, AppSettings settings,
+            DateTimeOffset ecuadorNow, MailSettings? mailSettings = null, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new PamExecutionResult(
+                PamExecutionMode.Test, now, settings.FinalAction, 2, 2, 0, []));
+
+        public Task<OutlookDeliveryResult> SendResultEmailAsync(MailSettings mailSettings,
+            IReadOnlyList<string> requestIds, bool isTest, CancellationToken cancellationToken = default)
+        {
+            EmailSendCount++;
+            LastEmailIds = requestIds.ToArray();
+            LastEmailWasTest = isTest;
+            return Task.FromResult(OutlookDeliveryResult.SubmittedUnconfirmed());
+        }
     }
 }

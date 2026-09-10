@@ -179,6 +179,29 @@ public sealed class PamPendingService
         throw new InvalidOperationException("No se completó la comparación de Pending.");
     }
 
+    /// <summary>Authenticates once and polls <c>Pending</c> until all expected rows are present.</summary>
+    public async Task<PamPendingComparisonResult> WaitForCompleteComparisonAsync(
+        PamCredentials credentials,
+        IReadOnlyList<PamFavoriteAccount> expectedAccounts,
+        PamRequestFormData form,
+        int maximumAttempts = 6,
+        TimeSpan? retryDelay = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(credentials);
+        await using IPamBrowserSession session = await authenticatedSessionFactory
+            .CreateAuthenticatedAsync(credentials, cancellationToken)
+            .ConfigureAwait(false);
+        return await WaitForCompleteComparisonAsync(
+                session,
+                expectedAccounts,
+                form,
+                maximumAttempts,
+                retryDelay,
+                cancellationToken)
+            .ConfigureAwait(false);
+    }
+
     private static IReadOnlyList<PamPendingRequest> Validate(IReadOnlyList<PamPendingRequest>? requests)
     {
         if (requests is null || requests.Any(static request => request is null))
