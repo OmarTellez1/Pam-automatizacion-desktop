@@ -82,6 +82,14 @@ Se definieron en Core los contratos, modelos redactados, validaciones y errores 
 
 Las fases 8 y 14 fueron integradas y validadas conjuntamente en `Release | x64`: la solución compiló sin errores y las 116 pruebas terminaron correctamente. Permanece una advertencia MSTest heredada fuera de estas fases.
 
+## Fase 15 — HTML saneado y marcador Request ID
+
+Se incorporó `OutlookHtmlComposer` en Core como única ruta para preparar el cuerpo final del correo. Recibe XHTML generado por la aplicación, lo analiza con el parser XML de .NET y DTD deshabilitados, elimina elementos activos, atributos de eventos, estilos no permitidos y recursos externos, y conserva un subconjunto explícito de párrafos, formato de texto, listas, tablas e imágenes `cid:`. El límite de entrada es de 8 millones de caracteres y los errores no reproducen contenido privado.
+
+La plantilla debe contener `{{REQUEST_IDS}}` exactamente una vez en un nodo de texto. La composición acepta únicamente Request ID numéricos y únicos, conserva su orden y sustituye el marcador por un ID por línea. `OutlookMessageValidator` vuelve a validar que el cuerpo sea idéntico a su representación saneada y contenga todos los identificadores antes de crear cualquier objeto COM, evitando que un consumidor omita accidentalmente el compositor.
+
+Esta fase no implementa todavía el adaptador WPF desde `FlowDocument`, la persistencia protegida de la configuración de correo ni adjuntos CID; define y prueba el límite seguro que esos componentes deberán utilizar. No abrió PAM ni Outlook y no creó solicitudes ni correos. La solución compiló en `Release | x64` y la suite ordinaria ejecutó 225 pruebas correctas.
+
 ## Fases pendientes
 
 La clasificación siguiente se refiere únicamente a dependencias entre fases pendientes:
@@ -92,8 +100,7 @@ La clasificación siguiente se refiere únicamente a dependencias entre fases pe
 
 | Fase | Clasificación | Dependencias pendientes | Alcance y posibilidad de paralelismo |
 |---|---|---|---|
-| 15 — HTML saneado y marcador Request ID | **Independiente** | Ninguna; fases 13 y 14 completadas. | Es la siguiente fase habilitada y ya dispone de Request ID validados y de la abstracción Outlook. |
-| 16 — Resultados en memoria e interfaz | **Dependiente** | Fase 15. | Necesita la composición y los estados finales que debe presentar; probablemente afecta App y la composición principal. |
+| 16 — Resultados en memoria e interfaz | **Independiente** | Ninguna; fase 15 completada. | Es la siguiente fase habilitada; debe integrar los servicios y estados ya disponibles en Core con App. |
 | 17 — Evidencias técnicas de desarrollo | **Dependiente** | Fase 16 y flujos operativos integrados. | Es transversal y debe conocer qué fallos pueden diagnosticarse sin persistir secretos. No conviene paralelizarla con cambios activos en esos flujos. |
 | 18 — Instalador y publicación autocontenida | **Dependiente** | Fases 6 a 17. | Requiere que la aplicación y sus dependencias externas estén definidas y validadas. |
 | 19 — Pruebas finales administradas | **Dependiente** | Fase 18. | Es la validación final del producto publicado en el entorno Windows objetivo. |
@@ -102,12 +109,12 @@ La clasificación siguiente se refiere únicamente a dependencias entre fases pe
 ## Mapa recomendado de trabajo paralelo
 
 ```text
-Fases 6 a 14 completadas ──► Fase 15 ──► Fase 16 ──► Fase 17 ──► Fase 18 ──► Fase 19
+Fases 6 a 15 completadas ──► Fase 16 ──► Fase 17 ──► Fase 18 ──► Fase 19
 
 Fase 19 ──► Fase 20 (ampliación posterior a la migración)
 ```
 
-La fase 15 es la única fase pendiente actualmente independiente y constituye el siguiente paso. El coordinador solo podrá paralelizar una parte futura si vuelve a demostrar independencia, contratos congelados y ausencia de archivos compartidos.
+La fase 16 es la única fase pendiente actualmente independiente y constituye el siguiente paso. El coordinador solo podrá paralelizar una parte futura si vuelve a demostrar independencia, contratos congelados y ausencia de archivos compartidos.
 
 La fase 20 registra una ampliación solicitada para después de terminar la migración: colecciones locales nombradas y editables que seleccionan cualquier subconjunto de Favorites. Su diseño preliminar, navegación, reconciliación y seguridad se detallan en `PAM_NAVIGATION.md`; no modifica el alcance ni la autorización de la fase 12.
 

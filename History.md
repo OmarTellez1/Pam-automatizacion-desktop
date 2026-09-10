@@ -303,3 +303,13 @@ Cada cambio relevante debe registrar qué se decidió, por qué, qué se verific
 - La prueba final fue idempotente: reconoció individualmente una solicitud autorizada existente, validó `Request Start Date = 05:05 PM`, `Expires = 05:10 PM`, `Description`, `Application`, `System`, `Account` y `Response = Pending`, e informó cero solicitudes nuevas.
 - Se conservaron tres capturas locales ignoradas por Git: `img/fase13-pending-grid.png`, `img/fase13-pending-grid-description-and-expiration.png` e `img/fase13-pending-grid-application.png`. Pueden incluir datos operativos visibles de las filas, pero nunca credenciales, TOTP, cookies o tokens; no deben versionarse ni copiarse a documentación.
 - La validación final no destructiva compiló en `Release | x64` con 0 errores y ejecutó 208 pruebas correctas. Permanece únicamente la advertencia heredada `MSTEST0032`.
+
+## 10 de septiembre de 2026 — Fase 15: composición HTML saneada
+
+- El usuario autorizó desarrollar la fase con el agente principal y sin subagentes. Aunque existía autorización condicionada para pruebas reales, no fueron necesarias: no se abrió PAM ni Outlook, no se crearon solicitudes y no se enviaron correos.
+- Se agregó `OutlookHtmlComposer` en Core con parser XML de .NET, DTD prohibidos, límite de 8 millones de caracteres y una allowlist pequeña para texto enriquecido, listas, tablas y referencias de imagen `cid:`.
+- El saneamiento elimina elementos activos, atributos de eventos, enlaces, recursos externos, atributos desconocidos y declaraciones CSS no permitidas. Los errores usan códigos estables y mensajes que no reproducen el HTML privado.
+- `{{REQUEST_IDS}}` debe existir exactamente una vez como texto. Los Request ID deben ser numéricos y únicos; se insertan en el orden recibido y uno por línea mediante `<br />`.
+- `OutlookMessageValidator` valida otra vez el cuerpo final antes de crear COM. Rechaza HTML alterado, contenido que aún tenga el marcador y cuerpos que no contengan todos los Request ID como tokens numéricos completos.
+- Se documentó que el adaptador WPF desde `FlowDocument`, la persistencia DPAPI del editor y la materialización de adjuntos CID siguen pendientes; esta fase establece el límite seguro que deberán consumir.
+- La solución compiló en `Release | x64` con 0 errores y la suite ordinaria ejecutó 225 pruebas correctas. Solo permanece la advertencia heredada `MSTEST0032`, fuera del alcance de esta fase.

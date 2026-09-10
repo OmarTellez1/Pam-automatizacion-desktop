@@ -2,7 +2,7 @@
 
 ## Estado
 
-Este documento describe la lógica objetivo de la aplicación nueva. Ya existen la estructura base, el estado de presentación de la ventana principal, la configuración, el almacenamiento protegido de credenciales, TOTP, navegador restringido, autenticación PAM real visible, lectura de Favorites, validación segura de formularios y Outlook clásico aislado. Las solicitudes reales, composición HTML y la coordinación desde la interfaz permanecen pendientes.
+Este documento describe la lógica objetivo de la aplicación nueva. Ya existen la estructura base, el estado de presentación de la ventana principal, la configuración, el almacenamiento protegido de credenciales, TOTP, navegador restringido, autenticación PAM real visible, lectura de Favorites, solicitudes reales, validación segura de formularios, composición HTML saneada y Outlook clásico aislado. La coordinación desde la interfaz permanece pendiente.
 
 ## Capas
 
@@ -187,6 +187,10 @@ El conflicto `PSPortal.Requests.Policies.RemoteAppAccesssAlreadyAvailable` se re
 La fase 14 integra Outlook clásico mediante COM detrás de `IOutlookClassicClient`. Verifica una única cuenta por `SmtpAddress`, valida la cuenta con un mensaje temporal que siempre se descarta, asigna `SendUsingAccount` antes de `Send()` y crea un mensaje nuevo por operación. La ejecución COM se realiza en STA y las referencias se liberan explícitamente.
 
 Los modelos que contienen dirección, asunto, HTML, destinatarios o Request ID redactan su representación textual. Invocar `Send()` solo produce `SubmittedUnconfirmed`; la entrega no se marcará confirmada hasta que una fase posterior la compruebe en Enviados. Un fallo COM devuelve un resultado seguro sin exponer el contenido.
+
+La fase 15 incorpora `OutlookHtmlComposer` como límite determinista previo a Outlook. Solo acepta fragmentos XHTML bien formados generados por la aplicación, con DTD prohibidos y un máximo de 8 millones de caracteres. Conserva párrafos, encabezados, negrita, cursiva, subrayado, listas, tablas, estilos explícitamente permitidos e imágenes locales referenciadas mediante `cid:`; elimina scripts, estilos activos, formularios, marcos, objetos, eventos, vínculos y recursos externos. No acepta HTML web arbitrario.
+
+La plantilla saneada debe contener `{{REQUEST_IDS}}` exactamente una vez dentro del texto. La composición valida Request ID numéricos y únicos, mantiene el orden recibido y los inserta separados por `<br />`. Antes de crear COM, `OutlookMessageValidator` exige que el cuerpo final sea idéntico a su versión saneada, que ya no contenga el marcador y que cada ID esperado aparezca como token numérico completo. El adaptador futuro de `FlowDocument` deberá producir este XHTML; no podrá evitar esta validación.
 
 La integración COM debe ejecutarse en STA, liberar referencias y no enviar mensajes durante pruebas automáticas.
 

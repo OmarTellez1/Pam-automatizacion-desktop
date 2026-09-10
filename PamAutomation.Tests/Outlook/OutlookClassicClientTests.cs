@@ -192,13 +192,30 @@ public sealed class OutlookClassicClientTests
     public void ValidateForSend_MissingExpectedRequestId_RejectsBeforeCom()
     {
         // Arrange
-        OutlookSendRequest request = ValidRequest() with { ExpectedRequestIds = ["REQ-1", "REQ-2"] };
+        OutlookSendRequest request = ValidRequest() with { ExpectedRequestIds = ["150901", "150902"] };
 
         // Act
         OutlookValidationException exception = Assert.ThrowsExactly<OutlookValidationException>(() => OutlookMessageValidator.ValidateForSend(request));
 
         // Assert
         Assert.AreEqual(OutlookValidationErrorCode.MissingRequestId, exception.ErrorCode);
+    }
+
+    [TestMethod]
+    public async Task SendAsync_UnsafeHtml_RejectsBeforeCreatingComApplication()
+    {
+        OutlookHarness harness = new("sender@example.test");
+        IOutlookClassicClient client = CreateClient(harness);
+        OutlookSendRequest request = ValidRequest() with
+        {
+            HtmlBody = "<p>150901</p><script>active()</script>",
+        };
+
+        OutlookValidationException exception = await Assert.ThrowsExactlyAsync<OutlookValidationException>(
+            () => client.SendAsync(request));
+
+        Assert.AreEqual(OutlookValidationErrorCode.UnsafeHtmlBody, exception.ErrorCode);
+        Assert.AreEqual(0, harness.CreateCalls);
     }
 
     [TestMethod]
@@ -215,14 +232,20 @@ public sealed class OutlookClassicClientTests
         // Assert
         Assert.AreEqual("OutlookSendRequest { Redacted }", requestText);
         Assert.AreEqual("OutlookAccount { Redacted }", accountText);
-        Assert.IsFalse(requestText.Contains("REQ-1", StringComparison.Ordinal));
+        Assert.IsFalse(requestText.Contains("150901", StringComparison.Ordinal));
         Assert.IsFalse(requestText.Contains("sender@example.test", StringComparison.Ordinal));
         Assert.IsFalse(accountText.Contains("sender@example.test", StringComparison.Ordinal));
     }
 
     private static IOutlookClassicClient CreateClient(OutlookHarness harness) => new OutlookClassicClient(harness, new InlineStaExecutor());
 
-    private static OutlookSendRequest ValidRequest() => new("sender@example.test", "PAM results", "<p>REQ-1</p>", ["first@example.test"], ["copy@example.test"], ["REQ-1"]);
+    private static OutlookSendRequest ValidRequest() => new(
+        "sender@example.test",
+        "PAM results",
+        OutlookHtmlComposer.Compose("<p>{{REQUEST_IDS}}</p>", ["150901"]),
+        ["first@example.test"],
+        ["copy@example.test"],
+        ["150901"]);
 
     private sealed class InlineStaExecutor : IStaExecutor
     {

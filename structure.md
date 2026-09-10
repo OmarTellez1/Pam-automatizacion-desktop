@@ -21,7 +21,7 @@ La aplicación anterior ubicada en `C:\pam automatizacion` no forma parte de est
 
 ## Estado actual
 
-La solución utiliza `PamAutomation.slnx`, .NET 10 y la plataforma `x64`. Actualmente existen los límites principales de la arquitectura, configuración y credenciales protegidas, TOTP, reloj HTTP, sesión temporal de Edge, autenticación PAM simulada y real visible, lectura de Favorites, validación y descarte seguro de formularios, solicitudes reales confirmadas, lectura y reconciliación de Pending y el adaptador testeable de Outlook clásico. Todavía no están implementadas la composición HTML ni la conexión de estos servicios con la interfaz.
+La solución utiliza `PamAutomation.slnx`, .NET 10 y la plataforma `x64`. Actualmente existen los límites principales de la arquitectura, configuración y credenciales protegidas, TOTP, reloj HTTP, sesión temporal de Edge, autenticación PAM simulada y real visible, lectura de Favorites, validación y descarte seguro de formularios, solicitudes reales confirmadas, lectura y reconciliación de Pending, composición HTML saneada y el adaptador testeable de Outlook clásico. Todavía no está implementada la conexión de estos servicios con la interfaz.
 
 Las fases construidas hasta ahora son:
 
@@ -41,6 +41,7 @@ Las fases construidas hasta ahora son:
 - Fase 12: autorización ligada al snapshot, envío real verificado y clasificación segura de respuestas PAM.
 - Fase 13: lectura paginada de Pending y reconciliación estricta con la solicitud confirmada.
 - Fase 14: contratos, validación, fake y adaptador Outlook clásico COM ejecutado en STA.
+- Fase 15: saneamiento XHTML, sustitución única de Request ID y validación defensiva previa a COM.
 
 Los directorios `.git`, `.vs`, `bin` y `obj` contienen metadatos o salidas generadas y se omiten en el árbol.
 
@@ -131,6 +132,9 @@ PamAutomation\
 │   │       ├── PamCredentials.cs
 │   │       └── PamCredentialUpdate.cs
 │   ├── Outlook\
+│   │   ├── OutlookHtmlComposer.cs
+│   │   ├── OutlookHtmlCompositionErrorCode.cs
+│   │   ├── OutlookHtmlCompositionException.cs
 │   │   ├── OutlookAccount.cs
 │   │   ├── OutlookAccountResolutionErrorCode.cs
 │   │   ├── OutlookAccountResolutionException.cs
@@ -268,6 +272,7 @@ PamAutomation\
     │   └── Time\
     │       └── PamHttpDateClockFactoryTests.cs
     └── Outlook\
+        ├── OutlookHtmlComposerTests.cs
         └── OutlookClassicClientTests.cs
 ```
 
@@ -344,7 +349,7 @@ Biblioteca para `net10.0`, sin dependencia de WPF o Windows. Actualmente contien
 - `Authentication`: servicio de autenticación simulado, espera asincrónica, errores estables y contratos del puerto ligado a una sesión.
 - `Interfaces/Favorites` y `Favorites`: lectura y validación de identidades únicas dentro de una sesión autenticada reutilizable.
 - `Interfaces/Requests` y `Requests`: contratos separados para prueba, envío y lectura; coordinación de solicitudes, resultados en memoria y reconciliación estricta de Pending.
-- `Interfaces/Outlook` y `Outlook`: contrato del cliente clásico, modelos redactados, validaciones, resultados y errores seguros.
+- `Interfaces/Outlook` y `Outlook`: contrato del cliente clásico, modelos redactados, validaciones, resultados y errores seguros; `OutlookHtmlComposer` sanea XHTML, valida el marcador y compone Request ID por línea.
 
 Los validadores reciben explícitamente la hora actual de Ecuador y no acceden al reloj, sistema de archivos o servicios externos.
 
@@ -475,6 +480,7 @@ Contenido actual:
 - `Core/Requests/PamPendingServiceTests.cs`: valida lectura, identidad, expiración, descripción, sufijo de Application, ambigüedad y consistencia eventual.
 - `Core/Authentication/PamAuthenticationServiceTests.cs`: valida el flujo simulado, RTT, ventana TOTP, reintento único, errores y cancelación.
 - `Outlook/OutlookClassicClientTests.cs`: valida cuenta exacta, mensajes temporales, redacción, STA, liberación y envío no confirmado mediante COM falso.
+- `Outlook/OutlookHtmlComposerTests.cs`: valida allowlist XHTML, contenido activo, recursos externos, estilos, marcador, Request ID y errores redactados.
 
 Responsabilidad objetivo:
 

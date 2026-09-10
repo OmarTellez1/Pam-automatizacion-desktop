@@ -15,4 +15,6 @@ public enum OutlookValidationErrorCode
     DuplicateRecipient,
     /// <summary>An expected PAM request identifier is absent from the message body.</summary>
     MissingRequestId,
+    /// <summary>The composed HTML body contains content outside the safe supported subset.</summary>
+    UnsafeHtmlBody,
 }
