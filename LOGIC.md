@@ -158,6 +158,12 @@ La fase 11 implementa el modo de prueba mediante `PamRequestTestService`. El ser
 
 Cada formulario conserva y comprueba fecha, hora, duración, razón y `Application Session`, luego ejecuta `Cancel > Discard Changes` y espera su cierre. El resultado permanece en memoria y fija `SubmittedCount` en cero. La integración explícita `VALIDATE_AND_DISCARD` validó y descartó 14 de 14 formularios en Edge visible con `submitted = 0`; no abrió Outlook ni persistió identidades o contenido.
 
+La fase 12 implementa el modo real mediante un contrato distinto, `IPamRequestSubmissionPortal`. `PamRequestSubmissionService` valida primero la configuración, obtiene un snapshot nuevo de todas las `Favorites` rows y exige que coincidan tanto su conteo como la configuración completa con `PamRequestRunAuthorization`. Si cualquiera cambió desde la confirmación, termina antes de crear el portal de envío. Esta autorización es de una ejecución y no sustituye la confirmación visible que deberá conectar la interfaz en la fase 16.
+
+Antes de cada efecto irreversible, Browser vuelve a localizar la `Favorites` row por `System + Application + Account`, abre `Access > Submit Request`, completa el formulario y verifica inmediatamente fecha, hora, duración, razón y `Application Session`. Solo entonces pulsa el botón final y espera específicamente el `POST /api/ps-portal/requests`. Una respuesta 2xx produce `Submitted`; el error 400 con código exacto `PSPortal.Requests.Policies.RemoteAppAccesssAlreadyAvailable` produce `ApprovedAccessOverlap` y permite seguir; cualquier otro estado o contenido detiene el proceso mediante un error seguro que no incluye el payload.
+
+La cancelación se comprueba antes de cada solicitud. Una vez pulsado `Submit Request`, el adaptador espera una respuesta acotada sin convertir la cancelación tardía en un estado falsamente conocido: un timeout se trata como fallo porque el efecto remoto podría ser ambiguo. Los resultados por fila se copian y conservan solo en memoria. El opt-in destructivo de desarrollo se limita a un intento y no forma parte de la suite ordinaria.
+
 El usuario podrá cambiar `testModeEnabled` mediante `Habilitar modo de prueba` en una sección avanzada de Configuración de solicitud; no necesitará editar el JSON. `Iniciar prueba` solo será visible cuando esa opción sea verdadera y la configuración de credenciales y solicitud esté completa. Si la acción final es correo, también deberá existir una configuración de correo válida, pero los destinatarios guardados no se usarán: el correo de prueba se enviará exclusivamente a `tellezoe@hitss.com`, sin CC, con asunto prefijado por `[PRUEBA]` y después de una confirmación que muestre el destinatario exacto.
 
 El modo real debe recorrer todas las `Favorites` rows, todas las páginas y las solicitudes `Pending` relevantes. Debe validar `System`, `Application`, `Account`, familia de `Application`, fecha, hora, duración y razón antes de cada envío.
@@ -170,7 +176,7 @@ La colección guardará claves lógicas completas `System + Application + Accoun
 
 La referencia visual aportada establece una futura entrada nativa WPF con día, mes, descripción completa de fecha, hora de 12 horas y selector `AM/PM`, duración operativa en horas y razón. La conversión temporal se realizará en el dominio y el adaptador comprobará el valor normalizado por PAM. El recorrido confirmado, sus selectores e invariantes se mantienen en `PAM_NAVIGATION.md`.
 
-El conflicto PSPortal.Requests.Policies.RemoteAppAccesssAlreadyAvailable se registra y permite continuar. Otros errores deben detener el proceso.
+El conflicto `PSPortal.Requests.Policies.RemoteAppAccesssAlreadyAvailable` se registra y permite continuar. Otros errores deben detener el proceso.
 
 ## Outlook
 

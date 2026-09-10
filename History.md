@@ -271,3 +271,18 @@ Cada cambio relevante debe registrar qué se decidió, por qué, qué se verific
 - El usuario aclaró que los nombres visibles del portal deben conservarse en inglés. Se documentaron `Account`, `Description`, `System`, `Account Status`, `IP Address`, `Platform` y `Application`, y se reservó `Favorites` row para referirse inequívocamente a una fila completa.
 - Se dejó explícito que `Account` no identifica por sí solo una fila: puede repetirse y la clave confirmada hasta fase 11 es `System + Application + Account`.
 - Este cambio fue exclusivamente documental: no se inició la fase 12, no se modificó código, no se abrió PAM y no se creó ninguna solicitud.
+
+## 10 de septiembre de 2026 — Fase 12: solicitudes reales confirmadas
+
+- El usuario autorizó el desarrollo con el agente principal, sin subagentes, y permitió exactamente una solicitud PAM real para hoy con duración de 5 minutos o el mínimo disponible.
+- Se agregó `IPamRequestSubmissionPortal` como contrato separado del modo de prueba. El contrato seguro de fase 11 conserva su bloqueo de red y continúa sin capacidad de envío.
+- `PamRequestSubmissionService` valida la configuración, reutiliza una sola sesión autenticada, vuelve a leer todas las `Favorites` rows y exige una autorización ligada al conteo y a la configuración exactos mostrados al usuario.
+- Si `Favorites` o la configuración cambian después de confirmar, el flujo termina antes de crear el portal de envío. Antes de cada fila también se respeta la cancelación; después del clic se espera la respuesta para no presentar como cancelada una mutación cuyo estado remoto sea ambiguo.
+- Browser vuelve a localizar la fila por `System + Application + Account`, abre `Access > Submit Request`, llena el formulario y verifica inmediatamente sus valores y `Application Session` antes del botón final.
+- El envío espera específicamente `POST /api/ps-portal/requests`. Solo 2xx se considera `Submitted`; el 400 con código exacto `PSPortal.Requests.Policies.RemoteAppAccesssAlreadyAvailable` se clasifica como conflicto conocido y permite continuar; cualquier otra respuesta detiene el proceso sin exponer el payload.
+- Los resultados se copian y permanecen en memoria. Sus representaciones textuales están redactadas y no se añadieron logs persistentes ni datos de cuenta a la salida de pruebas.
+- La integración destructiva quedó aislada bajo la categoría `ExplicitPamMutation`, el opt-in exacto `PAM_AUTOMATION_ALLOW_SINGLE_REAL_REQUEST=CREATE_ONE_REQUEST_TODAY` y un límite interno de un solo intento. No se ejecuta como parte del conjunto ordinario.
+- La única ejecución autorizada creó exactamente una solicitud el 10 de septiembre de 2026, con inicio `08:20 AM` normalizado como `08:20` y duración `Days = 0`, `Hours = 0`, `Minutes = 5`. PAM devolvió éxito y mostró `Successfully submitted request.`; no se intentó otra fila.
+- Se guardaron localmente `img/fase12-request-form-before-submit.png` y `img/fase12-request-result-after-submit.png`, ambas excluidas de Git. Las capturas documentaron la estructura y terminología del portal sin contener credenciales, TOTP, cookies o tokens.
+- No se abrió Outlook ni se envió correo. La integración real no debe repetirse para validaciones posteriores; las comprobaciones restantes de esta fase son locales y no destructivas.
+- La validación final no destructiva compiló la solución en `Release | x64` con 0 errores y ejecutó 174 pruebas correctas, 0 fallidas y 0 omitidas. Solo permanece la advertencia heredada `MSTEST0032`, fuera del alcance de esta fase.

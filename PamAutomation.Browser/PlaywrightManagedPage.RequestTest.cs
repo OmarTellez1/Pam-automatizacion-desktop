@@ -2,6 +2,7 @@ using System.Globalization;
 using Microsoft.Playwright;
 using PamAutomation.Core.Favorites;
 using PamAutomation.Core.Models.Configuration;
+using PamAutomation.Core.Requests;
 
 namespace PamAutomation.Browser;
 
@@ -24,7 +25,9 @@ internal sealed partial class PlaywrightManagedPage
         int attemptsBefore = Volatile.Read(ref blockedSubmissionAttempts);
         ILocator row = await FindFavoriteRowAsync(account, cancellationToken).ConfigureAwait(false);
         await OpenRequestFormAsync(row, cancellationToken).ConfigureAwait(false);
-        await FillAndVerifyRequestFormAsync(settings, cancellationToken).ConfigureAwait(false);
+        await FillAndVerifyRequestFormAsync(
+            PamRequestFormData.FromSettings(settings),
+            cancellationToken).ConfigureAwait(false);
         await DiscardRequestFormAsync(cancellationToken).ConfigureAwait(false);
 
         if (Volatile.Read(ref blockedSubmissionAttempts) != attemptsBefore)
@@ -203,14 +206,14 @@ internal sealed partial class PlaywrightManagedPage
     }
 
     private async Task FillAndVerifyRequestFormAsync(
-        RequestSettings settings,
+        PamRequestFormData form,
         CancellationToken cancellationToken)
     {
         RequestFormLocators fields = GetRequestFormLocators();
         await Task.Delay(TimeSpan.FromMilliseconds(500), cancellationToken).ConfigureAwait(false);
-        await SelectStartDateAsync(fields.StartDate, settings.StartDate, cancellationToken)
+        await SelectStartDateAsync(fields.StartDate, form.StartDate, cancellationToken)
             .ConfigureAwait(false);
-        string expectedTime = settings.StartTime.ToString("HH:mm", CultureInfo.InvariantCulture);
+        string expectedTime = form.StartTime.ToString("HH:mm", CultureInfo.InvariantCulture);
         await fields.StartTime.FillAsync(expectedTime)
             .WaitAsync(cancellationToken)
             .ConfigureAwait(false);
@@ -224,15 +227,28 @@ internal sealed partial class PlaywrightManagedPage
                 .WaitAsync(cancellationToken)
                 .ConfigureAwait(false);
         }
-        await fields.Days.FillAsync("0").WaitAsync(cancellationToken).ConfigureAwait(false);
-        await fields.Hours.FillAsync(settings.SessionHours.ToString(CultureInfo.InvariantCulture))
+        await fields.Days.FillAsync(form.DurationDays.ToString(CultureInfo.InvariantCulture))
             .WaitAsync(cancellationToken)
             .ConfigureAwait(false);
-        await fields.Minutes.FillAsync("0").WaitAsync(cancellationToken).ConfigureAwait(false);
-        await fields.Reason.FillAsync(settings.RequestReason).WaitAsync(cancellationToken).ConfigureAwait(false);
+        await fields.Hours.FillAsync(form.DurationHours.ToString(CultureInfo.InvariantCulture))
+            .WaitAsync(cancellationToken)
+            .ConfigureAwait(false);
+        await fields.Minutes.FillAsync(form.DurationMinutes.ToString(CultureInfo.InvariantCulture))
+            .WaitAsync(cancellationToken)
+            .ConfigureAwait(false);
+        await fields.Reason.FillAsync(form.Reason).WaitAsync(cancellationToken).ConfigureAwait(false);
         await Task.Delay(TimeSpan.FromMilliseconds(750), cancellationToken).ConfigureAwait(false);
 
-        string expectedDate = settings.StartDate.ToString("MMMM dd, yyyy", CultureInfo.InvariantCulture);
+        await VerifyRequestFormAsync(form, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task VerifyRequestFormAsync(
+        PamRequestFormData form,
+        CancellationToken cancellationToken)
+    {
+        RequestFormLocators fields = GetRequestFormLocators();
+        string expectedDate = form.StartDate.ToString("MMMM dd, yyyy", CultureInfo.InvariantCulture);
+        string expectedTime = form.StartTime.ToString("HH:mm", CultureInfo.InvariantCulture);
         var mismatches = new List<string>();
         AddMismatch(
             mismatches,
@@ -248,22 +264,22 @@ internal sealed partial class PlaywrightManagedPage
             mismatches,
             PamRequestTestSelectors.Days,
             await fields.Days.InputValueAsync().ConfigureAwait(false),
-            "0");
+            form.DurationDays.ToString(CultureInfo.InvariantCulture));
         AddMismatch(
             mismatches,
             PamRequestTestSelectors.Hours,
             await fields.Hours.InputValueAsync().ConfigureAwait(false),
-            settings.SessionHours.ToString(CultureInfo.InvariantCulture));
+            form.DurationHours.ToString(CultureInfo.InvariantCulture));
         AddMismatch(
             mismatches,
             PamRequestTestSelectors.Minutes,
             await fields.Minutes.InputValueAsync().ConfigureAwait(false),
-            "0");
+            form.DurationMinutes.ToString(CultureInfo.InvariantCulture));
         AddMismatch(
             mismatches,
             PamRequestTestSelectors.Reason,
             await fields.Reason.InputValueAsync().ConfigureAwait(false),
-            settings.RequestReason);
+            form.Reason);
         AddMismatch(
             mismatches,
             PamRequestTestSelectors.ApplicationSession,

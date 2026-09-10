@@ -60,6 +60,14 @@ Se implementó `PamRequestTestService` y un contrato deliberadamente incapaz de 
 
 El resultado se mantiene en memoria, no contiene identidades y define `SubmittedCount = 0`. La integración real visible autorizada procesó 14 `Favorites` rows, validó y descartó los 14 formularios y confirmó cero envíos. La solución compiló en `Release | x64` y el proyecto completo ejecutó 154 pruebas correctas.
 
+## Fase 12 — Solicitudes reales confirmadas
+
+Se incorporó un flujo separado del modo de prueba para crear solicitudes reales. `PamRequestSubmissionService` valida la configuración, abre una única sesión autenticada, vuelve a leer todas las `Favorites` rows y exige una autorización ligada al conteo y a la configuración exactos antes de habilitar cualquier envío. Cada fila se vuelve a localizar por `System + Application + Account`, el formulario se llena y verifica inmediatamente antes de `Submit Request`, y solo una respuesta HTTP 2xx se clasifica como enviada.
+
+El conflicto conocido `PSPortal.Requests.Policies.RemoteAppAccesssAlreadyAvailable` se conserva como resultado controlado y permite continuar; cualquier otra respuesta detiene la ejecución sin exponer el contenido devuelto por PAM. Los resultados permanecen en memoria. La integración destructiva está excluida del flujo normal y requiere el opt-in exacto `PAM_AUTOMATION_ALLOW_SINGLE_REAL_REQUEST=CREATE_ONE_REQUEST_TODAY`.
+
+Con autorización explícita del usuario se ejecutó una sola vez esa integración limitada a un intento. El 10 de septiembre de 2026 PAM aceptó una solicitud para la primera `Favorites` row, con inicio `08:20 AM` —normalizado como `08:20`— y duración de 5 minutos. Se guardaron capturas locales ignoradas por Git antes y después del envío; no se abrió Outlook ni se envió correo.
+
 ## Fase 14 — Outlook falso y Outlook COM
 
 Se definieron en Core los contratos, modelos redactados, validaciones y errores estables de Outlook. `PamAutomation.Outlook` incorpora Microsoft Office Interop Outlook 15.0.4797.1004, resolución exacta de cuenta por `SmtpAddress`, comprobación mediante mensaje temporal descartado, creación de un mensaje nuevo por envío, asignación previa de `SendUsingAccount`, ejecución en un hilo STA y liberación explícita de referencias COM. Las pruebas usan un seam COM falso: no abren Outlook ni envían correo. Como todavía no se consulta Enviados, un `Send()` correcto se informa honestamente como `SubmittedUnconfirmed`, no como entrega confirmada.
@@ -76,8 +84,7 @@ La clasificación siguiente se refiere únicamente a dependencias entre fases pe
 
 | Fase | Clasificación | Dependencias pendientes | Alcance y posibilidad de paralelismo |
 |---|---|---|---|
-| 12 — Solicitudes reales | **Dependiente** | Confirmación explícita para crear solicitudes; fase 11 completada. | Reutilizará el flujo y archivos de Browser ya validados, pero no puede comenzar una ejecución real sin autorización adicional. |
-| 13 — Lectura y comparación de Pending | **Dependiente** | Fases 10, 11 y 12. | Aunque conceptualmente es lectura, comparte sesión, selectores y modelos de solicitudes con las fases anteriores; mantenerla secuencial evita conflictos en Browser. |
+| 13 — Lectura y comparación de Pending | **Independiente** | Ninguna; fases 10 a 12 completadas. | Es la siguiente fase habilitada. Debe incorporar los Request ID y estados devueltos por Pending sin alterar el envío ya validado. |
 | 15 — HTML saneado y marcador Request ID | **Dependiente** | Fase 13; fase 14 completada. | Ya dispone de la abstracción de Outlook, pero aún necesita el contrato final de resultados PAM para componer y validar los Request ID. |
 | 16 — Resultados en memoria e interfaz | **Dependiente** | Fases 13 y 15. | Necesita los resultados y estados finales que debe presentar; probablemente afecta App y la composición principal. |
 | 17 — Evidencias técnicas de desarrollo | **Dependiente** | Fase 16 y flujos operativos integrados. | Es transversal y debe conocer qué fallos pueden diagnosticarse sin persistir secretos. No conviene paralelizarla con cambios activos en esos flujos. |
@@ -88,9 +95,9 @@ La clasificación siguiente se refiere únicamente a dependencias entre fases pe
 ## Mapa recomendado de trabajo paralelo
 
 ```text
-Fases 6 a 11 completadas
+Fases 6 a 12 completadas
        │
-       └──► Fase 12 ──► Fase 13
+       └──► Fase 13
 
 Fase 14 completada ─────────────────────────────────────────────────────────────────────┐
                                                                                         ├──► Fase 15 ──► Fase 16 ──► Fase 17 ──► Fase 18 ──► Fase 19
@@ -99,7 +106,7 @@ Fase 13 ────────────────────────
 Fase 19 ──► Fase 20 (ampliación posterior a la migración)
 ```
 
-No queda actualmente otra fase clasificada como independiente. El flujo PAM debe continuar de forma secuencial desde la fase 12 y la fase 15 seguirá bloqueada hasta completar la fase 13. El coordinador solo podrá paralelizar una parte futura si vuelve a demostrar independencia, contratos congelados y ausencia de archivos compartidos.
+La fase 13 es la única fase pendiente actualmente independiente y constituye el siguiente paso. La fase 15 seguirá bloqueada hasta completarla. El coordinador solo podrá paralelizar una parte futura si vuelve a demostrar independencia, contratos congelados y ausencia de archivos compartidos.
 
 La fase 20 registra una ampliación solicitada para después de terminar la migración: colecciones locales nombradas y editables que seleccionan cualquier subconjunto de Favorites. Su diseño preliminar, navegación, reconciliación y seguridad se detallan en `PAM_NAVIGATION.md`; no modifica el alcance ni la autorización de la fase 12.
 

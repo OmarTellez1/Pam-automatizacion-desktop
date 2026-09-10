@@ -48,6 +48,10 @@ public sealed class PamBrowserSession : IPamBrowserSession
     internal IPamRequestTestPage RequestTestPage => page as IPamRequestTestPage
         ?? throw new InvalidOperationException("La página de la sesión PAM no admite el modo de prueba.");
 
+    /// <summary>Gets the explicitly authorized submission page owned by this session.</summary>
+    internal IPamRequestSubmissionPage RequestSubmissionPage => page as IPamRequestSubmissionPage
+        ?? throw new InvalidOperationException("La página de la sesión PAM no admite solicitudes reales.");
+
     /// <inheritdoc />
     public async Task<PamNavigationResponse> NavigateAsync(Uri uri, CancellationToken cancellationToken = default)
     {

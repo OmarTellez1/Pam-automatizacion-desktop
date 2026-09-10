@@ -1,6 +1,7 @@
 using PamAutomation.Core.Browser;
 using PamAutomation.Core.Favorites;
 using PamAutomation.Core.Models.Configuration;
+using PamAutomation.Core.Requests;
 
 namespace PamAutomation.Browser;
 
@@ -88,6 +89,18 @@ internal interface IPamRequestTestPage
     Task ValidateAndDiscardRequestFormAsync(
         PamFavoriteAccount account,
         RequestSettings settings,
+        CancellationToken cancellationToken);
+}
+
+/// <summary>Browser operations for explicitly authorized real PAM submissions.</summary>
+internal interface IPamRequestSubmissionPage
+{
+    /// <summary>Validates and submits one request form.</summary>
+    Task<PamRequestPortalOutcome> SubmitRequestFormAsync(
+        PamFavoriteAccount account,
+        PamRequestFormData form,
+        string? captureDirectory,
+        int? maximumSubmissionAttempts,
         CancellationToken cancellationToken);
 }
 

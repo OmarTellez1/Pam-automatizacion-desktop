@@ -15,6 +15,7 @@ La documentación debe conservar en inglés los nombres mostrados por PAM. El gr
 
 - `Account`
 - `Description`
+- `Directory`
 - `System`
 - `Account Status`
 - `IP Address`
@@ -24,6 +25,31 @@ La documentación debe conservar en inglés los nombres mostrados por PAM. El gr
 En este documento, **`Favorites` row** significa una fila completa del grid y no solamente el valor de `Account`. El mismo `Account` puede aparecer más de una vez con distintos valores de `System` o `Application`; por eso `Account` no es una identidad única.
 
 El modelo actual `PamFavoriteAccount` representa una `Favorites` row. Sus propiedades y selectores internos `AccountName`, `SystemName` y `ApplicationName` corresponden respectivamente a las columnas visibles `Account`, `System` y `Application`. Siempre que se describa un elemento del portal se usarán estos nombres ingleses entre código; la prosa española no debe traducirlos como si fueran campos distintos.
+
+## Evidencia visual confirmada en fase 12
+
+Las capturas de desarrollo se guardaron localmente en `img` y permanecen excluidas de Git:
+
+- `fase12-request-form-before-submit.png`: panel `Access` antes del único envío autorizado.
+- `fase12-request-result-after-submit.png`: grid de `Favorites` y notificación `Successfully submitted request.` después de la respuesta exitosa.
+
+La navegación visible confirmó:
+
+- Pestañas principales `Accounts` y `Requests`.
+- Categorías `Favorites`, `Recently Used`, `Local Accounts`, `Directory Linked Accounts` y `Applications` bajo `Browse by Category`.
+- Controles `Filter by`, `Quick filter`, `items per page`, `First page` y `Next page`.
+- Columnas visibles `Directory`, `Account`, `Description`, `System`, `Account Status`, `IP Address`, `Platform` y `Application`; algunas requieren desplazamiento horizontal.
+- Una acción `Access` por `Favorites` row.
+- Panel `Access` con pestañas `Submit Request` y `Direct Connect`.
+- Resumen de identidad mediante `Account`, `System` y `Application` antes de mostrar el formulario.
+- Pregunta `What type of access do you need?` con `Application Session` seleccionado.
+- Sección `What are the details of this request?` con `Reason`, `Ticket System (optional)` y `Ticket Number (optional)`, además de los campos temporales ya confirmados en fase 11.
+- Botones finales `Submit Request` y `Cancel`.
+- Notificación de éxito `Successfully submitted request.` con acciones `Pause`, `Resume`, `Dismiss All` y `Dismiss`.
+
+La captura mostró 14 elementos en una sola página durante esa sesión, pero este valor es evidencia puntual, no una constante del sistema. La automatización debe seguir leyendo el conteo y la paginación dinámicamente.
+
+La única prueba destructiva autorizada confirmó que el portal aceptó `Days = 0`, `Hours = 0` y `Minutes = 5`. El inicio introducido como `08:20 AM` fue verificado con semántica de 24 horas como `08:20`. Estos minutos son únicamente una duración técnica mínima para validación; la configuración operativa de la aplicación continúa expresándose en horas.
 
 ## Recorrido web confirmado
 
@@ -64,7 +90,7 @@ Una colección será una selección local, editable y nombrada de `Favorites` ro
 La pantalla de edición deberá:
 
 - Mostrar el snapshot completo y actualizado de Favorites con selección individual.
-- Conservar en el selector los encabezados del portal `Account`, `Description`, `System`, `Account Status`, `IP Address`, `Platform` y `Application`; una traducción de interfaz podrá acompañarlos, pero no reemplazar los nombres técnicos en documentación o diagnóstico.
+- Conservar en el selector los encabezados del portal `Directory`, `Account`, `Description`, `System`, `Account Status`, `IP Address`, `Platform` y `Application`; una traducción de interfaz podrá acompañarlos, pero no reemplazar los nombres técnicos en documentación o diagnóstico.
 - Permitir seleccionar únicamente filas cuyo `Account Status` sea `Available`; los demás estados deberán mostrarse sin reinterpretarlos.
 - Permitir crear, renombrar, duplicar, modificar y eliminar colecciones.
 - Mostrar cuántas `Favorites` rows tienen `Account Status = Available` y cuántas están seleccionadas para la colección.
@@ -96,7 +122,7 @@ No se sustituirá una `Favorites` row eliminada por otra con `Account`, `System`
 
 Las colecciones contendrán identidades de `Favorites` rows y razones de negocio, por lo que se tratarán como configuración privada. Se guardarán bajo `%LOCALAPPDATA%\PamAutomation\config`, con `schemaVersion`, escritura atómica y protección DPAPI `CurrentUser`. No se almacenarán credenciales, TOTP, cookies, estados de sesión ni resultados de ejecución dentro de una colección.
 
-`Description`, `Account Status`, `IP Address` y `Platform` se consideran metadata viva para presentación y reconciliación. No deben duplicarse de forma permanente dentro de la colección salvo que una necesidad funcional futura lo justifique; en particular, `IP Address` no forma parte de la clave actual.
+`Directory`, `Description`, `Account Status`, `IP Address` y `Platform` se consideran metadata viva para presentación y reconciliación. No deben duplicarse de forma permanente dentro de la colección salvo que una necesidad funcional futura lo justifique; en particular, `IP Address` no forma parte de la clave actual.
 
 La eliminación deberá ser explícita y recuperable durante la sesión de edición cuando resulte práctico. Los resultados y Request ID producidos al ejecutar una colección seguirán únicamente en memoria conforme a las reglas generales del proyecto.
 

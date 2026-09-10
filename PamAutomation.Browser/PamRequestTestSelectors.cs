@@ -22,4 +22,7 @@ internal static partial class PamRequestTestSelectors
 
     [GeneratedRegex("/api/ps-portal/requests(?:\\?.*)?$", RegexOptions.IgnoreCase)]
     public static partial Regex SubmissionEndpointExpression();
+
+    [GeneratedRegex("^The time must be between .+ and .+\\.$", RegexOptions.IgnoreCase)]
+    public static partial Regex InvalidTimeExpression();
 }
