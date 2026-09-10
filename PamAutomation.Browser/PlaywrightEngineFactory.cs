@@ -104,7 +104,8 @@ internal sealed partial class PlaywrightManagedPage(IPage page) :
     IPamLoginPage,
     IPamFavoritesPage,
     IPamRequestTestPage,
-    IPamRequestSubmissionPage
+    IPamRequestSubmissionPage,
+    IPamPendingPage
 {
     private static readonly TimeSpan PortalTimeout = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan ObservationInterval = TimeSpan.FromMilliseconds(100);

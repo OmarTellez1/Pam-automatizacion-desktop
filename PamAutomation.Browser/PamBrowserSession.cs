@@ -52,6 +52,10 @@ public sealed class PamBrowserSession : IPamBrowserSession
     internal IPamRequestSubmissionPage RequestSubmissionPage => page as IPamRequestSubmissionPage
         ?? throw new InvalidOperationException("La página de la sesión PAM no admite solicitudes reales.");
 
+    /// <summary>Gets the read-only Pending page owned by this session.</summary>
+    internal IPamPendingPage PendingPage => page as IPamPendingPage
+        ?? throw new InvalidOperationException("La página de la sesión PAM no admite leer Pending.");
+
     /// <inheritdoc />
     public async Task<PamNavigationResponse> NavigateAsync(Uri uri, CancellationToken cancellationToken = default)
     {

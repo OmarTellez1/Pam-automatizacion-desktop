@@ -68,6 +68,14 @@ El conflicto conocido `PSPortal.Requests.Policies.RemoteAppAccesssAlreadyAvailab
 
 Con autorización explícita del usuario se ejecutó una sola vez esa integración limitada a un intento. El 10 de septiembre de 2026 PAM aceptó una solicitud para la primera `Favorites` row, con inicio `08:20 AM` —normalizado como `08:20`— y duración de 5 minutos. Se guardaron capturas locales ignoradas por Git antes y después del envío; no se abrió Outlook ni se envió correo.
 
+## Fase 13 — Lectura y comparación de Pending
+
+Se agregó `PamPendingService` y un contrato de portal exclusivamente de lectura para navegar a `Requests`, seleccionar exactamente `Status = Pending` y recorrer hasta 500 páginas. Cada fila se convierte en un modelo redactado con Request ID numérico, `System`, `Application`, `Account`, `Request Start Date`, `Response`, `Expires` y `Description`; se rechazan filas incompletas, Request ID duplicados, estados distintos de `Pending`, paginación cambiante y asociaciones ambiguas.
+
+La comparación localiza por fecha/hora completas más `System + Account` y valida por separado el `Application` solicitado, `Expires` calculado y `Description`. El portal puede representar `Application` como `nombre solicitado - destino`; solo se admite el nombre completo solicitado, con ese sufijo estructurado opcional, sin inferir familias desde `System`. Distingue coincidencias y faltantes sin sustituir filas, rechaza asociaciones múltiples y ofrece una espera acotada para la consistencia eventual. Todos los resultados permanecen en memoria.
+
+La integración real visible confirmó primero el estado vacío y después filas reales autorizadas de 5 minutos. La validación final utilizó el 10 de septiembre de 2026 de `05:05 PM` a `05:10 PM`, comprobó una coincidencia ya existente sin crear una tercera solicitud y verificó `Request Start Date`, `Expires`, `Description`, `Application`, `System`, `Account` y `Response = Pending`. Las capturas locales muestran las columnas iniciales y finales mediante desplazamiento horizontal; están excluidas de Git.
+
 ## Fase 14 — Outlook falso y Outlook COM
 
 Se definieron en Core los contratos, modelos redactados, validaciones y errores estables de Outlook. `PamAutomation.Outlook` incorpora Microsoft Office Interop Outlook 15.0.4797.1004, resolución exacta de cuenta por `SmtpAddress`, comprobación mediante mensaje temporal descartado, creación de un mensaje nuevo por envío, asignación previa de `SendUsingAccount`, ejecución en un hilo STA y liberación explícita de referencias COM. Las pruebas usan un seam COM falso: no abren Outlook ni envían correo. Como todavía no se consulta Enviados, un `Send()` correcto se informa honestamente como `SubmittedUnconfirmed`, no como entrega confirmada.
@@ -84,9 +92,8 @@ La clasificación siguiente se refiere únicamente a dependencias entre fases pe
 
 | Fase | Clasificación | Dependencias pendientes | Alcance y posibilidad de paralelismo |
 |---|---|---|---|
-| 13 — Lectura y comparación de Pending | **Independiente** | Ninguna; fases 10 a 12 completadas. | Es la siguiente fase habilitada. Debe incorporar los Request ID y estados devueltos por Pending sin alterar el envío ya validado. |
-| 15 — HTML saneado y marcador Request ID | **Dependiente** | Fase 13; fase 14 completada. | Ya dispone de la abstracción de Outlook, pero aún necesita el contrato final de resultados PAM para componer y validar los Request ID. |
-| 16 — Resultados en memoria e interfaz | **Dependiente** | Fases 13 y 15. | Necesita los resultados y estados finales que debe presentar; probablemente afecta App y la composición principal. |
+| 15 — HTML saneado y marcador Request ID | **Independiente** | Ninguna; fases 13 y 14 completadas. | Es la siguiente fase habilitada y ya dispone de Request ID validados y de la abstracción Outlook. |
+| 16 — Resultados en memoria e interfaz | **Dependiente** | Fase 15. | Necesita la composición y los estados finales que debe presentar; probablemente afecta App y la composición principal. |
 | 17 — Evidencias técnicas de desarrollo | **Dependiente** | Fase 16 y flujos operativos integrados. | Es transversal y debe conocer qué fallos pueden diagnosticarse sin persistir secretos. No conviene paralelizarla con cambios activos en esos flujos. |
 | 18 — Instalador y publicación autocontenida | **Dependiente** | Fases 6 a 17. | Requiere que la aplicación y sus dependencias externas estén definidas y validadas. |
 | 19 — Pruebas finales administradas | **Dependiente** | Fase 18. | Es la validación final del producto publicado en el entorno Windows objetivo. |
@@ -95,18 +102,12 @@ La clasificación siguiente se refiere únicamente a dependencias entre fases pe
 ## Mapa recomendado de trabajo paralelo
 
 ```text
-Fases 6 a 12 completadas
-       │
-       └──► Fase 13
-
-Fase 14 completada ─────────────────────────────────────────────────────────────────────┐
-                                                                                        ├──► Fase 15 ──► Fase 16 ──► Fase 17 ──► Fase 18 ──► Fase 19
-Fase 13 ────────────────────────────────────────────────────────────────────────────────┘
+Fases 6 a 14 completadas ──► Fase 15 ──► Fase 16 ──► Fase 17 ──► Fase 18 ──► Fase 19
 
 Fase 19 ──► Fase 20 (ampliación posterior a la migración)
 ```
 
-La fase 13 es la única fase pendiente actualmente independiente y constituye el siguiente paso. La fase 15 seguirá bloqueada hasta completarla. El coordinador solo podrá paralelizar una parte futura si vuelve a demostrar independencia, contratos congelados y ausencia de archivos compartidos.
+La fase 15 es la única fase pendiente actualmente independiente y constituye el siguiente paso. El coordinador solo podrá paralelizar una parte futura si vuelve a demostrar independencia, contratos congelados y ausencia de archivos compartidos.
 
 La fase 20 registra una ampliación solicitada para después de terminar la migración: colecciones locales nombradas y editables que seleccionan cualquier subconjunto de Favorites. Su diseño preliminar, navegación, reconciliación y seguridad se detallan en `PAM_NAVIGATION.md`; no modifica el alcance ni la autorización de la fase 12.
 

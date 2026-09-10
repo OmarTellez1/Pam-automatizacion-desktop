@@ -51,6 +51,19 @@ La captura mostró 14 elementos en una sola página durante esa sesión, pero es
 
 La única prueba destructiva autorizada confirmó que el portal aceptó `Days = 0`, `Hours = 0` y `Minutes = 5`. El inicio introducido como `08:20 AM` fue verificado con semántica de 24 horas como `08:20`. Estos minutos son únicamente una duración técnica mínima para validación; la configuración operativa de la aplicación continúa expresándose en horas.
 
+## Evidencia visual confirmada en fase 13
+
+Las capturas locales `img/fase13-pending-grid.png`, `img/fase13-pending-grid-description-and-expiration.png` e `img/fase13-pending-grid-application.png`, excluidas de Git, confirmaron la pestaña `Requests` con:
+
+- Filtro `Status` seleccionado en `Pending` y control `Filter by`.
+- Tanto el estado vacío `0 items` y `There are no records to display.` como filas `Pending` reales.
+- Encabezados `Request ID`, `System`, `Type`, `Directory`, `Account`, `Request Start Date`, `Response`, `Response Date`, `Expires`, `Description`, `Ticket`, `Application` y `Location`.
+- Paginador, controles anterior/siguiente, selector `items per page` y contador dinámico.
+
+Las filas técnicas autorizadas de 5 minutos confirmaron los identificadores DOM `RequestId`, `SystemName`, `AccessType`, `DomainName`, `AccountName`, `ReleaseDt`, `ResponseStatus`, `ResponseDt`, `ExpiresDt`, `Description`, `TicketNumber`, `Application`, `Location` y `RowContextMenu`. Para observar la tabla completa, la automatización usa `ScrollIntoViewIfNeededAsync` sobre una celda de `Description` y otra de `Application` y toma capturas completas después de cada desplazamiento horizontal. Las imágenes son evidencia local de desarrollo y pueden contener Request ID e identidades operativas; no se versionan ni se reproducen en este documento.
+
+La observación real confirmó que la columna `Application` de Pending puede agregar un destino al valor solicitado con el formato `nombre solicitado - destino`. La regla exige `System` y `Account` exactos, el nombre completo solicitado al inicio de `Application`, el mismo `Request Start Date`, el `Expires` calculado desde la duración y la misma `Description`. No se infieren familias desde `System` ni se consulta `Approved` para completar la comparación.
+
 ## Recorrido web confirmado
 
 Toda la navegación ocurre en un único contexto temporal de Microsoft Playwright para .NET, usando el Edge externo visible y restringido al origen exacto `https://10.30.17.117`.
@@ -70,6 +83,9 @@ Toda la navegación ocurre en un único contexto temporal de Microsoft Playwrigh
 13. Seleccionar la fecha mediante la interfaz visible de Flatpickr. El calendario puede abrirse automáticamente o ignorar ocasionalmente el primer clic; la automatización debe comprobar si ya está visible y usar reintentos breves sin manipular el DOM.
 14. Entregar la hora según el formato aceptado por el portal y verificar el valor normalizado antes de continuar. El portal termina representando la hora con semántica de 24 horas aunque la futura interfaz de usuario use entrada de 12 horas con `AM/PM`.
 15. En modo de prueba, verificar todos los valores y ejecutar `Cancel` seguido de `Discard Changes`. En modo real, una confirmación explícita y una validación inmediata deben preceder al botón final `Submit Request`.
+16. Para leer resultados, navegar a `/webconsole/ps/portal?tab=requests`, exigir un único control `Status`, seleccionar la opción exacta `Pending` y comprobar que el control conserva ese valor.
+17. Recorrer el paginador desde la primera página, validar Request ID numéricos y únicos y comparar el contador dinámico cuando esté disponible. `0 items` es un resultado válido.
+18. Asociar primero por `Request Start Date + System + Account`; validar después `Application`, `Expires` y `Description`. Nunca asociar por Request ID supuesto, orden o texto truncado visible.
 
 ## Invariantes que deben conservarse
 

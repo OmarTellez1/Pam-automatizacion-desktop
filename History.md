@@ -286,3 +286,20 @@ Cada cambio relevante debe registrar qué se decidió, por qué, qué se verific
 - Se guardaron localmente `img/fase12-request-form-before-submit.png` y `img/fase12-request-result-after-submit.png`, ambas excluidas de Git. Las capturas documentaron la estructura y terminología del portal sin contener credenciales, TOTP, cookies o tokens.
 - No se abrió Outlook ni se envió correo. La integración real no debe repetirse para validaciones posteriores; las comprobaciones restantes de esta fase son locales y no destructivas.
 - La validación final no destructiva compiló la solución en `Release | x64` con 0 errores y ejecutó 174 pruebas correctas, 0 fallidas y 0 omitidas. Solo permanece la advertencia heredada `MSTEST0032`, fuera del alcance de esta fase.
+
+## 10 de septiembre de 2026 — Fase 13: lectura y comparación de Pending
+
+- El usuario autorizó continuar con el agente principal, sin subagentes, y hasta dos pruebas reales si eran necesarias.
+- Se agregaron contratos separados de solo lectura, modelos redactados, errores estables y `PamPendingService` para leer y comparar solicitudes `Pending` sin persistir Request ID.
+- Browser navega a `Requests`, selecciona exactamente `Status = Pending`, admite el estado vacío, recorre hasta 500 páginas, rechaza Request ID inválidos o duplicados y reintenta un snapshot cambiante hasta tres veces.
+- La comparación exige `Request Start Date`, `System`, `Account`, `Application`, `Expires` y `Description`. Coincidencias múltiples se rechazan como ambiguas y faltantes se conservan explícitamente.
+- Se añadió una espera acotada de hasta seis lecturas separadas por dos segundos para la consistencia eventual posterior a una creación.
+- La primera prueba real abrió Edge visible y confirmó `Requests`, `Status = Pending`, `0 items`, `There are no records to display.` y el paginador vacío. No creó ni modificó solicitudes.
+- Una prueba inicial limitada recibió `ApprovedAccessOverlap` y no creó solicitudes. Después el usuario amplió la autorización para solicitar accesos con hora actual del sistema y duración de 5 minutos.
+- Una prueba creó una solicitud de 5 minutos con inicio ajustado al siguiente minuto. La lectura inmediata confirmó una fila, un Request ID numérico, `Response = Pending`, el formato inglés de `Request Start Date` y todos los identificadores DOM de columna; la reconciliación estricta detectó una diferencia aún no modelada en `Application`.
+- Dos bloques posteriores de tres intentos terminaron únicamente en `ApprovedAccessOverlap`; crearon cero solicitudes adicionales. No se siguió ampliando el alcance.
+- Siguiendo la corrección del usuario se probaron el 10 de septiembre de 2026 solicitudes de `05:05 PM` a `05:10 PM`. La primera ejecución creó una fila; un intento de recuperación defectuoso no la reconoció y creó una segunda fila idéntica autorizada. Se detuvieron inmediatamente las mutaciones y no se creó una tercera solicitud.
+- Una lectura posterior exclusivamente no destructiva confirmó que `System` y `Account` coincidían de forma única y que Pending representa `Application` como `nombre solicitado - destino`. La regla final valida el nombre completo solicitado y permite únicamente ese sufijo estructurado; no usa familias ni deriva valores desde `System`.
+- La prueba final fue idempotente: reconoció individualmente una solicitud autorizada existente, validó `Request Start Date = 05:05 PM`, `Expires = 05:10 PM`, `Description`, `Application`, `System`, `Account` y `Response = Pending`, e informó cero solicitudes nuevas.
+- Se conservaron tres capturas locales ignoradas por Git: `img/fase13-pending-grid.png`, `img/fase13-pending-grid-description-and-expiration.png` e `img/fase13-pending-grid-application.png`. Pueden incluir datos operativos visibles de las filas, pero nunca credenciales, TOTP, cookies o tokens; no deben versionarse ni copiarse a documentación.
+- La validación final no destructiva compiló en `Release | x64` con 0 errores y ejecutó 208 pruebas correctas. Permanece únicamente la advertencia heredada `MSTEST0032`.

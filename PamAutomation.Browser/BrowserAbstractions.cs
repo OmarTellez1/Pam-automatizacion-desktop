@@ -104,6 +104,15 @@ internal interface IPamRequestSubmissionPage
         CancellationToken cancellationToken);
 }
 
+/// <summary>Browser operations for reading every <c>Pending</c> request page.</summary>
+internal interface IPamPendingPage
+{
+    /// <summary>Selects <c>Pending</c> and returns a validated read-only snapshot.</summary>
+    Task<IReadOnlyList<PamPendingRequest>> ReadAllPendingAsync(
+        string? captureDirectory,
+        CancellationToken cancellationToken);
+}
+
 /// <summary>Required settings for launching the externally installed Edge channel.</summary>
 /// <param name="Channel">The installed browser channel.</param>
 /// <param name="Headless">Whether the browser is headless.</param>

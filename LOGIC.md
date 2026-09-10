@@ -164,9 +164,13 @@ Antes de cada efecto irreversible, Browser vuelve a localizar la `Favorites` row
 
 La cancelación se comprueba antes de cada solicitud. Una vez pulsado `Submit Request`, el adaptador espera una respuesta acotada sin convertir la cancelación tardía en un estado falsamente conocido: un timeout se trata como fallo porque el efecto remoto podría ser ambiguo. Los resultados por fila se copian y conservan solo en memoria. El opt-in destructivo de desarrollo se limita a un intento y no forma parte de la suite ordinaria.
 
+La fase 13 implementa `PamPendingService` sobre un contrato exclusivamente de lectura. Browser navega a `Requests`, exige un único filtro `Status`, selecciona exactamente `Pending` y recorre el paginador accesible desde la primera página, con un límite de 500 páginas y hasta tres lecturas si el contador cambia. Un estado vacío es válido; filas incompletas, Request ID no numéricos o duplicados y cambios de página incoherentes son fallos bloqueantes.
+
+Cada fila Pending se mantiene en memoria y redacta su representación textual. Para asociarla con una `Favorites` row se exige la misma fecha y hora completas y la misma combinación `System + Account`; luego se validan expresamente el `Application` solicitado, `Expires` calculado desde la duración y `Description`. El portal puede agregar a `Application` un sufijo de destino con el formato `nombre solicitado - destino`; no se aceptan familias aproximadas ni se deriva el nombre desde `System`. Si dos filas o dos cuentas producen una asociación no única se informa ambigüedad en lugar de elegir por posición. La comparación devuelve coincidencias ordenadas y faltantes explícitos. Tras una creación puede repetirse la lectura hasta seis veces con dos segundos de espera para cubrir consistencia eventual.
+
 El usuario podrá cambiar `testModeEnabled` mediante `Habilitar modo de prueba` en una sección avanzada de Configuración de solicitud; no necesitará editar el JSON. `Iniciar prueba` solo será visible cuando esa opción sea verdadera y la configuración de credenciales y solicitud esté completa. Si la acción final es correo, también deberá existir una configuración de correo válida, pero los destinatarios guardados no se usarán: el correo de prueba se enviará exclusivamente a `tellezoe@hitss.com`, sin CC, con asunto prefijado por `[PRUEBA]` y después de una confirmación que muestre el destinatario exacto.
 
-El modo real debe recorrer todas las `Favorites` rows, todas las páginas y las solicitudes `Pending` relevantes. Debe validar `System`, `Application`, `Account`, familia de `Application`, fecha, hora, duración y razón antes de cada envío.
+El modo real debe recorrer todas las `Favorites` rows, todas las páginas y las solicitudes `Pending` relevantes. Debe validar `System`, `Application`, `Account`, `Request Start Date`, `Expires` y `Description` antes de aceptar una reconciliación.
 
 ## Colecciones personalizadas posteriores a la migración
 
