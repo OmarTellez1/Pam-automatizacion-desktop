@@ -150,6 +150,14 @@ La portada incluye `Exportar diagnóstico`. Tras elegir manualmente un destino s
 
 La solución compiló en `Release | x64` y las 271 pruebas ordinarias finalizaron correctamente. Se validaron capacidad y orden del buffer, lista permitida, redacción de valores, excepciones sin mensaje ni ruta, estructura y contenido del ZIP, cancelación, fallo y limpieza de temporales, restauración del ViewModel, resumen sin identificadores y renderizado STA de la nueva acción. No se abrió PAM ni Outlook, no se crearon solicitudes y no se enviaron correos.
 
+## Fase 18 — Publicación portable y aviso de actualización
+
+La distribución se simplificó por decisión explícita del usuario: no habrá MSI/MSIX ni escritura en `Program Files`. `PamAutomation.App` tiene versión nativa `0.0.1`, nombre de producto `PAM Automation` y título dinámico `PAM Automation V. 0.0.1`. El perfil `Portable-x64` publica `Release`, `win-x64`, autocontenido y como archivo único, sin trimming, AOT, símbolos ni archivos auxiliares. La salida verificada contiene únicamente `PAM Automation.exe`; WPF inició fuera del repositorio y la extracción controlada en `%TEMP%` incluyó el driver Windows de Playwright.
+
+Se añadió un contrato de actualización en Core, un lector HTTP limitado y validado en Infrastructure y un banner descartable en WPF. La consulta ocurre después de mostrar y cargar la ventana, tiene timeout, cancelación y manejo seguro de todos los fallos. Compara la versión del ensamblado con `latest.json`; no utiliza fechas, no descarga, no reemplaza y no elimina ejecutables. El usuario administrará manualmente las versiones.
+
+La compilación y 280 pruebas ordinarias validan versión, comparación, manifiesto inválido, límite de tamaño, repositorio inesperado, fallo remoto y renderizado del banner. El origen se migró desde Google Drive, bloqueado por Fortinet, a la URL `raw` pública del repositorio GitHub. Tras corregir `repositoryUrl`, la integración real de solo lectura pasó 1/1 y confirmó red, TLS, descarga, análisis y validación del repositorio. La salida canónica contiene un único ejecutable portable. No se abrió PAM ni Outlook, no se crearon solicitudes y no se enviaron correos. **Fase completada.**
+
 ## Fases pendientes
 
 La clasificación siguiente se refiere únicamente a dependencias entre fases pendientes:
@@ -160,19 +168,18 @@ La clasificación siguiente se refiere únicamente a dependencias entre fases pe
 
 | Fase | Clasificación | Dependencias pendientes | Alcance y posibilidad de paralelismo |
 |---|---|---|---|
-| 18 — Instalador y publicación autocontenida | **Dependiente** | Fases 6 a 17. | Requiere que la aplicación y sus dependencias externas estén definidas y validadas. |
-| 19 — Pruebas finales administradas | **Dependiente** | Fase 18. | Es la validación final del producto publicado en el entorno Windows objetivo. |
+| 19 — Pruebas finales administradas | **Independiente** | Ninguna fase pendiente. | Es la validación final del producto publicado en el entorno Windows objetivo. |
 | 20 — Colecciones personalizadas post-migración | **Dependiente** | Migración inicial y fase 19 completadas. | Permitirá seleccionar subconjuntos editables de `Favorites` rows, guardar configuración general y posibles sobrescrituras por fila. Es alcance nuevo y no debe mezclarse con las fases 12 a 19. |
 
 ## Mapa recomendado de trabajo paralelo
 
 ```text
-Fases 6 a 17 completadas ──► Fase 18 ──► Fase 19
+Fases 6 a 18 completadas ──► Fase 19
 
 Fase 19 ──► Fase 20 (ampliación posterior a la migración)
 ```
 
-La fase 18 constituye el siguiente paso y depende de que los flujos integrados y el diagnóstico exportable de la fase 17 permanezcan cerrados. El coordinador solo podrá paralelizar una parte futura si vuelve a demostrar independencia, contratos congelados y ausencia de archivos compartidos.
+La fase 18 quedó completada tras validar el manifiesto GitHub real. El coordinador solo podrá paralelizar una parte futura si vuelve a demostrar independencia, contratos congelados y ausencia de archivos compartidos.
 
 La fase 20 registra una ampliación solicitada para después de terminar la migración: colecciones locales nombradas y editables que seleccionan cualquier subconjunto de Favorites. Su diseño preliminar, navegación, reconciliación y seguridad se detallan en `PAM_NAVIGATION.md`; no modifica el alcance ni la autorización de la fase 12.
 

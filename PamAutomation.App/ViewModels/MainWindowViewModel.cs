@@ -12,6 +12,7 @@ using PamAutomation.Core.Interfaces.Credentials;
 using PamAutomation.Core.Interfaces.Diagnostics;
 using PamAutomation.Core.Interfaces.Execution;
 using PamAutomation.Core.Interfaces.Outlook;
+using PamAutomation.Core.Interfaces.Updates;
 using PamAutomation.Core.Models.Configuration;
 using PamAutomation.Core.Models.Credentials;
 using PamAutomation.Core.Requests;
@@ -34,6 +35,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
     private readonly TimeProvider timeProvider;
     private readonly ILogger<MainWindowViewModel> logger;
     private readonly IDiagnosticExportService? diagnosticExportService;
+    private readonly IApplicationUpdateService? updateService;
+    private readonly Version applicationVersion;
     private AppSettings settings = new();
     private MailSettings? mailSettings;
     private string outlookSmtpAddress = string.Empty;
@@ -49,6 +52,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
     [ObservableProperty] private bool isExportingDiagnostics;
     [ObservableProperty] private bool hasResult;
     [ObservableProperty] private bool hasRequestIds;
+    [ObservableProperty] private bool isUpdateAvailable;
+    [ObservableProperty] private string updateNotificationMessage = string.Empty;
     [ObservableProperty] private string statusMessage = "Completa la configuración para habilitar la automatización.";
     [ObservableProperty] private string resultTitle = string.Empty;
     [ObservableProperty] private string resultSummary = string.Empty;
@@ -71,7 +76,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
         MailSettingsValidator? mailSettingsValidator = null,
         IOutlookAccountSettingsStore? outlookAccountSettingsStore = null,
         ILogger<MainWindowViewModel>? logger = null,
-        IDiagnosticExportService? diagnosticExportService = null)
+        IDiagnosticExportService? diagnosticExportService = null,
+        IApplicationUpdateService? updateService = null,
+        Version? applicationVersion = null)
     {
         this.executionService = executionService;
         this.settingsStore = settingsStore;
@@ -85,6 +92,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
         this.timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
         this.logger = logger ?? NullLogger<MainWindowViewModel>.Instance;
         this.diagnosticExportService = diagnosticExportService;
+        this.updateService = updateService;
+        this.applicationVersion = applicationVersion ??
+            typeof(MainWindowViewModel).Assembly.GetName().Version ?? new Version(0, 0, 1, 0);
 
         ConfigureCredentialsCommand = new AsyncRelayCommand(ConfigureCredentialsAsync, () => AreControlsEnabled);
         ConfigureRequestCommand = new AsyncRelayCommand(ConfigureRequestAsync, () => AreControlsEnabled);
@@ -93,6 +103,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         StartAutomationCommand = new AsyncRelayCommand(StartAutomationAsync, () => CanStartAutomation);
         ToggleFinalActionCommand = new AsyncRelayCommand(ToggleFinalActionAsync, () => AreControlsEnabled);
         ExportDiagnosticsCommand = new AsyncRelayCommand(ExportDiagnosticsAsync, () => CanExportDiagnostics);
+        DismissUpdateCommand = new RelayCommand(() => IsUpdateAvailable = false);
     }
 
     public IAsyncRelayCommand ConfigureCredentialsCommand { get; }
@@ -102,6 +113,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public IAsyncRelayCommand StartAutomationCommand { get; }
     public IAsyncRelayCommand ToggleFinalActionCommand { get; }
     public IAsyncRelayCommand ExportDiagnosticsCommand { get; }
+    public IRelayCommand DismissUpdateCommand { get; }
+    public string ApplicationDisplayName => $"PAM Automation V. {applicationVersion.ToString(3)}";
     public bool AreControlsEnabled => !IsRunning && !IsExportingDiagnostics;
     public bool CanExportDiagnostics => diagnosticExportService is not null && dialogs is not null && AreControlsEnabled;
     public bool IsConfigurationComplete => AreCredentialsConfigured && IsRequestConfigured && (!SendEmailAtEnd || IsMailConfigured);
@@ -153,6 +166,33 @@ public sealed partial class MainWindowViewModel : ObservableObject
         catch (Exception exception)
         {
             PresentError(exception);
+        }
+    }
+
+    /// <summary>Checks for a newer portable release without blocking or failing application startup.</summary>
+    /// <param name="cancellationToken">Token cancelled when the application closes.</param>
+    /// <returns>A task that completes after the optional remote check.</returns>
+    public async Task CheckForUpdateAsync(CancellationToken cancellationToken = default)
+    {
+        if (updateService is null) return;
+
+        try
+        {
+            var result = await updateService.CheckAsync(applicationVersion, cancellationToken);
+            if (!result.IsUpdateAvailable) return;
+
+            UpdateNotificationMessage =
+                $"Hay una nueva versión de PAM Automation disponible en el repositorio compartido: " +
+                $"V. {result.LatestVersion.ToString(3)}.";
+            IsUpdateAvailable = true;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            logger.LogInformation("Application update check was cancelled during shutdown.");
+        }
+        catch (Exception exception)
+        {
+            logger.LogWarning(exception, "Application update check failed safely.");
         }
     }
 

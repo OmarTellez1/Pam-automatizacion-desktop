@@ -10,7 +10,7 @@ No utilizar JavaScript, TypeScript, Node.js, Electron, Python, Java, PowerShell,
 
 XAML está permitido únicamente como lenguaje declarativo de interfaz para WPF. La interfaz debe ser nativa de Windows y la lógica debe estar implementada en C#.
 
-La aplicación debe ser autocontenida respecto de .NET y entregarse como un ejecutable Windows x64, preferiblemente dentro de un instalador firmado. Debe incluir dentro de la aplicación toda la lógica necesaria para configuración, TOTP, Playwright, solicitudes PAM, resultados en memoria y Outlook COM. No debe exigir instalar .NET, Node.js, Python ni PowerShell en el equipo final.
+La aplicación debe ser autocontenida respecto de .NET y entregarse como un ejecutable portable Windows x64. El usuario lo guardará en una ubicación donde tenga permisos y eliminará manualmente una versión anterior después de descargar la nueva. No habrá MSI/MSIX en esta primera distribución. El ejecutable debe incluir toda la lógica necesaria para configuración, TOTP, Playwright, solicitudes PAM, resultados en memoria y Outlook COM. No debe exigir instalar .NET, Node.js, Python ni PowerShell en el equipo final.
 
 La aplicación utilizará deliberadamente dependencias externas instaladas por la empresa: Windows, Microsoft Edge, conectividad al portal PAM y Outlook clásico cuando se habilite el correo. Edge y Outlook no se incluirán dentro del ejecutable.
 
@@ -59,7 +59,7 @@ Channel = "msedge"
 
 - Edge es un requisito de instalación de la aplicación.
 - Chrome puede añadirse posteriormente como compatibilidad opcional, pero no debe ser necesario para la primera versión.
-- No incluir navegadores Playwright en el instalador.
+- No incluir navegadores Playwright en la publicación.
 - No descargar navegadores durante la ejecución.
 - No utilizar coordenadas de pantalla.
 - No utilizar automatización visual.
@@ -527,18 +527,11 @@ Publicar desde la terminal para Windows x64 como aplicación autocontenida media
 
 No activar trimming ni Native AOT durante la primera versión porque COM, reflexión y algunas dependencias pueden presentar incompatibilidades.
 
-El instalador debe:
+La salida distribuible debe contener únicamente `PAM Automation.exe`. El usuario elige dónde guardarlo y no se requieren permisos de administrador. La configuración privada continúa bajo `%LOCALAPPDATA%\PamAutomation\config`; las credenciales permanecen en Windows Credential Manager y nunca se escriben junto al ejecutable.
 
-- Ser x64.
-- Comprobar Edge.
-- Comprobar Outlook clásico cuando se habilite correo.
-- Crear accesos directos.
-- Crear la configuración privada por usuario bajo `%LOCALAPPDATA%\PamAutomation\config`.
-- No escribir credenciales dentro de `Program Files`.
-- Permitir desinstalación.
-- Estar firmado digitalmente antes de distribuirse.
+La aplicación incorpora versión nativa de Windows y consulta al iniciar un manifiesto JSON público, pequeño y limitado. Si la versión publicada es superior, muestra un aviso descartable dentro de WPF. No descarga, sustituye ni elimina ejecutables: el usuario obtiene la nueva versión desde el repositorio compartido y elimina manualmente la anterior. Una falla de red, TLS, formato o disponibilidad nunca bloquea el inicio. La comparación usa versiones numéricas, no fechas de archivo.
 
-Usar MSI o MSIX según la política de la empresa. La aplicación puede ser un único ejecutable internamente, pero debe distribuirse mediante instalador para manejar instalación, actualización, desinstalación y firma.
+El repositorio de actualizaciones debe ser accesible desde la red corporativa mediante HTTPS con una cadena válida. No se permite ignorar errores de certificado ni analizar la interfaz HTML de un proveedor como sustituto de un endpoint de archivo estable.
 
 ## Logs, artefactos y diagnóstico
 
@@ -578,7 +571,7 @@ No se requieren .NET MAUI, WinUI, C++, ASP.NET, Azure, Node.js, Python, Java ni 
 2. Mantener actualizados `README.md`, `LOGIC.md` y `History.md` después de cambios relevantes.
 3. No crear archivos `.js`, `.mjs`, `.ts`, `.py`, `.ps1` ni proyectos Node.
 4. No cambiar la decisión de utilizar Edge externo sin una autorización explícita.
-5. No incluir Chromium en el instalador.
+5. No incluir Chromium en la publicación.
 6. No usar WebView2 como sustituto de la interfaz WPF.
 7. No usar Selenium.
 8. No inventar selectores del portal: inspeccionar y centralizar los selectores.
@@ -614,7 +607,7 @@ No se requieren .NET MAUI, WinUI, C++, ASP.NET, Azure, Node.js, Python, Java ni 
 15. Implementar composición HTML y marcador de Request ID.
 16. Implementar resultados en memoria y mensajes de error sin persistencia para publicación.
 17. Implementar evidencias de desarrollo en `results`, `logs`, `artifacts` y `temp` de la raíz, excluidas de Git.
-18. Implementar instalador sin incluir evidencias de desarrollo.
+18. Implementar publicación portable autocontenida y aviso manual de nueva versión sin incluir evidencias de desarrollo.
 19. Ejecutar pruebas finales en un equipo Windows administrado.
 20. Después de completar la migración, implementar colecciones locales editables para ejecutar subconjuntos de Favorites.
 
@@ -641,7 +634,7 @@ El proyecto estará terminado únicamente cuando:
 - Valide y envíe correo desde Outlook clásico cuando corresponda.
 - No cree archivos operativos persistentes ni exponga secretos en mensajes, capturas o diagnósticos.
 - Pase las pruebas unitarias y de integración definidas.
-- Tenga instalador firmado y documentación de uso.
+- Tenga un ejecutable portable versionado y documentación de uso.
 
 ## Fuentes técnicas autorizadas
 

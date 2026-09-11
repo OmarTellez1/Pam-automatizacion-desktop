@@ -6,9 +6,9 @@ Aplicación de escritorio Windows para automatizar BeyondInsight Password Safe d
 
 La raíz oficial del repositorio es `C:\pam automatizacion dotnet\PamAutomation`.
 
-La solución `PamAutomation.slnx` contiene la aplicación WPF `PamAutomation.App` y los proyectos base `PamAutomation.Core`, `PamAutomation.Browser`, `PamAutomation.Outlook`, `PamAutomation.Infrastructure` y `PamAutomation.Tests`. Las fases 3A y 3B incorporan el dominio, la validación y la persistencia JSON de la configuración no sensible; las fases 4 a 7 incorporan credenciales protegidas, TOTP, reloj HTTP y sesión restringida de Edge. Las fases 8 a 13 agregan autenticación simulada, login real, lectura paginada de Favorites, formularios seguros, solicitudes confirmadas y lectura/comparación de Pending; la fase 14 incorpora Outlook clásico, la fase 15 la composición HTML saneada, la fase 16 conecta el flujo PAM con la interfaz, la fase 16.5 completa la paridad funcional, la 16.6 añade logging seguro, la 16.7 corrige la activación COM, la 16.8 mejora el estado visual y la fase 17 permite exportar diagnóstico seguro bajo demanda.
+La solución `PamAutomation.slnx` contiene la aplicación WPF `PamAutomation.App` y los proyectos base `PamAutomation.Core`, `PamAutomation.Browser`, `PamAutomation.Outlook`, `PamAutomation.Infrastructure` y `PamAutomation.Tests`. Las fases 3A y 3B incorporan el dominio, la validación y la persistencia JSON de la configuración no sensible; las fases 4 a 7 incorporan credenciales protegidas, TOTP, reloj HTTP y sesión restringida de Edge. Las fases 8 a 13 agregan autenticación simulada, login real, lectura paginada de Favorites, formularios seguros, solicitudes confirmadas y lectura/comparación de Pending; la fase 14 incorpora Outlook clásico, la fase 15 la composición HTML saneada, la fase 16 conecta el flujo PAM con la interfaz, la fase 16.5 completa la paridad funcional, la 16.6 añade logging seguro, la 16.7 corrige la activación COM, la 16.8 mejora el estado visual, la fase 17 permite exportar diagnóstico seguro y la fase 18 produce la aplicación portable versionada.
 
-`PamAutomation.Tests` utiliza MSTest con Microsoft Testing Platform e incluye pruebas de presentación, configuración DPAPI, credenciales, TOTP, reloj HTTP, navegador, autenticación, `Favorites`, formularios, Pending, resultados en memoria, diagnóstico, conversión `FlowDocument`, composición HTML, imágenes CID y Outlook. Las fases 1 a 17 fueron compiladas y validadas con `Release | x64`; la suite ordinaria contiene 271 pruebas aprobadas. La integración visible de fase 13 confirmó el estado vacío y la reconciliación de una solicitud real de 5 minutos mediante `Request Start Date`, `Expires`, `Description`, `Application`, `System` y `Account`.
+`PamAutomation.Tests` utiliza MSTest con Microsoft Testing Platform e incluye pruebas de presentación, configuración DPAPI, credenciales, TOTP, reloj HTTP, navegador, autenticación, `Favorites`, formularios, Pending, resultados en memoria, diagnóstico, actualización, conversión `FlowDocument`, composición HTML, imágenes CID y Outlook. Las fases 1 a 18 fueron compiladas y validadas con `Release | x64`; la suite ordinaria contiene 280 pruebas. La integración visible de fase 13 confirmó el estado vacío y la reconciliación de una solicitud real de 5 minutos mediante `Request Start Date`, `Expires`, `Description`, `Application`, `System` y `Account`.
 
 Todo el flujo de desarrollo se administra exclusivamente desde la terminal con el SDK x64 de .NET 10: restauración, compilación, pruebas, ejecución y publicación.
 
@@ -104,7 +104,7 @@ El repositorio de desarrollo sí podrá generar información técnica para que e
     ├── artifacts\
     └── temp\
 
-Estas carpetas serán exclusivas de las ejecuciones de desarrollo, pruebas e integración. Deben estar excluidas de Git, no deben copiarse al instalador y nunca deben contener contraseñas, semillas TOTP, códigos TOTP, cookies, tokens ni perfiles del navegador. La aplicación publicada debe desactivar esta escritura en la raíz del repositorio y mantener únicamente los resultados en memoria.
+Estas carpetas serán exclusivas de las ejecuciones de desarrollo, pruebas e integración. Deben estar excluidas de Git, no deben copiarse a la publicación y nunca deben contener contraseñas, semillas TOTP, códigos TOTP, cookies, tokens ni perfiles del navegador. La aplicación publicada debe desactivar esta escritura en la raíz del repositorio y mantener únicamente los resultados en memoria.
 
 Los logs de desarrollo se escriben como `logs\pam-automation-AAAA-MM-DD.log`. Conservan niveles, categoría, etapa, `EventId`, tipo de excepción, `HRESULT` y stack trace, pero omiten deliberadamente el mensaje de la excepción para evitar que un adaptador incluya valores sensibles. Al iniciar el logger y antes de cada escritura se eliminan exclusivamente sus archivos diarios con más de dos días de antigüedad. Las direcciones, credenciales, TOTP, cookies, tokens, Request ID y contenido del correo no forman parte de los eventos.
 
@@ -128,6 +128,7 @@ dotnet restore PamAutomation.slnx -p:Platform=x64
 dotnet build PamAutomation.slnx -c Release -p:Platform=x64 --no-restore
 dotnet run --project PamAutomation.Tests\PamAutomation.Tests.csproj -c Release -p:Platform=x64 --no-build
 dotnet run --project PamAutomation.App\PamAutomation.App.csproj -c Release -p:Platform=x64 --no-build
+dotnet publish PamAutomation.App\PamAutomation.App.csproj -c Release -p:Platform=x64 -p:PublishProfile=Portable-x64 -o artifacts\publish\final\PAM-Automation-0.0.1
 ```
 
 `PamAutomation.Tests` usa el runner integrado de Microsoft Testing Platform. Mientras la solución no defina el runner MTP mediante `global.json`, las pruebas se ejecutan con `dotnet run` sobre el proyecto de pruebas y no con `dotnet test`.
@@ -142,7 +143,29 @@ No se requieren .NET MAUI, WinUI, C++, ASP.NET, Azure, Node.js, Python, Java, ru
 - Conectividad a la red o VPN de PAM.
 - Publicación autocontenida para no exigir .NET instalado en el equipo final.
 
-El entregable final será un ejecutable Windows x64 autocontenido, preferiblemente distribuido mediante un instalador firmado. Incluirá la lógica de la aplicación, WPF, Playwright .NET, TOTP, configuración, validaciones, resultados en memoria e integración con Outlook. No exigirá instalar .NET, Node.js, Python ni PowerShell en el equipo final.
+El entregable será `PAM Automation.exe`, un ejecutable portable Windows x64 autocontenido que el usuario guardará donde prefiera y reemplazará manualmente cuando descargue una nueva versión. Incluirá la lógica de la aplicación, WPF, Playwright .NET, TOTP, configuración, validaciones, resultados en memoria e integración con Outlook. No exigirá instalar .NET, Node.js, Python ni PowerShell en el equipo final.
+
+La versión actual es `0.0.1` y aparece en el título de WPF y en las propiedades nativas del archivo. Al iniciar, la aplicación intenta leer durante un máximo de ocho segundos el `latest.json` público de GitHub mediante su URL `raw`; si contiene una versión superior y la dirección exacta del repositorio esperado, muestra un aviso descartable. No descarga ni elimina archivos.
+
+### Publicar una nueva versión portable
+
+1. Actualizar `Version`, `AssemblyVersion`, `FileVersion` e `InformationalVersion` en `PamAutomation.App/PamAutomation.App.csproj`. Para `0.0.2`, las versiones de ensamblado y archivo serán `0.0.2.0`.
+2. Restaurar, compilar y validar desde la raíz:
+
+   ```powershell
+   dotnet restore PamAutomation.slnx -r win-x64 -p:Platform=x64
+   dotnet build PamAutomation.slnx -c Release -p:Platform=x64 --no-restore
+   dotnet run --project PamAutomation.Tests\PamAutomation.Tests.csproj -c Release -p:Platform=x64 --no-build
+   ```
+
+3. Generar el ejecutable, sustituyendo `0.0.2` por la versión nueva:
+
+   ```powershell
+   dotnet publish PamAutomation.App\PamAutomation.App.csproj -c Release -p:Platform=x64 -p:PublishProfile=Portable-x64 --no-restore -o artifacts\publish\final\PAM-Automation-0.0.2
+   ```
+
+4. En GitHub, crear el tag y release `v0.0.2`, adjuntar `artifacts\publish\final\PAM-Automation-0.0.2\PAM Automation.exe` como asset y publicar el release. El ejecutable autocontenido excede el límite de un archivo normal del repositorio, por lo que no debe añadirse al commit.
+5. Solo después de publicar el asset, actualizar `latest.json` en `main` con la versión nueva, la fecha ISO y `repositoryUrl` igual a `https://github.com/OmarTellez1/Pam-automation-installer`. Este orden evita anunciar una versión que todavía no se puede descargar.
 
 La aplicación seguirá requiriendo deliberadamente Windows, Microsoft Edge instalado, conectividad al portal PAM y Outlook clásico instalado cuando se active el correo. Edge y Outlook no se incluirán dentro del ejecutable porque deben utilizar las instalaciones corporativas existentes.
 
@@ -163,4 +186,4 @@ La primera versión ejecutará Edge de forma visible tanto para la validación d
 
 ## Próximo paso
 
-Implementar la fase 18 para producir la publicación autocontenida `win-x64` y el instalador sin incluir evidencias de desarrollo ni crear persistencia operativa automática. Después de cada cambio, restaurar cuando corresponda, compilar la solución en `Release | x64` y ejecutar el proyecto de pruebas desde la terminal.
+Ejecutar la fase 19 en un equipo Windows administrado sin SDK de .NET, utilizando el ejecutable portable ya validado y el release publicado en GitHub.

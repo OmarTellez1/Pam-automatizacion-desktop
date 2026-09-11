@@ -53,7 +53,8 @@ Cuando se trabaje con subagentes de IA, el agente principal debe consultar `Suba
 - Microsoft Edge instalado externamente mediante el canal msedge, usando un contexto temporal de Playwright sin reutilizar perfiles existentes.
 - Outlook clásico mediante Microsoft Office Interop/COM.
 
-No utilizar JavaScript, TypeScript, Node.js, Python, Java, PowerShell, Electron, WebView2, Selenium ni Chromium incluido en la aplicación.
+No utilizar JavaScript, TypeScript, Node.js, Python, Java, PowerShell, Electron, WebView2, Selenium ni Chromium incluido en la aplicación. 
+> Hay una excepción con respecto al uso de PowerShell, el agente de IA puede utilizar powershell para automatizar comandos que generan una nueva versión del instalador de la aplicación. Este shell solo es para el uso del usuario, es decir el humano.
 
 HTML, CSS y JavaScript no forman parte de la interfaz propia. Playwright puede inspeccionar el DOM HTML del portal PAM externo porque ese portal es una aplicación web.
 

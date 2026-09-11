@@ -374,3 +374,22 @@ Cada cambio relevante debe registrar qué se decidió, por qué, qué se verific
 - `DiagnosticExportService` crea bajo acción explícita un ZIP con manifiesto, entorno, resumen reducido y log. Usa un temporal junto al destino, movimiento atómico y limpieza en `finally`; cancelar el selector no escribe nada.
 - La portada añadió `Exportar diagnóstico`. Los fallos recuperables recomiendan usarlo y la barrera WPF fatal ofrece exportar el contexto antes de cerrar ordenadamente, sin crear archivos si el usuario responde que no.
 - La compilación `Release | x64` finalizó con 0 errores y las 271 pruebas ordinarias fueron correctas. Las pruebas cubrieron seguridad del contenido, capacidad, cancelación, fallo, limpieza, restauración del comando y renderizado WPF sin contactar PAM u Outlook, crear solicitudes ni enviar correo.
+
+## 11 de septiembre de 2026 — Fase 18: publicación portable y actualización informativa
+
+- El usuario sustituyó el instalador MSI/MSIX por distribución manual de un ejecutable portable. Cada usuario elegirá su ubicación, descargará una nueva versión cuando corresponda y eliminará manualmente el ejecutable anterior.
+- `PamAutomation.App` quedó versionado como `0.0.1`; Windows muestra producto, descripción y versión, y la interfaz usa el título `PAM Automation V. 0.0.1`.
+- Se añadió `Portable-x64.pubxml`: `Release`, `win-x64`, self-contained, single-file, trimming/AOT desactivados y símbolos excluidos. La salida final contiene solo `PAM Automation.exe`, pesa 247.748.746 bytes y tiene SHA-256 `D6F001DA9D7F464BE21AE8B02BBF4EB3757A61662D738FADA3F248939BD3BE61`.
+- El ejecutable se abrió desde `artifacts/publish/final/PAM-Automation-0.0.1`, mostró la versión correcta, permaneció respondiendo y extrajo en `%TEMP%` el driver Windows de Playwright incluido en el bundle. No generó archivos junto al ejecutable.
+- Core incorporó el contrato de consulta; Infrastructure valida HTTPS, tamaño máximo, JSON, versión y repositorio; WPF consulta de forma asíncrona y muestra un banner descartable únicamente si la versión es superior. No hay descarga, reemplazo ni borrado automáticos.
+- El `latest.json` público se visualizó sin autenticación y contiene `0.0.1`, pero su descarga redirige a `drive.usercontent.google.com`. Fortinet bloquea expresamente ese host y .NET recibe `PartialChain`; también falla el botón Descargar del navegador. Se conservó TLS estricto y la fase queda pendiente únicamente de sustituir el origen por un endpoint HTTPS permitido.
+- La solución compiló en `Release | x64` y la suite ordinaria quedó ampliada a 280 pruebas. La integración real fallida fue de solo lectura; no se abrió PAM ni Outlook, no se crearon solicitudes y no se enviaron correos.
+
+## 11 de septiembre de 2026 — Fase 18: migración del manifiesto a GitHub
+
+- El usuario creó el repositorio público `OmarTellez1/Pam-automation-installer`. La aplicación dejó de depender de Google Drive y pasó a consultar `https://raw.githubusercontent.com/OmarTellez1/Pam-automation-installer/main/latest.json`.
+- `GoogleDriveApplicationUpdateService` se generalizó como `PublicManifestApplicationUpdateService`; conserva HTTPS obligatorio, timeout, cancelación, límite de 16 KiB, JSON estricto, versión numérica y coincidencia exacta del repositorio.
+- La descarga pública del JSON funciona desde la red corporativa y con TLS válido. La integración todavía rechaza el contenido porque `repositoryUrl` conserva la dirección de Drive; el rechazo confirma la defensa prevista y la única acción externa pendiente es cambiar ese campo por `https://github.com/OmarTellez1/Pam-automation-installer`.
+- Se documentó el flujo de release: incrementar metadatos, restaurar, compilar, probar, publicar con `Portable-x64`, adjuntar el ejecutable a un GitHub Release y actualizar `latest.json` al final.
+- El usuario corrigió el manifiesto público. La integración explícita de solo lectura pasó 1/1 en 825 ms y confirmó HTTPS, TLS, JSON, versión y repositorio sin contactar PAM ni Outlook.
+- Se regeneró la salida canónica `artifacts/publish/final/PAM-Automation-0.0.1/PAM Automation.exe`: es el único archivo de la carpeta, pesa 247.748.746 bytes y tiene SHA-256 `DBFD6226B3EC31CB6290C65C67B0B35D5ECE1F5BAFAF1D2168AC9484EE835D71`. Con esta evidencia la fase 18 quedó completada.

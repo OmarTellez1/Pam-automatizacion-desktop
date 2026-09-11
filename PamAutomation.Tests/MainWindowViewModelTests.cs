@@ -8,9 +8,11 @@ using PamAutomation.Core.Interfaces.Credentials;
 using PamAutomation.Core.Interfaces.Diagnostics;
 using PamAutomation.Core.Interfaces.Execution;
 using PamAutomation.Core.Interfaces.Outlook;
+using PamAutomation.Core.Interfaces.Updates;
 using PamAutomation.Core.Models.Configuration;
 using PamAutomation.Core.Models.Credentials;
 using PamAutomation.Core.Outlook;
+using PamAutomation.Core.Updates;
 using PamAutomation.Core.Requests;
 using PamAutomation.Core.Validation;
 
@@ -30,6 +32,44 @@ public sealed class MainWindowViewModelTests
         Assert.IsFalse(viewModel.IsTestActionVisible);
         Assert.IsFalse(viewModel.SendEmailAtEnd);
         Assert.AreEqual("Configuración pendiente", viewModel.ConfigurationSummaryText);
+        Assert.AreEqual("PAM Automation V. 0.0.1", viewModel.ApplicationDisplayName);
+    }
+
+    [TestMethod]
+    public async Task CheckForUpdateAsync_NewerVersion_ShowsDismissibleNotice()
+    {
+        var updateService = new FakeUpdateService(
+            new ApplicationUpdateResult(new Version(0, 0, 2, 0), true));
+        var viewModel = new MainWindowViewModel(
+            null, null, null, null,
+            new AppSettingsValidator(new RequestSettingsValidator()),
+            TimeProvider.System,
+            updateService: updateService,
+            applicationVersion: new Version(0, 0, 1, 0));
+
+        await viewModel.CheckForUpdateAsync();
+
+        Assert.IsTrue(viewModel.IsUpdateAvailable);
+        Assert.Contains("V. 0.0.2", viewModel.UpdateNotificationMessage);
+        viewModel.DismissUpdateCommand.Execute(null);
+        Assert.IsFalse(viewModel.IsUpdateAvailable);
+    }
+
+    [TestMethod]
+    public async Task CheckForUpdateAsync_RemoteFailure_DoesNotInterruptApplication()
+    {
+        var updateService = new FakeUpdateService(new HttpRequestException("network detail"));
+        var viewModel = new MainWindowViewModel(
+            null, null, null, null,
+            new AppSettingsValidator(new RequestSettingsValidator()),
+            TimeProvider.System,
+            updateService: updateService,
+            applicationVersion: new Version(0, 0, 1, 0));
+
+        await viewModel.CheckForUpdateAsync();
+
+        Assert.IsFalse(viewModel.IsUpdateAvailable);
+        Assert.AreEqual(string.Empty, viewModel.UpdateNotificationMessage);
     }
 
     [TestMethod]
@@ -369,6 +409,21 @@ public sealed class MainWindowViewModelTests
             LastContext = context;
             return Failure is null ? Task.CompletedTask : Task.FromException(Failure);
         }
+    }
+
+    private sealed class FakeUpdateService : IApplicationUpdateService
+    {
+        private readonly ApplicationUpdateResult? result;
+        private readonly Exception? failure;
+
+        public FakeUpdateService(ApplicationUpdateResult result) => this.result = result;
+        public FakeUpdateService(Exception failure) => this.failure = failure;
+
+        public Task<ApplicationUpdateResult> CheckAsync(
+            Version currentVersion,
+            CancellationToken cancellationToken = default) => failure is null
+                ? Task.FromResult(result!)
+                : Task.FromException<ApplicationUpdateResult>(failure);
     }
 
     private sealed class FakeExecutionService(DateTimeOffset now) : IPamAutomationExecutionService

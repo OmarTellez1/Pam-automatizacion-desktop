@@ -1,3 +1,4 @@
+using System.Net.Http;
 using System.Windows;
 using System.Windows.Threading;
 using Microsoft.Extensions.Logging;
@@ -18,17 +19,25 @@ using PamAutomation.Infrastructure.Configuration;
 using PamAutomation.Infrastructure.Credentials;
 using PamAutomation.Infrastructure.Diagnostics;
 using PamAutomation.Infrastructure.Time;
+using PamAutomation.Infrastructure.Updates;
 using PamAutomation.Outlook;
 
 namespace PamAutomation.App
 {
     public partial class App : Application
     {
+        private static readonly Uri UpdateManifestUri = new(
+            "https://raw.githubusercontent.com/OmarTellez1/Pam-automation-installer/main/latest.json");
+        private static readonly Uri UpdateRepositoryUri = new(
+            "https://github.com/OmarTellez1/Pam-automation-installer");
+
         private RuntimeDiagnosticLoggerFactory? runtimeLoggerFactory;
         private ILoggerFactory loggerFactory = NullLoggerFactory.Instance;
         private ILogger<App> logger = NullLogger<App>.Instance;
         private IDiagnosticExportService? diagnosticExportService;
         private WpfUserDialogService? userDialogs;
+        private readonly CancellationTokenSource applicationLifetime = new();
+        private HttpClient? updateHttpClient;
         private bool handlingFatalDispatcherException;
 
         protected override async void OnStartup(StartupEventArgs e)
@@ -59,6 +68,15 @@ namespace PamAutomation.App
                 loggerFactory.CreateLogger<OutlookClassicClient>());
             var outlookAccountStore = new DpapiOutlookAccountSettingsStore();
             var mailSettingsStore = new DpapiMailSettingsStore();
+            updateHttpClient = new HttpClient
+            {
+                Timeout = TimeSpan.FromSeconds(8)
+            };
+            var updateService = new PublicManifestApplicationUpdateService(
+                updateHttpClient,
+                UpdateManifestUri,
+                UpdateRepositoryUri,
+                loggerFactory.CreateLogger<PublicManifestApplicationUpdateService>());
             var credentialWorkflow = new CredentialConfigurationWorkflow(
                 credentialStore,
                 authentication,
@@ -98,20 +116,26 @@ namespace PamAutomation.App
                 new MailSettingsValidator(),
                 outlookAccountStore,
                 loggerFactory.CreateLogger<MainWindowViewModel>(),
-                diagnosticExportService);
+                diagnosticExportService,
+                updateService,
+                typeof(App).Assembly.GetName().Version);
             var window = new MainWindow { DataContext = viewModel };
             MainWindow = window;
             window.Show();
-            await viewModel.InitializeAsync();
+            await viewModel.InitializeAsync(applicationLifetime.Token);
+            await viewModel.CheckForUpdateAsync(applicationLifetime.Token);
             logger.LogInformation("Pam Automation application startup completed.");
         }
 
         protected override void OnExit(ExitEventArgs e)
         {
             logger.LogInformation("Pam Automation application shutdown.");
+            applicationLifetime.Cancel();
             DispatcherUnhandledException -= LogDispatcherUnhandledException;
             AppDomain.CurrentDomain.UnhandledException -= LogUnhandledException;
             TaskScheduler.UnobservedTaskException -= LogUnobservedTaskException;
+            updateHttpClient?.Dispose();
+            applicationLifetime.Dispose();
             loggerFactory.Dispose();
             base.OnExit(e);
         }

@@ -119,7 +119,15 @@ Durante desarrollo, pruebas e integración controlada, se podrán crear en la ra
     artifacts\
     temp\
 
-Estas carpetas estarán excluidas de Git y no se incluirán en el instalador. Contendrán únicamente resultados y diagnóstico técnico sin secretos. El perfil de publicación debe usar un almacenamiento en memoria y no debe escribir esas carpetas aunque el ejecutable se inicie desde otra ubicación.
+Estas carpetas estarán excluidas de Git y no se incluirán en la publicación portable. Contendrán únicamente resultados y diagnóstico técnico sin secretos. El perfil de publicación debe usar un almacenamiento en memoria y no debe escribir esas carpetas aunque el ejecutable se inicie desde otra ubicación.
+
+## Versión y aviso de actualización
+
+`PAM Automation.exe` incorpora la versión numérica `0.0.1` en los metadatos nativos de Windows y la presenta como `PAM Automation V. 0.0.1`. Al iniciar, la configuración local se carga primero y una consulta HTTP asíncrona intenta leer un manifiesto JSON público de tamaño máximo 16 KiB. El manifiesto debe contener una versión válida y la dirección exacta del repositorio esperado. Solo una versión numéricamente superior hace visible el banner; las fechas no participan en la decisión.
+
+El banner únicamente informa y puede descartarse. La aplicación no abre automáticamente el repositorio, no descarga, no reemplaza y no elimina ejecutables. El usuario descarga una nueva versión y elimina manualmente la anterior. Cualquier timeout, error HTTP, TLS, JSON inválido, tamaño excesivo o repositorio inesperado se registra de forma segura y no altera la operación PAM ni muestra detalles técnicos. Nunca se desactiva la validación TLS.
+
+El manifiesto se consulta en la URL `raw` pública de GitHub y debe declarar exactamente `https://github.com/OmarTellez1/Pam-automation-installer` como repositorio. Esa coincidencia evita que un manifiesto válido redirija al usuario hacia otro origen. La integración real de solo lectura confirmó que la red corporativa, TLS, el contenido publicado y la validación completa funcionan con ese origen.
 
 ## Autenticación
 

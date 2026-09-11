@@ -8,6 +8,16 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
+    <Version>0.0.1</Version>
+    <AssemblyVersion>0.0.1.0</AssemblyVersion>
+    <FileVersion>0.0.1.0</FileVersion>
+    <InformationalVersion>0.0.1</InformationalVersion>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <AssemblyName>PAM Automation</AssemblyName>
+    <AssemblyTitle>PAM Automation</AssemblyTitle>
+    <Product>PAM Automation</Product>
+    <Title>PAM Automation</Title>
+    <Description>Automatización interna de solicitudes de acceso PAM.</Description>
   </PropertyGroup>
 
   <ItemGroup>

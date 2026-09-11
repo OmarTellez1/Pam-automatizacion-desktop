@@ -48,6 +48,7 @@ Las fases construidas hasta ahora son:
 - Fase 16.7: activación tardía de Outlook COM sin dependencia de la PIA administrada.
 - Fase 16.8: mensajes operativos, animación bajo demanda y recuperación segura de fallos UI.
 - Fase 17: buffer diagnóstico seguro en memoria y exportación ZIP manual y atómica.
+- Fase 18: versión nativa, aviso de actualización y publicación portable autocontenida x64.
 
 Los directorios `.git`, `.vs`, `bin` y `obj` contienen metadatos o salidas generadas y se omiten en el árbol.
 
@@ -278,6 +279,7 @@ PamAutomation\
 ├── PamAutomation.Outlook\
 │   ├── PamAutomation.Outlook.csproj
 │   ├── AssemblyInfo.cs
+│   ├── Properties\PublishProfiles\Portable-x64.pubxml
 │   ├── OutlookClassicClient.cs
 │   └── Interop\
 │       ├── OutlookComAbstractions.cs
@@ -752,6 +754,16 @@ La aplicación instalada solo podrá mantener esta configuración privada por us
 - Resultados, Request ID, conflictos y estado: únicamente en memoria.
 
 Durante desarrollo podrán existir `results`, `logs`, `artifacts` y `temp` en la raíz del repositorio, excluidos de Git y sin secretos. No forman parte de la arquitectura persistente del producto publicado.
+
+### Actualizaciones y publicación portable
+
+- `PamAutomation.Core/Interfaces/Updates/IApplicationUpdateService.cs`: contrato asíncrono y cancelable para consultar una versión publicada.
+- `PamAutomation.Core/Updates/ApplicationUpdateResult.cs`: resultado reducido a versión validada y disponibilidad.
+- `PamAutomation.Infrastructure/Updates/PublicManifestApplicationUpdateService.cs`: lectura HTTPS independiente del proveedor, limitada a 16 KiB, con JSON estricto, versión numérica y repositorio esperado.
+- `PamAutomation.App/Properties/PublishProfiles/Portable-x64.pubxml`: perfil `Release`, `win-x64`, autocontenido, archivo único, sin trimming, AOT, PDB ni archivos auxiliares; permite que Playwright extraiga su driver interno en `%TEMP%`.
+- `artifacts/publish/final/PAM-Automation-0.0.1/PAM Automation.exe`: salida generada e ignorada por Git; contiene .NET y el driver Windows de Playwright, pero no incluye Edge.
+
+El servicio de actualización depende solo de su interfaz de Core. El ViewModel muestra un banner descartable y desconoce HTTP o GitHub. La aplicación consulta la URL `raw` del manifiesto y exige que este apunte al repositorio GitHub configurado, sin relajar TLS.
 
 ## Límites que deben conservarse
 

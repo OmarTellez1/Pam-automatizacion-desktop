@@ -6,6 +6,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PamAutomation.App;
 using PamAutomation.App.Services;
 using PamAutomation.App.Views;
+using PamAutomation.App.ViewModels;
 using PamAutomation.Core.Models.Configuration;
 using PamAutomation.Core.Models.Credentials;
 
@@ -19,7 +20,12 @@ public sealed class ConfigurationWindowSmokeTests
     public void MainWindow_WithDiagnosticAction_RendersSuccessfully()
     {
         EnsureApplicationResources();
-        var window = new MainWindow();
+        var viewModel = new MainWindowViewModel
+        {
+            IsUpdateAvailable = true,
+            UpdateNotificationMessage = "Hay una actualización disponible."
+        };
+        var window = new MainWindow { DataContext = viewModel };
 
         try
         {
@@ -27,6 +33,9 @@ public sealed class ConfigurationWindowSmokeTests
             Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
 
             Assert.IsNotNull(window.FindName("ExportDiagnosticsButton"));
+            var updateBanner = Assert.IsInstanceOfType<Border>(window.FindName("UpdateNotificationBanner"));
+            Assert.AreEqual(Visibility.Visible, updateBanner.Visibility);
+            Assert.AreEqual("PAM Automation V. 0.0.1", window.Title);
         }
         finally
         {
@@ -170,17 +179,19 @@ public sealed class ConfigurationWindowSmokeTests
     {
         Application application = Application.Current ?? new Application();
         if (application.Resources.MergedDictionaries.Count > 0) return;
+        string applicationAssemblyName = Uri.EscapeDataString(
+            typeof(MainWindow).Assembly.GetName().Name ?? throw new InvalidOperationException());
 
         application.Resources.MergedDictionaries.Add(new ResourceDictionary
         {
             Source = new Uri(
-                "pack://application:,,,/PamAutomation.App;component/Resources/Colors.xaml",
+                $"pack://application:,,,/{applicationAssemblyName};component/Resources/Colors.xaml",
                 UriKind.Absolute)
         });
         application.Resources.MergedDictionaries.Add(new ResourceDictionary
         {
             Source = new Uri(
-                "pack://application:,,,/PamAutomation.App;component/Resources/Styles.xaml",
+                $"pack://application:,,,/{applicationAssemblyName};component/Resources/Styles.xaml",
                 UriKind.Absolute)
         });
     }
