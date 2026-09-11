@@ -2,6 +2,8 @@ using PamAutomation.Core.Interfaces.Outlook;
 using PamAutomation.Core.Outlook;
 using PamAutomation.Outlook.Interop;
 using System.Runtime.ExceptionServices;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace PamAutomation.Outlook;
 
@@ -10,41 +12,53 @@ public sealed class OutlookClassicClient : IOutlookClassicClient
 {
     private readonly IOutlookComApplicationFactory applicationFactory;
     private readonly IStaExecutor staExecutor;
+    private readonly ILogger<OutlookClassicClient> logger;
 
     /// <summary>Initializes the production client for the locally installed Outlook classic application.</summary>
-    public OutlookClassicClient()
-        : this(new OutlookComApplicationFactory(), new StaExecutor())
+    public OutlookClassicClient(ILogger<OutlookClassicClient>? logger = null)
+        : this(new OutlookComApplicationFactory(), new StaExecutor(), logger)
     {
     }
 
-    internal OutlookClassicClient(IOutlookComApplicationFactory applicationFactory, IStaExecutor staExecutor)
+    internal OutlookClassicClient(
+        IOutlookComApplicationFactory applicationFactory,
+        IStaExecutor staExecutor,
+        ILogger<OutlookClassicClient>? logger = null)
     {
         this.applicationFactory = applicationFactory ?? throw new ArgumentNullException(nameof(applicationFactory));
         this.staExecutor = staExecutor ?? throw new ArgumentNullException(nameof(staExecutor));
+        this.logger = logger ?? NullLogger<OutlookClassicClient>.Instance;
     }
 
     /// <inheritdoc />
     public async Task<OutlookAccount> ResolveAccountAsync(string smtpAddress, CancellationToken cancellationToken = default)
     {
         OutlookMessageValidator.ValidateSmtpAddress(smtpAddress);
+        logger.LogInformation("Outlook classic account resolution started.");
         try
         {
-            return await staExecutor.ExecuteAsync(() => ResolveAccount(smtpAddress), cancellationToken).ConfigureAwait(false);
+            OutlookAccount account = await staExecutor.ExecuteAsync(
+                () => ResolveAccount(smtpAddress), cancellationToken).ConfigureAwait(false);
+            logger.LogInformation("Outlook classic account resolution completed successfully.");
+            return account;
         }
         catch (OperationCanceledException)
         {
             throw;
         }
-        catch (OutlookAccountResolutionException)
+        catch (OutlookAccountResolutionException exception)
         {
+            logger.LogError(exception, "Outlook classic account resolution failed.");
             throw;
         }
-        catch (OutlookOperationException)
+        catch (OutlookOperationException exception)
         {
+            logger.LogError(exception, "Outlook classic account resolution failed.");
             throw;
         }
         catch (Exception exception)
         {
+            logger.LogError(exception, "Outlook classic account resolution failed.");
             throw new OutlookOperationException(OutlookOperationErrorCode.AccountResolutionFailed, exception);
         }
     }
@@ -53,17 +67,23 @@ public sealed class OutlookClassicClient : IOutlookClassicClient
     public async Task ValidateAccountAsync(string smtpAddress, CancellationToken cancellationToken = default)
     {
         OutlookMessageValidator.ValidateSmtpAddress(smtpAddress);
+        string stage = "StaThreadStart";
+        logger.LogInformation("Outlook classic account validation started.");
         try
         {
             await staExecutor.ExecuteAsync(() =>
             {
+                stage = "ComApplicationCreate";
                 using IOutlookComApplication application = applicationFactory.Create();
+                stage = "ExactAccountResolution";
                 WithExactAccount(application, smtpAddress, account =>
                 {
+                    stage = "TemporaryMailItemCreate";
                     IOutlookComMailItem message = application.CreateMailItem();
                     Exception? primaryFailure = null;
                     try
                     {
+                        stage = "SendUsingAccountAssignment";
                         message.SetSendUsingAccount(account);
                     }
                     catch (Exception exception)
@@ -73,6 +93,10 @@ public sealed class OutlookClassicClient : IOutlookClassicClient
                     }
                     finally
                     {
+                        if (primaryFailure is null)
+                        {
+                            stage = "TemporaryMailItemDiscard";
+                        }
                         DiscardAndDisposeTemporaryMessage(message, primaryFailure);
                     }
 
@@ -80,21 +104,25 @@ public sealed class OutlookClassicClient : IOutlookClassicClient
                 });
                 return 0;
             }, cancellationToken).ConfigureAwait(false);
+            logger.LogInformation("Outlook classic account validation completed successfully.");
         }
         catch (OperationCanceledException)
         {
             throw;
         }
-        catch (OutlookAccountResolutionException)
+        catch (OutlookAccountResolutionException exception)
         {
+            logger.LogError(exception, "Outlook classic account validation failed at {Stage}.", stage);
             throw;
         }
-        catch (OutlookOperationException)
+        catch (OutlookOperationException exception)
         {
+            logger.LogError(exception, "Outlook classic account validation failed at {Stage}.", stage);
             throw;
         }
         catch (Exception exception)
         {
+            logger.LogError(exception, "Outlook classic account validation failed at {Stage}.", stage);
             throw new OutlookOperationException(OutlookOperationErrorCode.AccountValidationFailed, exception);
         }
     }
@@ -109,18 +137,22 @@ public sealed class OutlookClassicClient : IOutlookClassicClient
         if (string.IsNullOrWhiteSpace(subject))
             throw new OutlookValidationException(OutlookValidationErrorCode.MissingSubject);
         string fingerprint = CreateFingerprint(requestIds);
+        logger.LogInformation("Outlook duplicate-message lookup started. RequestIdCount={RequestIdCount}.", requestIds.Count);
         try
         {
-            return await staExecutor.ExecuteAsync(() =>
+            OutlookExistingMessageStatus status = await staExecutor.ExecuteAsync(() =>
             {
                 using IOutlookComApplication application = applicationFactory.Create();
                 return application.FindExistingMessage(smtpAddress, subject, fingerprint);
             }, cancellationToken).ConfigureAwait(false);
+            logger.LogInformation("Outlook duplicate-message lookup completed. Status={Status}.", status);
+            return status;
         }
         catch (OperationCanceledException) { throw; }
         catch (OutlookValidationException) { throw; }
         catch (Exception exception)
         {
+            logger.LogError(exception, "Outlook duplicate-message lookup failed.");
             throw new OutlookOperationException(OutlookOperationErrorCode.DuplicateCheckFailed, exception);
         }
     }
@@ -129,21 +161,29 @@ public sealed class OutlookClassicClient : IOutlookClassicClient
     public async Task<OutlookDeliveryResult> SendAsync(OutlookSendRequest request, CancellationToken cancellationToken = default)
     {
         OutlookMessageValidator.ValidateForSend(request);
+        logger.LogInformation(
+            "Outlook message submission started. ToCount={ToCount}, CcCount={CcCount}, InlineImageCount={InlineImageCount}, RequestIdCount={RequestIdCount}.",
+            request.ToRecipients.Count, request.CcRecipients.Count, request.InlineImages.Count, request.ExpectedRequestIds.Count);
 
         try
         {
-            return await staExecutor.ExecuteAsync(() => SendMessage(request), cancellationToken).ConfigureAwait(false);
+            OutlookDeliveryResult result = await staExecutor.ExecuteAsync(
+                () => SendMessage(request), cancellationToken).ConfigureAwait(false);
+            logger.LogInformation("Outlook message submission completed. Status={Status}.", result.Status);
+            return result;
         }
         catch (OperationCanceledException)
         {
             throw;
         }
-        catch (OutlookAccountResolutionException)
+        catch (OutlookAccountResolutionException exception)
         {
+            logger.LogError(exception, "Outlook message submission failed during account resolution.");
             throw;
         }
-        catch
+        catch (Exception exception)
         {
+            logger.LogError(exception, "Outlook message submission was not confirmed.");
             return OutlookDeliveryResult.NotConfirmed();
         }
     }
@@ -215,9 +255,10 @@ public sealed class OutlookClassicClient : IOutlookClassicClient
         }
     }
 
-    private static T WithExactAccount<T>(IOutlookComApplication application, string smtpAddress, Func<IOutlookComAccount, T> operation)
+    private T WithExactAccount<T>(IOutlookComApplication application, string smtpAddress, Func<IOutlookComAccount, T> operation)
     {
         IReadOnlyList<IOutlookComAccount> accounts = application.GetAccounts();
+        logger.LogInformation("Outlook account enumeration completed. AccountCount={AccountCount}.", accounts.Count);
         IOutlookComAccount? selected = null;
         try
         {

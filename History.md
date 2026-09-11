@@ -341,3 +341,10 @@ Cada cambio relevante debe registrar qué se decidió, por qué, qué se verific
 - El editor de correo conserva formato, listas, tablas e imágenes, muestra la cuenta remitente como solo lectura, explica Outlook clásico y la separación de destinatarios, e incorpora `Insertar {{REQUEST_IDS}}` con conteo y validación visibles.
 - La validación final se realizó con el SDK 10.0.401 y runtime x64 10.0.12. El muxer x64 canónico `C:\Program Files\dotnet\dotnet.exe` no estaba presente, por lo que se ejecutó `MSBuild.dll` con el host x64 instalado por Visual Studio y el ejecutable x64 del runner MSTest, sin modificar el sistema.
 - La solución compiló sin errores y la suite ordinaria ejecutó 253 pruebas correctas, incluida una prueba STA que carga conjuntamente las tres ventanas de configuración. No se abrió PAM ni Outlook, no se enviaron correos y no se crearon solicitudes.
+
+## 11 de septiembre de 2026 — Fase 16.6: logging seguro de desarrollo
+
+- El usuario solicitó logging local en la raíz del repositorio, con retención de dos días y cobertura suficiente para depurar operaciones importantes, sin subagentes.
+- Se implementó un proveedor basado en `Microsoft.Extensions.Logging` que solo se activa con depurador conectado o `PAM_AUTOMATION_DEVELOPMENT_LOGGING=1` y exige encontrar `.git` y `PamAutomation.slnx` antes de crear `logs`.
+- Los eventos cubren ciclo de vida WPF, inicialización, configuración, ejecución y etapas COM de Outlook. Las excepciones conservan tipo, `HRESULT` y stack trace, pero no su mensaje; tampoco se registran direcciones, credenciales, TOTP, cookies, tokens, Request ID ni contenido del correo.
+- Los archivos diarios `pam-automation-AAAA-MM-DD.log` se eliminan automáticamente cuando superan dos días. La publicación normal conserva un logger nulo y no genera archivos operativos.

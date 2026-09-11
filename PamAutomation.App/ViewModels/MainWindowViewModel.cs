@@ -1,5 +1,7 @@
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using PamAutomation.App.Services;
 using PamAutomation.Core.Authentication;
 using PamAutomation.Core.Execution;
@@ -28,6 +30,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     private readonly MailSettingsValidator mailSettingsValidator;
     private readonly AppSettingsValidator settingsValidator;
     private readonly TimeProvider timeProvider;
+    private readonly ILogger<MainWindowViewModel> logger;
     private AppSettings settings = new();
     private MailSettings? mailSettings;
     private string outlookSmtpAddress = string.Empty;
@@ -61,7 +64,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
         IConfigurationDialogService? configurationDialogs = null,
         IMailSettingsStore? mailSettingsStore = null,
         MailSettingsValidator? mailSettingsValidator = null,
-        IOutlookAccountSettingsStore? outlookAccountSettingsStore = null)
+        IOutlookAccountSettingsStore? outlookAccountSettingsStore = null,
+        ILogger<MainWindowViewModel>? logger = null)
     {
         this.executionService = executionService;
         this.settingsStore = settingsStore;
@@ -73,6 +77,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         this.mailSettingsValidator = mailSettingsValidator ?? new MailSettingsValidator();
         this.settingsValidator = settingsValidator ?? throw new ArgumentNullException(nameof(settingsValidator));
         this.timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
+        this.logger = logger ?? NullLogger<MainWindowViewModel>.Instance;
 
         ConfigureCredentialsCommand = new AsyncRelayCommand(ConfigureCredentialsAsync, () => AreControlsEnabled);
         ConfigureRequestCommand = new AsyncRelayCommand(ConfigureRequestAsync, () => AreControlsEnabled);
@@ -105,6 +110,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
             return;
         }
 
+        logger.LogInformation("Main window configuration initialization started.");
         try
         {
             settings = await settingsStore.LoadAsync(cancellationToken);
@@ -132,6 +138,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
             StatusMessage = IsConfigurationComplete
                 ? "La configuración está lista para ejecutar."
                 : "Completa o actualiza la configuración para habilitar la automatización.";
+            logger.LogInformation("Main window configuration initialization completed. Complete={IsComplete}.", IsConfigurationComplete);
         }
         catch (Exception exception)
         {
@@ -158,6 +165,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         if (!TryGetExecutionDependencies(out PamCredentials? credentials)) return;
 
         IsRunning = true;
+        logger.LogInformation("Real PAM execution started.");
         HasResult = false;
         StatusMessage = "Leyendo Favorites para preparar la confirmación…";
         try
@@ -166,6 +174,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
                 credentials!, settings, GetEcuadorNow());
             if (!dialogs!.ConfirmRealExecution(preparation, mailSettings))
             {
+                logger.LogInformation("Real PAM execution was cancelled before submission.");
                 StatusMessage = "Ejecución cancelada. No se creó ninguna solicitud.";
                 return;
             }
@@ -264,6 +273,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         if (!TryGetExecutionDependencies(out PamCredentials? credentials)) return;
 
         IsRunning = true;
+        logger.LogInformation("Non-destructive PAM test execution started.");
         HasResult = false;
         StatusMessage = "Validando y descartando formularios; Submit Request permanece bloqueado…";
         try
@@ -357,6 +367,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     private void PresentResult(PamExecutionResult result)
     {
+        logger.LogInformation(
+            "PAM execution completed. Mode={Mode}, Favorites={FavoriteCount}, Processed={ProcessedCount}, Conflicts={ConflictCount}, RequestIdCount={RequestIdCount}.",
+            result.Mode, result.FavoriteCount, result.ProcessedCount, result.ConflictCount, result.RequestIds.Count);
         HasResult = true;
         HasRequestIds = result.RequestIds.Count > 0;
         ResultTitle = result.Mode == PamExecutionMode.Test ? "Prueba completada" : "Automatización completada";
@@ -371,6 +384,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     private void PresentError(Exception exception)
     {
+        logger.LogError(exception, "Application operation failed.");
         string message = exception switch
         {
             PamAuthenticationException or PamFavoritesException or PamRequestSubmissionException or

@@ -116,6 +116,14 @@ La cuenta SMTP se desacopló de la plantilla mediante `OutlookAccountSettings` y
 
 La validación compiló en `Release | x64` y ejecutó 253 pruebas correctas, incluidas la carga STA conjunta de las tres ventanas, coordinación no destructiva de credenciales, orden verificar-guardar de Outlook, destinatario único de prueba, validación SMTP, persistencia DPAPI y migración. Las pruebas automatizadas no abrieron PAM ni Outlook, no enviaron correos y no crearon solicitudes reales.
 
+## Fase 16.6 — Logging seguro de desarrollo
+
+Se incorporó logging estructurado en los límites de la aplicación, configuración, ejecución y Outlook clásico. El diagnóstico distingue apertura COM, resolución exacta de `Account`, creación y descarte del `MailItem`, asignación de `SendUsingAccount`, persistencia protegida, búsqueda de duplicados y envío, además de capturar excepciones no controladas de WPF, tareas y dominio de aplicación.
+
+El proveedor solo se activa con un depurador conectado o `PAM_AUTOMATION_DEVELOPMENT_LOGGING=1` y después de confirmar que el proceso se ejecuta dentro del repositorio. Escribe `logs/pam-automation-AAAA-MM-DD.log`, elimina únicamente esos archivos cuando superan dos días y omite direcciones, secretos, TOTP, cookies, tokens, Request ID, contenido del correo y mensajes de excepción. La aplicación publicada conserva un logger nulo y no genera persistencia operativa.
+
+La validación relacionada compiló en `Release | x64` y ejecutó pruebas del proveedor, retención, flujo de credenciales, Outlook y coordinación WPF. No abrió PAM, no creó solicitudes y no envió correos.
+
 ## Fases pendientes
 
 La clasificación siguiente se refiere únicamente a dependencias entre fases pendientes:
@@ -126,7 +134,7 @@ La clasificación siguiente se refiere únicamente a dependencias entre fases pe
 
 | Fase | Clasificación | Dependencias pendientes | Alcance y posibilidad de paralelismo |
 |---|---|---|---|
-| 17 — Evidencias técnicas de desarrollo | **Dependiente** | Fases 16 y 16.5, con flujos operativos integrados. | Es transversal y debe conocer qué fallos pueden diagnosticarse sin persistir secretos. No conviene paralelizarla con cambios activos en esos flujos. |
+| 17 — Evidencias técnicas de desarrollo | **Dependiente** | Fases 16 a 16.6, con flujos operativos y logging integrados. | Completará la exportación explícita y revisable de evidencias a partir del diagnóstico seguro; no conviene paralelizarla con cambios activos en esos flujos. |
 | 18 — Instalador y publicación autocontenida | **Dependiente** | Fases 6 a 17. | Requiere que la aplicación y sus dependencias externas estén definidas y validadas. |
 | 19 — Pruebas finales administradas | **Dependiente** | Fase 18. | Es la validación final del producto publicado en el entorno Windows objetivo. |
 | 20 — Colecciones personalizadas post-migración | **Dependiente** | Migración inicial y fase 19 completadas. | Permitirá seleccionar subconjuntos editables de `Favorites` rows, guardar configuración general y posibles sobrescrituras por fila. Es alcance nuevo y no debe mezclarse con las fases 12 a 19. |
@@ -134,12 +142,12 @@ La clasificación siguiente se refiere únicamente a dependencias entre fases pe
 ## Mapa recomendado de trabajo paralelo
 
 ```text
-Fases 6 a 16.5 completadas ──► Fase 17 ──► Fase 18 ──► Fase 19
+Fases 6 a 16.6 completadas ──► Fase 17 ──► Fase 18 ──► Fase 19
 
 Fase 19 ──► Fase 20 (ampliación posterior a la migración)
 ```
 
-La fase 17 constituye el siguiente paso y depende de los flujos integrados y de configuración cerrados en las fases 16 y 16.5. El coordinador solo podrá paralelizar una parte futura si vuelve a demostrar independencia, contratos congelados y ausencia de archivos compartidos.
+La fase 17 constituye el siguiente paso y depende de los flujos integrados, la configuración y el logging seguro cerrados en las fases 16 a 16.6. El coordinador solo podrá paralelizar una parte futura si vuelve a demostrar independencia, contratos congelados y ausencia de archivos compartidos.
 
 La fase 20 registra una ampliación solicitada para después de terminar la migración: colecciones locales nombradas y editables que seleccionan cualquier subconjunto de Favorites. Su diseño preliminar, navegación, reconciliación y seguridad se detallan en `PAM_NAVIGATION.md`; no modifica el alcance ni la autorización de la fase 12.
 

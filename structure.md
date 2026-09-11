@@ -257,6 +257,8 @@ PamAutomation\
 │   │   ├── IWindowsCredentialApi.cs
 │   │   ├── WindowsCredentialApi.cs
 │   │   └── WindowsPamCredentialStore.cs
+│   ├── Diagnostics\
+│   │   └── DevelopmentFileLoggerFactory.cs
 │   └── Time\
 │       └── PamHttpDateClockFactory.cs
 │
@@ -277,6 +279,9 @@ PamAutomation\
     │   ├── ConfigurationWindowSmokeTests.cs
     │   ├── CredentialConfigurationWorkflowTests.cs
     │   └── FlowDocumentHtmlConverterTests.cs
+    ├── Infrastructure\
+    │   └── Diagnostics\
+    │       └── DevelopmentFileLoggerFactoryTests.cs
     ├── Core\
     │   ├── Authentication\
     │   │   └── PamAuthenticationServiceTests.cs
@@ -474,6 +479,7 @@ Responsabilidad objetivo:
 - Implementaciones del reloj del sistema y zona horaria de Ecuador.
 - Detección de dependencias instaladas cuando corresponda.
 - Diagnóstico explícito de desarrollo, sin persistencia operativa en producción.
+- `Diagnostics/DevelopmentFileLoggerFactory`: proveedor estructurado activado solo bajo depurador o variable explícita, escribe archivos diarios seguros en `logs` y elimina los que superan dos días.
 
 No debe conocer controles WPF, selectores PAM ni objetos COM de Outlook.
 
