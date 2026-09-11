@@ -88,11 +88,24 @@ public sealed class CredentialConfigurationWorkflowTests
         ConfigurationOperationResult result = await workflow.SendOutlookTestAsync("sender@example.test");
 
         Assert.IsTrue(result.IsSuccess);
+        Assert.AreEqual("El correo de prueba se envió con éxito.", result.Message);
         Assert.IsNotNull(outlook.SentRequest);
         Assert.AreEqual("sender@example.test", outlook.SentRequest.SmtpAddress);
         CollectionAssert.AreEqual(new[] { "sender@example.test" }, outlook.SentRequest.ToRecipients.ToArray());
         Assert.IsEmpty(outlook.SentRequest.CcRecipients);
         Assert.IsEmpty(outlook.SentRequest.ExpectedRequestIds);
+    }
+
+    [TestMethod]
+    public async Task SendOutlookTestAsync_NotConfirmed_ReturnsFailureInsteadOfSuccess()
+    {
+        var outlook = new FakeOutlookClient { DeliveryResult = OutlookDeliveryResult.NotConfirmed() };
+        var workflow = CreateWorkflow(outlook: outlook);
+
+        ConfigurationOperationResult result = await workflow.SendOutlookTestAsync("sender@example.test");
+
+        Assert.IsFalse(result.IsSuccess);
+        Assert.Contains("no pudo completar", result.Message);
     }
 
     private static CredentialConfigurationWorkflow CreateWorkflow(
@@ -162,6 +175,7 @@ public sealed class CredentialConfigurationWorkflowTests
     {
         public string? ValidatedAddress { get; private set; }
         public OutlookSendRequest? SentRequest { get; private set; }
+        public OutlookDeliveryResult DeliveryResult { get; init; } = OutlookDeliveryResult.SubmittedUnconfirmed();
 
         public Task<OutlookAccount> ResolveAccountAsync(string smtpAddress, CancellationToken cancellationToken = default) =>
             Task.FromResult(new OutlookAccount(smtpAddress));
@@ -184,7 +198,7 @@ public sealed class CredentialConfigurationWorkflowTests
             CancellationToken cancellationToken = default)
         {
             SentRequest = request;
-            return Task.FromResult(OutlookDeliveryResult.SubmittedUnconfirmed());
+            return Task.FromResult(DeliveryResult);
         }
     }
 }

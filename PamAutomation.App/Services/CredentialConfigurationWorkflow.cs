@@ -144,7 +144,10 @@ public sealed class CredentialConfigurationWorkflow : ICredentialConfigurationWo
                 []),
                 cancellationToken).ConfigureAwait(false);
             logger.LogInformation("Outlook test email operation completed with status {Status}.", result.Status);
-            return ConfigurationOperationResult.Success(result.Message);
+            return result.Status is OutlookDeliveryStatus.SubmittedUnconfirmed or OutlookDeliveryStatus.SentConfirmed
+                ? ConfigurationOperationResult.Success("El correo de prueba se envió con éxito.")
+                : ConfigurationOperationResult.Failure(
+                    "Outlook no pudo completar el envío del correo de prueba. Revisa la conexión y vuelve a intentarlo.");
         }
         catch (OperationCanceledException)
         {

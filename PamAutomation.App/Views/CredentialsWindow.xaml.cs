@@ -1,6 +1,9 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using PamAutomation.App.Services;
 using PamAutomation.Core.Models.Credentials;
 
@@ -10,16 +13,19 @@ public partial class CredentialsWindow : Window
 {
     private readonly ICredentialConfigurationWorkflow workflow;
     private readonly CancellationTokenSource operationCancellation;
+    private readonly ILogger<CredentialsWindow> logger;
     private bool synchronizingSecret;
 
     public CredentialsWindow(
         CredentialConfigurationState current,
         ICredentialConfigurationWorkflow workflow,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        ILogger<CredentialsWindow>? logger = null)
     {
         InitializeComponent();
         CurrentState = current ?? throw new ArgumentNullException(nameof(current));
         this.workflow = workflow ?? throw new ArgumentNullException(nameof(workflow));
+        this.logger = logger ?? NullLogger<CredentialsWindow>.Instance;
         operationCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         OutlookSmtpBox.Text = current.OutlookSmtpAddress;
         RefreshConfiguredState();
@@ -35,7 +41,7 @@ public partial class CredentialsWindow : Window
             (string.IsNullOrWhiteSpace(UsernameBox.Text) || string.IsNullOrWhiteSpace(password) ||
              string.IsNullOrWhiteSpace(totpSeed)))
         {
-            ShowOperation(PamOperationBorder, PamOperationText, false,
+            ShowOperation(PamOperationBorder, PamOperationText, PamOperationSpinner, false,
                 "Completa usuario, contraseña y clave alfanumérica para la primera configuración.");
             return;
         }
@@ -43,7 +49,8 @@ public partial class CredentialsWindow : Window
         await RunOperationAsync(
             PamOperationBorder,
             PamOperationText,
-            "Guardando y comprobando acceso al PAM…",
+            PamOperationSpinner,
+            "Solicitud recibida. Guardando credenciales y comprobando acceso al PAM…",
             async () =>
             {
                 ConfigurationOperationResult result = await workflow.SaveAndTestPamAsync(
@@ -53,12 +60,17 @@ public partial class CredentialsWindow : Window
                         Password = password,
                         TotpSeed = totpSeed
                     },
-                    operationCancellation.Token);
+                    operationCancellation.Token).ConfigureAwait(false);
                 if (result.IsSuccess)
                 {
-                    CurrentState = CurrentState with { HasPamCredentials = true };
-                    ClearPamInputs();
-                    RefreshConfiguredState();
+                    await UpdateInterfaceSafelyAsync(
+                        () =>
+                        {
+                            CurrentState = CurrentState with { HasPamCredentials = true };
+                            ClearPamInputs();
+                            RefreshConfiguredState();
+                        },
+                        "PamStateRefresh").ConfigureAwait(false);
                 }
                 return result;
             });
@@ -69,20 +81,26 @@ public partial class CredentialsWindow : Window
         await RunOperationAsync(
             OutlookOperationBorder,
             OutlookOperationText,
-            "Verificando la cuenta en Outlook clásico…",
+            OutlookOperationSpinner,
+            "Solicitud recibida. Comprobando la cuenta en Outlook clásico…",
             async () =>
             {
                 ConfigurationOperationResult result = await workflow.SaveAndVerifyOutlookAsync(
                     OutlookSmtpBox.Text,
-                    operationCancellation.Token);
+                    operationCancellation.Token).ConfigureAwait(false);
                 if (result.IsSuccess)
                 {
-                    CurrentState = CurrentState with
-                    {
-                        HasOutlookAccount = true,
-                        OutlookSmtpAddress = OutlookSmtpBox.Text.Trim()
-                    };
-                    RefreshConfiguredState();
+                    await UpdateInterfaceSafelyAsync(
+                        () =>
+                        {
+                            CurrentState = CurrentState with
+                            {
+                                HasOutlookAccount = true,
+                                OutlookSmtpAddress = OutlookSmtpBox.Text.Trim()
+                            };
+                            RefreshConfiguredState();
+                        },
+                        "OutlookStateRefresh").ConfigureAwait(false);
                 }
                 return result;
             });
@@ -94,7 +112,7 @@ public partial class CredentialsWindow : Window
         if (!CurrentState.HasOutlookAccount ||
             !string.Equals(CurrentState.OutlookSmtpAddress, smtpAddress, StringComparison.OrdinalIgnoreCase))
         {
-            ShowOperation(OutlookOperationBorder, OutlookOperationText, false,
+            ShowOperation(OutlookOperationBorder, OutlookOperationText, OutlookOperationSpinner, false,
                 "Guarda y verifica primero esta cuenta de Outlook.");
             return;
         }
@@ -109,30 +127,105 @@ public partial class CredentialsWindow : Window
         await RunOperationAsync(
             OutlookOperationBorder,
             OutlookOperationText,
-            "Enviando correo de prueba…",
+            OutlookOperationSpinner,
+            "Solicitud recibida. Outlook está preparando el correo de prueba…",
             () => workflow.SendOutlookTestAsync(smtpAddress, operationCancellation.Token));
     }
 
     private async Task RunOperationAsync(
         Border resultBorder,
         TextBlock resultText,
+        FrameworkElement progressIndicator,
         string progressMessage,
         Func<Task<ConfigurationOperationResult>> operation)
     {
-        SetControlsEnabled(false);
-        ShowProgress(resultBorder, resultText, progressMessage);
+        if (!TryStartOperation(resultBorder, resultText, progressIndicator, progressMessage))
+        {
+            return;
+        }
+
         try
         {
-            ConfigurationOperationResult result = await operation();
-            ShowOperation(resultBorder, resultText, result.IsSuccess, result.Message);
+            ConfigurationOperationResult result = await operation().ConfigureAwait(false);
+            await UpdateInterfaceSafelyAsync(
+                () => ShowOperation(resultBorder, resultText, progressIndicator, result.IsSuccess, result.Message),
+                "ResultPresentation").ConfigureAwait(false);
         }
         catch (OperationCanceledException)
         {
-            ShowOperation(resultBorder, resultText, false, "La operación fue cancelada.");
+            await UpdateInterfaceSafelyAsync(
+                () => ShowOperation(
+                    resultBorder,
+                    resultText,
+                    progressIndicator,
+                    false,
+                    "La operación fue cancelada."),
+                "CancellationPresentation").ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(exception, "Credential configuration UI operation failed unexpectedly.");
+            await UpdateInterfaceSafelyAsync(
+                () => ShowOperation(
+                    resultBorder,
+                    resultText,
+                    progressIndicator,
+                    false,
+                    "Ocurrió un problema inesperado. La operación se detuvo de forma segura; revisa el registro e inténtalo nuevamente."),
+                "UnexpectedFailurePresentation").ConfigureAwait(false);
         }
         finally
         {
-            SetControlsEnabled(true);
+            await UpdateInterfaceSafelyAsync(
+                () => SetControlsEnabled(true),
+                "ControlRestoration").ConfigureAwait(false);
+        }
+    }
+
+    private bool TryStartOperation(
+        Border resultBorder,
+        TextBlock resultText,
+        FrameworkElement progressIndicator,
+        string progressMessage)
+    {
+        try
+        {
+            SetControlsEnabled(false);
+            ShowProgress(resultBorder, resultText, progressIndicator, progressMessage);
+            return true;
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(exception, "Credential configuration UI operation could not be started.");
+            try
+            {
+                StopProgressIndicator(progressIndicator);
+                SetControlsEnabled(true);
+            }
+            catch (Exception recoveryException)
+            {
+                logger.LogError(recoveryException, "Credential configuration UI recovery failed at operation start.");
+            }
+
+            return false;
+        }
+    }
+
+    private async Task UpdateInterfaceSafelyAsync(Action update, string stage)
+    {
+        try
+        {
+            if (Dispatcher.HasShutdownStarted || Dispatcher.HasShutdownFinished)
+            {
+                logger.LogWarning("Credential configuration UI update skipped because its dispatcher is shutting down. Stage={Stage}.", stage);
+                return;
+            }
+
+            await Dispatcher.InvokeAsync(update);
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(exception, "Credential configuration UI update failed at {Stage}.", stage);
         }
     }
 
@@ -143,17 +236,24 @@ public partial class CredentialsWindow : Window
         TestOutlookButton.IsEnabled = enabled && CurrentState.HasOutlookAccount;
     }
 
-    private static void ShowProgress(Border border, TextBlock text, string message)
+    private void ShowProgress(Border border, TextBlock text, FrameworkElement indicator, string message)
     {
         border.Visibility = Visibility.Visible;
         border.Background = new SolidColorBrush(Color.FromRgb(235, 240, 255));
         text.Foreground = new SolidColorBrush(Color.FromRgb(52, 89, 217));
         text.Text = message;
+        StartProgressIndicator(indicator);
     }
 
-    private static void ShowOperation(Border border, TextBlock text, bool success, string message)
+    private void ShowOperation(
+        Border border,
+        TextBlock text,
+        FrameworkElement indicator,
+        bool success,
+        string message)
     {
         border.Visibility = Visibility.Visible;
+        StopProgressIndicator(indicator);
         border.Background = new SolidColorBrush(success
             ? Color.FromRgb(232, 246, 240)
             : Color.FromRgb(255, 235, 238));
@@ -161,6 +261,49 @@ public partial class CredentialsWindow : Window
             ? Color.FromRgb(24, 135, 91)
             : Color.FromRgb(195, 59, 74));
         text.Text = message;
+    }
+
+    private void StartProgressIndicator(FrameworkElement indicator)
+    {
+        try
+        {
+            var rotation = new RotateTransform();
+            indicator.RenderTransformOrigin = new Point(0.5, 0.5);
+            indicator.RenderTransform = rotation;
+            indicator.Visibility = Visibility.Visible;
+            rotation.BeginAnimation(
+                RotateTransform.AngleProperty,
+                new DoubleAnimation(0, 360, TimeSpan.FromMilliseconds(800))
+                {
+                    RepeatBehavior = RepeatBehavior.Forever
+                });
+        }
+        catch (Exception exception)
+        {
+            logger.LogWarning(exception, "Credential operation progress animation could not be started.");
+            indicator.Visibility = Visibility.Collapsed;
+            indicator.RenderTransform = Transform.Identity;
+        }
+    }
+
+    private void StopProgressIndicator(FrameworkElement indicator)
+    {
+        try
+        {
+            if (indicator.RenderTransform is RotateTransform rotation)
+            {
+                rotation.BeginAnimation(RotateTransform.AngleProperty, null);
+            }
+        }
+        catch (Exception exception)
+        {
+            logger.LogWarning(exception, "Credential operation progress animation could not be stopped cleanly.");
+        }
+        finally
+        {
+            indicator.Visibility = Visibility.Collapsed;
+            indicator.RenderTransform = Transform.Identity;
+        }
     }
 
     private void RefreshConfiguredState()

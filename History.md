@@ -348,3 +348,21 @@ Cada cambio relevante debe registrar qué se decidió, por qué, qué se verific
 - Se implementó un proveedor basado en `Microsoft.Extensions.Logging` que solo se activa con depurador conectado o `PAM_AUTOMATION_DEVELOPMENT_LOGGING=1` y exige encontrar `.git` y `PamAutomation.slnx` antes de crear `logs`.
 - Los eventos cubren ciclo de vida WPF, inicialización, configuración, ejecución y etapas COM de Outlook. Las excepciones conservan tipo, `HRESULT` y stack trace, pero no su mensaje; tampoco se registran direcciones, credenciales, TOTP, cookies, tokens, Request ID ni contenido del correo.
 - Los archivos diarios `pam-automation-AAAA-MM-DD.log` se eliminan automáticamente cuando superan dos días. La publicación normal conserva un logger nulo y no genera archivos operativos.
+
+## 11 de septiembre de 2026 — Fase 16.7: corrección de activación COM de Outlook
+
+- Una prueba manual del usuario reprodujo el rechazo de configuración y el nuevo log ubicó el fallo en `ComApplicationCreate`: `FileNotFoundException`, `HRESULT 0x80070002`.
+- Se confirmó que `Microsoft.Office.Interop.Outlook.dll` exigía `office, Version=15.0.0.0`, ausente de la salida y de `PamAutomation.App.deps.json`; no era un problema del SMTP, la cuenta, la sesión de Outlook ni DPAPI.
+- Se retiró la PIA administrada y `OutlookComApplicationFactory` pasó a activar `Outlook.Application` mediante `ProgID` y despacho COM tardío nativo de C#. Se mantuvieron STA, interfaces internas, resolución exacta, carpetas, huellas, adjuntos CID y liberación explícita.
+- Las salidas Debug y Release ya no contienen ni declaran `Microsoft.Office.Interop.Outlook`, `office.dll` o `stdole.dll`. La solución compiló y las 257 pruebas ordinarias finalizaron correctamente; no se abrió Outlook, no se envió correo, no se contactó PAM y no se crearon solicitudes.
+
+## 11 de septiembre de 2026 — Fase 16.8: retroalimentación visual de credenciales y Outlook
+
+- El usuario confirmó manualmente que la cuenta Outlook ya se verifica y que el correo de prueba llega correctamente, pero señaló que `SubmittedUnconfirmed` generaba dudas y que faltaba una señal visible durante las esperas.
+- Las comprobaciones de PAM y Outlook ahora muestran `Solicitud recibida`, un indicador circular animado y controles deshabilitados mientras trabajan. El indicador se oculta al mostrar el resultado o una cancelación.
+- El correo de prueba muestra `El correo de prueba se envió con éxito` cuando COM acepta `Send()`. `NotConfirmed` y cualquier estado no exitoso se presentan como fallo, no como panel verde.
+- La primera prueba manual al abrir `Editar credenciales` reveló una excepción `Storyboard.ResolveTargetName`: el template intentaba iniciar al cargarse una animación dirigida al nombre `SpinnerRotation`, incluso con el indicador oculto.
+- Se eliminó el disparador automático del template. Cada comprobación crea e inicia directamente su `RotateTransform` y lo detiene al presentar éxito, error o cancelación; abrir la ventana no mantiene animaciones activas.
+- El límite asíncrono de la ventana captura fallos inesperados, registra la etapa, presenta un mensaje seguro y restaura los controles en el `Dispatcher`. Los fallos al iniciar o detener el indicador también quedan contenidos y registrados.
+- El manejador global del `Dispatcher` conserva el diagnóstico y, ante una excepción WPF que escape de sus límites locales, muestra un aviso seguro y cierra ordenadamente la aplicación; las tareas no observadas se marcan como observadas después de registrarse.
+- La solución compiló en `Release | x64` y las 260 pruebas ordinarias finalizaron correctamente. Las nuevas pruebas renderizan la ventana, verifican el ciclo completo del indicador y fuerzan un fallo inesperado sin abrir PAM ni Outlook, crear solicitudes o enviar correos.

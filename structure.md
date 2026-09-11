@@ -44,6 +44,9 @@ Las fases construidas hasta ahora son:
 - Fase 15: saneamiento XHTML, sustitución única de Request ID y validación defensiva previa a COM.
 - Fase 16: configuración WPF de credenciales y solicitud, confirmación real y resultados en memoria.
 - Fase 16.5: paridad funcional de configuración, pruebas no destructivas y cuenta Outlook desacoplada.
+- Fase 16.6: logging seguro de desarrollo con retención local de dos días.
+- Fase 16.7: activación tardía de Outlook COM sin dependencia de la PIA administrada.
+- Fase 16.8: mensajes operativos, animación bajo demanda y recuperación segura de fallos UI.
 
 Los directorios `.git`, `.vs`, `bin` y `obj` contienen metadatos o salidas generadas y se omiten en el árbol.
 
@@ -356,7 +359,8 @@ Contenido actual:
 - `MainWindow.xaml.cs`: inicialización mínima de la ventana; no contiene lógica de negocio.
 - `ViewModels/MainWindowViewModel.cs`: estado de presentación y comandos de la portada mediante `CommunityToolkit.Mvvm`.
 - `Views`: diálogos nativos para credenciales PAM y Outlook, solicitud y plantilla de correo, con estados y validación visibles.
-- `Services`: confirmaciones, adaptación de diálogos, coordinación no destructiva de credenciales y conversión bidireccional entre `FlowDocument` y XHTML/CID.
+- `Services`: confirmaciones, adaptación de diálogos, coordinación no destructiva de credenciales, clasificación segura del resultado de correo de prueba y conversión bidireccional entre `FlowDocument` y XHTML/CID.
+- `Resources/Styles.xaml`: estilos compartidos, incluida la apariencia estática del indicador circular cuya animación controla la ventana únicamente durante operaciones activas.
 - `Resources/Colors.xaml`: colores y pinceles compartidos.
 - `Resources/Styles.xaml`: estilos y plantillas de controles WPF.
 - `AssemblyInfo.cs`: metadatos WPF del ensamblado.
@@ -485,10 +489,10 @@ No debe conocer controles WPF, selectores PAM ni objetos COM de Outlook.
 
 ### `PamAutomation.Outlook`
 
-Biblioteca para `net10.0-windows`. Referencia `PamAutomation.Core` e implementa Outlook clásico mediante Microsoft Office Interop 15.0.4797.1004:
+Biblioteca para `net10.0-windows`. Referencia `PamAutomation.Core` e implementa Outlook clásico mediante COM tardío, sin una dependencia administrada en la PIA de Office:
 
 - `OutlookClassicClient.cs`: resolución exacta, validación descartable, búsqueda de duplicados y envío con estado comprobado cuando es observable.
-- `Interop/OutlookComApplicationFactory.cs`: adaptadores propietarios de `Application`, `Account` y `MailItem`, consulta de carpetas, huella privada, adjuntos CID y liberación explícita.
+- `Interop/OutlookComApplicationFactory.cs`: activa el `ProgID` `Outlook.Application` y adapta dinámicamente `Application`, `Account` y `MailItem`; también encapsula consulta de carpetas, huella privada, adjuntos CID y liberación explícita.
 - `Interop/StaExecutor.cs`: ejecuta cada operación COM acotada en un hilo STA dedicado.
 - `Interop/OutlookComAbstractions.cs`: seam interno sustituido por pruebas sin abrir Outlook.
 
@@ -511,8 +515,9 @@ Contenido actual:
 
 - `TestExplorerSmokeTests.cs`: comprueba el descubrimiento del proyecto por el runner MSTest.
 - `MainWindowViewModelTests.cs`: valida el estado inicial seguro, el bloqueo durante una ejecución y las condiciones del botón de prueba.
-- `App/ConfigurationWindowSmokeTests.cs`: carga en STA las tres ventanas de configuración y detecta errores de XAML o construcción sin abrir servicios externos.
+- `App/ConfigurationWindowSmokeTests.cs`: carga y renderiza en STA las ventanas de configuración, valida el ciclo de animación bajo demanda y la recuperación de errores sin abrir servicios externos.
 - `App/CredentialConfigurationWorkflowTests.cs`: valida guardado y login PAM no destructivo, mensajes seguros, orden verificar-guardar de Outlook y correo de prueba dirigido a la misma cuenta.
+- `Outlook/OutlookComApplicationFactoryTests.cs`: valida con objetos falsos la activación tardía y el recorrido `Application → Session → Accounts → MailItem` sin cargar Outlook ni una PIA.
 - `App/FlowDocumentHtmlConverterTests.cs`: valida ida y vuelta de formato, tablas, marcador e imágenes CID.
 - `Core/Configuration/AppSettingsValidatorTests.cs`: valida valores predeterminados, configuración general y propagación de errores.
 - `Core/Configuration/RequestSettingsValidatorTests.cs`: valida fecha, hora, duración y razón de la solicitud.

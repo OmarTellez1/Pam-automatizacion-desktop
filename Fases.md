@@ -78,7 +78,7 @@ La integración real visible confirmó primero el estado vacío y después filas
 
 ## Fase 14 — Outlook falso y Outlook COM
 
-Se definieron en Core los contratos, modelos redactados, validaciones y errores estables de Outlook. `PamAutomation.Outlook` incorpora Microsoft Office Interop Outlook 15.0.4797.1004, resolución exacta de cuenta por `SmtpAddress`, comprobación mediante mensaje temporal descartado, creación de un mensaje nuevo por envío, asignación previa de `SendUsingAccount`, ejecución en un hilo STA y liberación explícita de referencias COM. Las pruebas usan un seam COM falso: no abren Outlook ni envían correo. Como todavía no se consulta Enviados, un `Send()` correcto se informa honestamente como `SubmittedUnconfirmed`, no como entrega confirmada.
+Se definieron en Core los contratos, modelos redactados, validaciones y errores estables de Outlook. `PamAutomation.Outlook` incorporó inicialmente Microsoft Office Interop Outlook 15.0.4797.1004, resolución exacta de cuenta por `SmtpAddress`, comprobación mediante mensaje temporal descartado, creación de un mensaje nuevo por envío, asignación previa de `SendUsingAccount`, ejecución en un hilo STA y liberación explícita de referencias COM. La fase 16.7 sustituyó posteriormente esa PIA incompleta por COM tardío sin cambiar los contratos. Las pruebas usan un seam COM falso: no abren Outlook ni envían correo. Como todavía no se consulta Enviados, un `Send()` correcto se informa honestamente como `SubmittedUnconfirmed`, no como entrega confirmada.
 
 Las fases 8 y 14 fueron integradas y validadas conjuntamente en `Release | x64`: la solución compiló sin errores y las 116 pruebas terminaron correctamente. Permanece una advertencia MSTest heredada fuera de estas fases.
 
@@ -124,6 +124,24 @@ El proveedor solo se activa con un depurador conectado o `PAM_AUTOMATION_DEVELOP
 
 La validación relacionada compiló en `Release | x64` y ejecutó pruebas del proveedor, retención, flujo de credenciales, Outlook y coordinación WPF. No abrió PAM, no creó solicitudes y no envió correos.
 
+## Fase 16.7 — Corrección de activación COM de Outlook
+
+Los logs de desarrollo demostraron que la cuenta no era rechazada: `OutlookComApplicationFactory.Create` fallaba antes de consultar `Accounts` con `FileNotFoundException` y `HRESULT 0x80070002`. La PIA `Microsoft.Office.Interop.Outlook` incluida en la salida exigía `office, Version=15.0.0.0`, pero su paquete no declaraba ni copiaba esa dependencia y .NET 10 no la resolvía desde el GAC de .NET Framework. La aplicación anterior funcionaba porque activaba COM tardíamente sin cargar esa PIA.
+
+Se reemplazó exclusivamente el límite nativo por activación de `Outlook.Application` mediante `Type.GetTypeFromProgID` y despacho COM tardío. Se conservaron `IOutlookComApplicationFactory`, los wrappers propietarios, el hilo STA, la resolución exacta de `SmtpAddress`, mensajes temporales descartados, carpetas, huellas, adjuntos CID y liberación explícita. No se incorporaron scripts, PowerShell, procesos auxiliares ni copias locales de `office.dll` o `stdole.dll`.
+
+Las salidas `Debug | x64` y `Release | x64` compilaron correctamente y sus archivos `.deps.json` ya no declaran la PIA ni sus dependencias ausentes. Pasaron las 257 pruebas ordinarias, incluida una nueva prueba del recorrido COM tardío con objetos falsos. No se abrió PAM, no se creó ninguna solicitud y las pruebas automatizadas no abrieron Outlook ni enviaron correo. La comprobación real desde la interfaz queda a cargo del usuario porque requiere Outlook clásico explícitamente autorizado.
+
+## Fase 16.8 — Retroalimentación visual de credenciales y Outlook
+
+La prueba manual del usuario confirmó que la fase 16.7 verifica la cuenta y envía el correo de prueba. Se refinó la experiencia para que guardar y comprobar credenciales PAM, verificar Outlook y enviar el correo muestren de inmediato un mensaje de solicitud recibida junto con un círculo de carga animado. Los controles permanecen deshabilitados durante la operación y el indicador desaparece ante éxito, error o cancelación.
+
+El correo de prueba ya no reproduce el estado técnico `SubmittedUnconfirmed`, que resultaba ambiguo para esta acción manual. Cuando `Send()` es aceptado muestra `El correo de prueba se envió con éxito`. Si el adaptador devuelve `NotConfirmed` u otro estado no exitoso, la operación se presenta como error y conserva orientación de reintento, evitando un panel verde engañoso.
+
+Una prueba manual posterior detectó que el `EventTrigger` original intentaba resolver `SpinnerRotation` al cargar la ventana, aunque el indicador estuviera oculto, y provocaba una excepción no controlada en el `Dispatcher`. Se retiró esa animación automática del template. La ventana crea, inicia y detiene ahora el `RotateTransform` únicamente dentro del ciclo de guardar/comprobar PAM, verificar Outlook o enviar el correo de prueba. Los fallos inesperados del workflow o de la presentación quedan registrados, muestran un mensaje seguro cuando la interfaz sigue disponible y restauran los controles mediante el `Dispatcher`. Como última barrera, una excepción WPF no recuperable muestra un aviso genérico y cierra la aplicación ordenadamente en vez de dejarla bloqueada o continuar en un estado incierto.
+
+La solución compiló en `Release | x64` y las 260 pruebas ordinarias finalizaron correctamente. La validación muestra y renderiza realmente la ventana STA, comprueba que el indicador está inactivo al abrir, que solo se anima durante una operación, que se detiene al finalizar y que una excepción inesperada no escapa del evento WPF. También conserva las pruebas de mensajes del workflow, rechazo de `NotConfirmed` y regresión del adaptador Outlook. Las pruebas no abrieron PAM ni Outlook, no crearon solicitudes y no enviaron correos.
+
 ## Fases pendientes
 
 La clasificación siguiente se refiere únicamente a dependencias entre fases pendientes:
@@ -134,7 +152,7 @@ La clasificación siguiente se refiere únicamente a dependencias entre fases pe
 
 | Fase | Clasificación | Dependencias pendientes | Alcance y posibilidad de paralelismo |
 |---|---|---|---|
-| 17 — Evidencias técnicas de desarrollo | **Dependiente** | Fases 16 a 16.6, con flujos operativos y logging integrados. | Completará la exportación explícita y revisable de evidencias a partir del diagnóstico seguro; no conviene paralelizarla con cambios activos en esos flujos. |
+| 17 — Evidencias técnicas de desarrollo | **Dependiente** | Fases 16 a 16.8, con flujos operativos, logging, Outlook y estados visuales cerrados. | Completará la exportación explícita y revisable de evidencias a partir del diagnóstico seguro; no conviene paralelizarla con cambios activos en esos flujos. |
 | 18 — Instalador y publicación autocontenida | **Dependiente** | Fases 6 a 17. | Requiere que la aplicación y sus dependencias externas estén definidas y validadas. |
 | 19 — Pruebas finales administradas | **Dependiente** | Fase 18. | Es la validación final del producto publicado en el entorno Windows objetivo. |
 | 20 — Colecciones personalizadas post-migración | **Dependiente** | Migración inicial y fase 19 completadas. | Permitirá seleccionar subconjuntos editables de `Favorites` rows, guardar configuración general y posibles sobrescrituras por fila. Es alcance nuevo y no debe mezclarse con las fases 12 a 19. |
@@ -142,12 +160,12 @@ La clasificación siguiente se refiere únicamente a dependencias entre fases pe
 ## Mapa recomendado de trabajo paralelo
 
 ```text
-Fases 6 a 16.6 completadas ──► Fase 17 ──► Fase 18 ──► Fase 19
+Fases 6 a 16.8 completadas ──► Fase 17 ──► Fase 18 ──► Fase 19
 
 Fase 19 ──► Fase 20 (ampliación posterior a la migración)
 ```
 
-La fase 17 constituye el siguiente paso y depende de los flujos integrados, la configuración y el logging seguro cerrados en las fases 16 a 16.6. El coordinador solo podrá paralelizar una parte futura si vuelve a demostrar independencia, contratos congelados y ausencia de archivos compartidos.
+La fase 17 constituye el siguiente paso y depende de los flujos integrados, la configuración, el logging seguro, la corrección COM y los estados visuales cerrados en las fases 16 a 16.8. El coordinador solo podrá paralelizar una parte futura si vuelve a demostrar independencia, contratos congelados y ausencia de archivos compartidos.
 
 La fase 20 registra una ampliación solicitada para después de terminar la migración: colecciones locales nombradas y editables que seleccionan cualquier subconjunto de Favorites. Su diseño preliminar, navegación, reconciliación y seguridad se detallan en `PAM_NAVIGATION.md`; no modifica el alcance ni la autorización de la fase 12.
 

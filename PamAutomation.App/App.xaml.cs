@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using PamAutomation.App.Services;
 using PamAutomation.App.ViewModels;
+using PamAutomation.App.Views;
 using PamAutomation.Browser;
 using PamAutomation.Core.Authentication;
 using PamAutomation.Core.Execution;
@@ -23,6 +24,7 @@ namespace PamAutomation.App
     {
         private ILoggerFactory loggerFactory = NullLoggerFactory.Instance;
         private ILogger<App> logger = NullLogger<App>.Instance;
+        private bool handlingFatalDispatcherException;
 
         protected override async void OnStartup(StartupEventArgs e)
         {
@@ -81,7 +83,9 @@ namespace PamAutomation.App
                 new WpfUserDialogService(),
                 settingsValidator,
                 TimeProvider.System,
-                new WpfConfigurationDialogService(credentialWorkflow),
+                new WpfConfigurationDialogService(
+                    credentialWorkflow,
+                    loggerFactory.CreateLogger<CredentialsWindow>()),
                 mailSettingsStore,
                 new MailSettingsValidator(),
                 outlookAccountStore,
@@ -103,8 +107,35 @@ namespace PamAutomation.App
             base.OnExit(e);
         }
 
-        private void LogDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e) =>
-            logger.LogCritical(e.Exception, "Unhandled WPF dispatcher exception.");
+        private void LogDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
+        {
+            logger.LogCritical(e.Exception, "Unhandled WPF dispatcher exception. The application will close safely.");
+            e.Handled = true;
+            if (handlingFatalDispatcherException)
+            {
+                Shutdown(1);
+                return;
+            }
+
+            handlingFatalDispatcherException = true;
+            try
+            {
+                MessageBox.Show(
+                    "Ocurrió un problema inesperado en la interfaz. La aplicación se cerrará de forma segura. " +
+                    "Vuelve a abrirla y revisa el registro de desarrollo si el problema continúa.",
+                    "Pam Automation",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
+            catch (Exception notificationException)
+            {
+                logger.LogError(notificationException, "The fatal WPF error notification could not be shown.");
+            }
+            finally
+            {
+                Shutdown(1);
+            }
+        }
 
         private void LogUnhandledException(object? sender, UnhandledExceptionEventArgs e)
         {
@@ -114,7 +145,10 @@ namespace PamAutomation.App
             }
         }
 
-        private void LogUnobservedTaskException(object? sender, UnobservedTaskExceptionEventArgs e) =>
+        private void LogUnobservedTaskException(object? sender, UnobservedTaskExceptionEventArgs e)
+        {
             logger.LogError(e.Exception, "Unobserved task exception.");
+            e.SetObserved();
+        }
     }
 }

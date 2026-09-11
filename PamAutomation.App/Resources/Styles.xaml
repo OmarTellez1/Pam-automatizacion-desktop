@@ -300,4 +300,31 @@
         <Setter Property="Background" Value="{StaticResource PrimarySoftBrush}" />
         <Setter Property="BorderThickness" Value="0" />
     </Style>
+
+    <Style x:Key="LoadingSpinnerStyle" TargetType="ContentControl">
+        <Setter Property="Width" Value="22" />
+        <Setter Property="Height" Value="22" />
+        <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}" />
+        <Setter Property="AutomationProperties.Name" Value="Operación en curso" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ContentControl">
+                    <Grid Width="{TemplateBinding Width}"
+                          Height="{TemplateBinding Height}">
+                        <Ellipse Width="5"
+                                 Height="5"
+                                 HorizontalAlignment="Center"
+                                 VerticalAlignment="Top"
+                                 Fill="{TemplateBinding Foreground}" />
+                        <Path Data="M 11,2 A 9,9 0 1 1 4.64,4.64"
+                              Stroke="{TemplateBinding Foreground}"
+                              StrokeThickness="2.4"
+                              StrokeStartLineCap="Round"
+                              StrokeEndLineCap="Round"
+                              Opacity="0.35" />
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
 </ResourceDictionary>

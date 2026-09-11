@@ -1,4 +1,6 @@
 using System.Windows;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using PamAutomation.App.Views;
 using PamAutomation.Core.Models.Configuration;
 using PamAutomation.Core.Models.Credentials;
@@ -8,17 +10,21 @@ namespace PamAutomation.App.Services;
 public sealed class WpfConfigurationDialogService : IConfigurationDialogService
 {
     private readonly ICredentialConfigurationWorkflow credentialWorkflow;
+    private readonly ILogger<CredentialsWindow> credentialsWindowLogger;
 
-    public WpfConfigurationDialogService(ICredentialConfigurationWorkflow credentialWorkflow)
+    public WpfConfigurationDialogService(
+        ICredentialConfigurationWorkflow credentialWorkflow,
+        ILogger<CredentialsWindow>? credentialsWindowLogger = null)
     {
         this.credentialWorkflow = credentialWorkflow ?? throw new ArgumentNullException(nameof(credentialWorkflow));
+        this.credentialsWindowLogger = credentialsWindowLogger ?? NullLogger<CredentialsWindow>.Instance;
     }
 
     public Task<CredentialConfigurationState> EditCredentialsAsync(
         CredentialConfigurationState current,
         CancellationToken cancellationToken = default)
     {
-        var dialog = new CredentialsWindow(current, credentialWorkflow, cancellationToken)
+        var dialog = new CredentialsWindow(current, credentialWorkflow, cancellationToken, credentialsWindowLogger)
         {
             Owner = Application.Current.MainWindow
         };
