@@ -52,13 +52,25 @@
                     </StackPanel>
                 </StackPanel>
 
-                <ToggleButton Grid.Column="1"
-                              VerticalAlignment="Center"
-                              AutomationProperties.Name="Seleccionar acción final"
-                              Command="{Binding ToggleFinalActionCommand}"
-                              IsChecked="{Binding SendEmailAtEnd, Mode=OneWay}"
-                              IsEnabled="{Binding AreControlsEnabled}"
-                              Style="{StaticResource OutlookActionToggleStyle}" />
+                <StackPanel Grid.Column="1"
+                            Orientation="Horizontal"
+                            VerticalAlignment="Center">
+                    <Button x:Name="ExportDiagnosticsButton"
+                            Width="180"
+                            Height="44"
+                            Margin="0,0,14,0"
+                            AutomationProperties.Name="Exportar diagnóstico"
+                            Command="{Binding ExportDiagnosticsCommand}"
+                            Content="Exportar diagnóstico"
+                            IsEnabled="{Binding CanExportDiagnostics}"
+                            Style="{StaticResource SecondaryButtonStyle}" />
+                    <ToggleButton VerticalAlignment="Center"
+                                  AutomationProperties.Name="Seleccionar acción final"
+                                  Command="{Binding ToggleFinalActionCommand}"
+                                  IsChecked="{Binding SendEmailAtEnd, Mode=OneWay}"
+                                  IsEnabled="{Binding AreControlsEnabled}"
+                                  Style="{StaticResource OutlookActionToggleStyle}" />
+                </StackPanel>
             </Grid>
 
             <Border Grid.Row="1"

@@ -366,3 +366,11 @@ Cada cambio relevante debe registrar qué se decidió, por qué, qué se verific
 - El límite asíncrono de la ventana captura fallos inesperados, registra la etapa, presenta un mensaje seguro y restaura los controles en el `Dispatcher`. Los fallos al iniciar o detener el indicador también quedan contenidos y registrados.
 - El manejador global del `Dispatcher` conserva el diagnóstico y, ante una excepción WPF que escape de sus límites locales, muestra un aviso seguro y cierra ordenadamente la aplicación; las tareas no observadas se marcan como observadas después de registrarse.
 - La solución compiló en `Release | x64` y las 260 pruebas ordinarias finalizaron correctamente. Las nuevas pruebas renderizan la ventana, verifican el ciclo completo del indicador y fuerzan un fallo inesperado sin abrir PAM ni Outlook, crear solicitudes o enviar correos.
+
+## 11 de septiembre de 2026 — Fase 17: diagnóstico seguro exportable
+
+- Se incorporó `RuntimeDiagnosticLoggerFactory`, que conserva únicamente los últimos 500 eventos seguros en memoria y continúa enviándolos al archivo de desarrollo de dos días cuando ese destino está explícitamente habilitado.
+- El buffer guarda plantillas de mensaje, propiedades de estado o conteo permitidas y metadatos de excepción sin mensaje ni rutas de código. No recibe modelos de credenciales, configuración de correo ni resultados con valores de Request ID.
+- `DiagnosticExportService` crea bajo acción explícita un ZIP con manifiesto, entorno, resumen reducido y log. Usa un temporal junto al destino, movimiento atómico y limpieza en `finally`; cancelar el selector no escribe nada.
+- La portada añadió `Exportar diagnóstico`. Los fallos recuperables recomiendan usarlo y la barrera WPF fatal ofrece exportar el contexto antes de cerrar ordenadamente, sin crear archivos si el usuario responde que no.
+- La compilación `Release | x64` finalizó con 0 errores y las 271 pruebas ordinarias fueron correctas. Las pruebas cubrieron seguridad del contenido, capacidad, cancelación, fallo, limpieza, restauración del comando y renderizado WPF sin contactar PAM u Outlook, crear solicitudes ni enviar correo.

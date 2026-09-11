@@ -171,7 +171,7 @@ public partial class CredentialsWindow : Window
                     resultText,
                     progressIndicator,
                     false,
-                    "Ocurrió un problema inesperado. La operación se detuvo de forma segura; revisa el registro e inténtalo nuevamente."),
+                    "Ocurrió un problema inesperado. La operación se detuvo de forma segura; cierra esta ventana y usa Exportar diagnóstico."),
                 "UnexpectedFailurePresentation").ConfigureAwait(false);
         }
         finally

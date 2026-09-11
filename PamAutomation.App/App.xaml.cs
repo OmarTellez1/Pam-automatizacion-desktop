@@ -9,6 +9,8 @@ using PamAutomation.Browser;
 using PamAutomation.Core.Authentication;
 using PamAutomation.Core.Execution;
 using PamAutomation.Core.Favorites;
+using PamAutomation.Core.Diagnostics;
+using PamAutomation.Core.Interfaces.Diagnostics;
 using PamAutomation.Core.Requests;
 using PamAutomation.Core.Totp;
 using PamAutomation.Core.Validation;
@@ -22,15 +24,21 @@ namespace PamAutomation.App
 {
     public partial class App : Application
     {
+        private RuntimeDiagnosticLoggerFactory? runtimeLoggerFactory;
         private ILoggerFactory loggerFactory = NullLoggerFactory.Instance;
         private ILogger<App> logger = NullLogger<App>.Instance;
+        private IDiagnosticExportService? diagnosticExportService;
+        private WpfUserDialogService? userDialogs;
         private bool handlingFatalDispatcherException;
 
         protected override async void OnStartup(StartupEventArgs e)
         {
             base.OnStartup(e);
 
-            loggerFactory = DevelopmentFileLoggerFactory.CreateForCurrentProcess();
+            runtimeLoggerFactory = RuntimeDiagnosticLoggerFactory.CreateForCurrentProcess();
+            loggerFactory = runtimeLoggerFactory;
+            diagnosticExportService = new DiagnosticExportService(runtimeLoggerFactory);
+            userDialogs = new WpfUserDialogService();
             logger = loggerFactory.CreateLogger<App>();
             DispatcherUnhandledException += LogDispatcherUnhandledException;
             AppDomain.CurrentDomain.UnhandledException += LogUnhandledException;
@@ -80,7 +88,7 @@ namespace PamAutomation.App
                 execution,
                 new JsonAppSettingsStore(),
                 credentialStore,
-                new WpfUserDialogService(),
+                userDialogs,
                 settingsValidator,
                 TimeProvider.System,
                 new WpfConfigurationDialogService(
@@ -89,7 +97,8 @@ namespace PamAutomation.App
                 mailSettingsStore,
                 new MailSettingsValidator(),
                 outlookAccountStore,
-                loggerFactory.CreateLogger<MainWindowViewModel>());
+                loggerFactory.CreateLogger<MainWindowViewModel>(),
+                diagnosticExportService);
             var window = new MainWindow { DataContext = viewModel };
             MainWindow = window;
             window.Show();
@@ -107,7 +116,7 @@ namespace PamAutomation.App
             base.OnExit(e);
         }
 
-        private void LogDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
+        private async void LogDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
         {
             logger.LogCritical(e.Exception, "Unhandled WPF dispatcher exception. The application will close safely.");
             e.Handled = true;
@@ -120,16 +129,33 @@ namespace PamAutomation.App
             handlingFatalDispatcherException = true;
             try
             {
-                MessageBox.Show(
+                MessageBoxResult exportChoice = MessageBox.Show(
                     "Ocurrió un problema inesperado en la interfaz. La aplicación se cerrará de forma segura. " +
-                    "Vuelve a abrirla y revisa el registro de desarrollo si el problema continúa.",
+                    "¿Deseas exportar un diagnóstico seguro antes de cerrar?",
                     "Pam Automation",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Error);
+                    MessageBoxButton.YesNo,
+                    MessageBoxImage.Error,
+                    MessageBoxResult.Yes);
+                if (exportChoice == MessageBoxResult.Yes && diagnosticExportService is not null && userDialogs is not null)
+                {
+                    string suggestedName = $"pam-automation-diagnostic-{DateTimeOffset.UtcNow:yyyyMMdd-HHmmss}.zip";
+                    string? destinationPath = userDialogs.SelectDiagnosticExportPath(suggestedName);
+                    if (!string.IsNullOrWhiteSpace(destinationPath))
+                    {
+                        DiagnosticExportContext context = (MainWindow?.DataContext as MainWindowViewModel)?.CaptureDiagnosticContext()
+                            ?? new DiagnosticExportContext(false, false, false, null);
+                        await diagnosticExportService.ExportAsync(destinationPath, context).ConfigureAwait(true);
+                        MessageBox.Show(
+                            "El diagnóstico se exportó correctamente. Puedes enviarlo a soporte.",
+                            "Diagnóstico exportado",
+                            MessageBoxButton.OK,
+                            MessageBoxImage.Information);
+                    }
+                }
             }
             catch (Exception notificationException)
             {
-                logger.LogError(notificationException, "The fatal WPF error notification could not be shown.");
+                logger.LogError(notificationException, "The fatal WPF diagnostic export or notification failed.");
             }
             finally
             {

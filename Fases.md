@@ -142,6 +142,14 @@ Una prueba manual posterior detectó que el `EventTrigger` original intentaba re
 
 La solución compiló en `Release | x64` y las 260 pruebas ordinarias finalizaron correctamente. La validación muestra y renderiza realmente la ventana STA, comprueba que el indicador está inactivo al abrir, que solo se anima durante una operación, que se detiene al finalizar y que una excepción inesperada no escapa del evento WPF. También conserva las pruebas de mensajes del workflow, rechazo de `NotConfirmed` y regresión del adaptador Outlook. Las pruebas no abrieron PAM ni Outlook, no crearon solicitudes y no enviaron correos.
 
+## Fase 17 — Evidencias técnicas y diagnóstico exportable
+
+Se incorporó un buffer circular que conserva en memoria un máximo de 500 eventos técnicos durante toda la ejecución. Comparte los eventos estructurados de aplicación, configuración, PAM y Outlook, pero guarda la plantilla en lugar de los valores formateados, admite únicamente propiedades de estado o conteo previamente autorizadas y reduce las excepciones a tipo, `HRESULT` y stack trace sin mensajes ni rutas locales. El buffer no crea archivos y desaparece al terminar el proceso.
+
+La portada incluye `Exportar diagnóstico`. Tras elegir manualmente un destino se genera un ZIP con `manifest.json`, `environment.json`, `execution-summary.json` y `diagnostic.log`; la escritura utiliza un temporal en la misma carpeta, se publica atómicamente y limpia restos ante cancelación o error. El resumen nunca recibe los Request ID, solo su conteo, y tampoco incluye credenciales, TOTP, cookies, identidades del portal, correos, razones, HTML o adjuntos. Los errores recuperables sugieren la exportación y una excepción WPF fatal ofrece exportarla antes de cerrar ordenadamente.
+
+La solución compiló en `Release | x64` y las 271 pruebas ordinarias finalizaron correctamente. Se validaron capacidad y orden del buffer, lista permitida, redacción de valores, excepciones sin mensaje ni ruta, estructura y contenido del ZIP, cancelación, fallo y limpieza de temporales, restauración del ViewModel, resumen sin identificadores y renderizado STA de la nueva acción. No se abrió PAM ni Outlook, no se crearon solicitudes y no se enviaron correos.
+
 ## Fases pendientes
 
 La clasificación siguiente se refiere únicamente a dependencias entre fases pendientes:
@@ -152,7 +160,6 @@ La clasificación siguiente se refiere únicamente a dependencias entre fases pe
 
 | Fase | Clasificación | Dependencias pendientes | Alcance y posibilidad de paralelismo |
 |---|---|---|---|
-| 17 — Evidencias técnicas de desarrollo | **Dependiente** | Fases 16 a 16.8, con flujos operativos, logging, Outlook y estados visuales cerrados. | Completará la exportación explícita y revisable de evidencias a partir del diagnóstico seguro; no conviene paralelizarla con cambios activos en esos flujos. |
 | 18 — Instalador y publicación autocontenida | **Dependiente** | Fases 6 a 17. | Requiere que la aplicación y sus dependencias externas estén definidas y validadas. |
 | 19 — Pruebas finales administradas | **Dependiente** | Fase 18. | Es la validación final del producto publicado en el entorno Windows objetivo. |
 | 20 — Colecciones personalizadas post-migración | **Dependiente** | Migración inicial y fase 19 completadas. | Permitirá seleccionar subconjuntos editables de `Favorites` rows, guardar configuración general y posibles sobrescrituras por fila. Es alcance nuevo y no debe mezclarse con las fases 12 a 19. |
@@ -160,12 +167,12 @@ La clasificación siguiente se refiere únicamente a dependencias entre fases pe
 ## Mapa recomendado de trabajo paralelo
 
 ```text
-Fases 6 a 16.8 completadas ──► Fase 17 ──► Fase 18 ──► Fase 19
+Fases 6 a 17 completadas ──► Fase 18 ──► Fase 19
 
 Fase 19 ──► Fase 20 (ampliación posterior a la migración)
 ```
 
-La fase 17 constituye el siguiente paso y depende de los flujos integrados, la configuración, el logging seguro, la corrección COM y los estados visuales cerrados en las fases 16 a 16.8. El coordinador solo podrá paralelizar una parte futura si vuelve a demostrar independencia, contratos congelados y ausencia de archivos compartidos.
+La fase 18 constituye el siguiente paso y depende de que los flujos integrados y el diagnóstico exportable de la fase 17 permanezcan cerrados. El coordinador solo podrá paralelizar una parte futura si vuelve a demostrar independencia, contratos congelados y ausencia de archivos compartidos.
 
 La fase 20 registra una ampliación solicitada para después de terminar la migración: colecciones locales nombradas y editables que seleccionan cualquier subconjunto de Favorites. Su diseño preliminar, navegación, reconciliación y seguridad se detallan en `PAM_NAVIGATION.md`; no modifica el alcance ni la autorización de la fase 12.
 

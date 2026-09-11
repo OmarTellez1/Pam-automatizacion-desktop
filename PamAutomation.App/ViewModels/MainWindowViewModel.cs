@@ -6,8 +6,10 @@ using PamAutomation.App.Services;
 using PamAutomation.Core.Authentication;
 using PamAutomation.Core.Execution;
 using PamAutomation.Core.Favorites;
+using PamAutomation.Core.Diagnostics;
 using PamAutomation.Core.Interfaces.Configuration;
 using PamAutomation.Core.Interfaces.Credentials;
+using PamAutomation.Core.Interfaces.Diagnostics;
 using PamAutomation.Core.Interfaces.Execution;
 using PamAutomation.Core.Interfaces.Outlook;
 using PamAutomation.Core.Models.Configuration;
@@ -31,10 +33,12 @@ public sealed partial class MainWindowViewModel : ObservableObject
     private readonly AppSettingsValidator settingsValidator;
     private readonly TimeProvider timeProvider;
     private readonly ILogger<MainWindowViewModel> logger;
+    private readonly IDiagnosticExportService? diagnosticExportService;
     private AppSettings settings = new();
     private MailSettings? mailSettings;
     private string outlookSmtpAddress = string.Empty;
     private readonly SemaphoreSlim settingsSaveGate = new(1, 1);
+    private PamExecutionResult? lastExecutionResult;
 
     [ObservableProperty] private bool areCredentialsConfigured;
     [ObservableProperty] private bool isRequestConfigured;
@@ -42,6 +46,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     [ObservableProperty] private bool isTestModeEnabled;
     [ObservableProperty] private bool sendEmailAtEnd;
     [ObservableProperty] private bool isRunning;
+    [ObservableProperty] private bool isExportingDiagnostics;
     [ObservableProperty] private bool hasResult;
     [ObservableProperty] private bool hasRequestIds;
     [ObservableProperty] private string statusMessage = "Completa la configuración para habilitar la automatización.";
@@ -65,7 +70,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
         IMailSettingsStore? mailSettingsStore = null,
         MailSettingsValidator? mailSettingsValidator = null,
         IOutlookAccountSettingsStore? outlookAccountSettingsStore = null,
-        ILogger<MainWindowViewModel>? logger = null)
+        ILogger<MainWindowViewModel>? logger = null,
+        IDiagnosticExportService? diagnosticExportService = null)
     {
         this.executionService = executionService;
         this.settingsStore = settingsStore;
@@ -78,6 +84,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         this.settingsValidator = settingsValidator ?? throw new ArgumentNullException(nameof(settingsValidator));
         this.timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
         this.logger = logger ?? NullLogger<MainWindowViewModel>.Instance;
+        this.diagnosticExportService = diagnosticExportService;
 
         ConfigureCredentialsCommand = new AsyncRelayCommand(ConfigureCredentialsAsync, () => AreControlsEnabled);
         ConfigureRequestCommand = new AsyncRelayCommand(ConfigureRequestAsync, () => AreControlsEnabled);
@@ -85,6 +92,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         StartTestCommand = new AsyncRelayCommand(StartTestAsync, () => IsTestActionEnabled);
         StartAutomationCommand = new AsyncRelayCommand(StartAutomationAsync, () => CanStartAutomation);
         ToggleFinalActionCommand = new AsyncRelayCommand(ToggleFinalActionAsync, () => AreControlsEnabled);
+        ExportDiagnosticsCommand = new AsyncRelayCommand(ExportDiagnosticsAsync, () => CanExportDiagnostics);
     }
 
     public IAsyncRelayCommand ConfigureCredentialsCommand { get; }
@@ -93,7 +101,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public IAsyncRelayCommand StartTestCommand { get; }
     public IAsyncRelayCommand StartAutomationCommand { get; }
     public IAsyncRelayCommand ToggleFinalActionCommand { get; }
-    public bool AreControlsEnabled => !IsRunning;
+    public IAsyncRelayCommand ExportDiagnosticsCommand { get; }
+    public bool AreControlsEnabled => !IsRunning && !IsExportingDiagnostics;
+    public bool CanExportDiagnostics => diagnosticExportService is not null && dialogs is not null && AreControlsEnabled;
     public bool IsConfigurationComplete => AreCredentialsConfigured && IsRequestConfigured && (!SendEmailAtEnd || IsMailConfigured);
     public bool CanStartAutomation => AreControlsEnabled && IsConfigurationComplete;
     public bool IsTestActionVisible => IsTestModeEnabled && IsConfigurationComplete;
@@ -159,6 +169,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         RefreshPresentationState();
     }
     partial void OnIsRunningChanged(bool value) => RefreshPresentationState();
+    partial void OnIsExportingDiagnosticsChanged(bool value) => RefreshPresentationState();
 
     private async Task StartAutomationAsync()
     {
@@ -204,6 +215,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
         try
         {
+            logger.LogInformation("Credential configuration dialog opened.");
             var currentState = new CredentialConfigurationState(
                 AreCredentialsConfigured,
                 !string.IsNullOrWhiteSpace(outlookSmtpAddress),
@@ -219,6 +231,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
             StatusMessage = state == currentState
                 ? "Configuración de credenciales sin cambios."
                 : "Configuración de credenciales actualizada.";
+            logger.LogInformation("Credential configuration dialog completed. ConfigurationChanged={ConfigurationChanged}.", state != currentState);
         }
         catch (Exception exception)
         {
@@ -238,7 +251,11 @@ public sealed partial class MainWindowViewModel : ObservableObject
             settings.Request,
             settings.TestModeEnabled,
             DateOnly.FromDateTime(GetEcuadorNow().DateTime));
-        if (edit is null) return;
+        if (edit is null)
+        {
+            logger.LogInformation("Request configuration dialog was cancelled.");
+            return;
+        }
 
         AppSettings proposed = settings with
         {
@@ -249,6 +266,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         ConfigurationValidationResult validation = settingsValidator.Validate(proposed, GetEcuadorNow());
         if (!validation.IsValid)
         {
+            logger.LogWarning("Request configuration validation failed. FailureCount={FailureCount}.", validation.Failures.Count);
             StatusMessage = validation.Failures[0].Message;
             dialogs?.ShowError(StatusMessage);
             return;
@@ -261,6 +279,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
             IsRequestConfigured = true;
             IsTestModeEnabled = proposed.TestModeEnabled;
             StatusMessage = "Configuración de solicitud guardada.";
+            logger.LogInformation("Request configuration was stored successfully.");
         }
         catch (Exception exception)
         {
@@ -326,7 +345,11 @@ public sealed partial class MainWindowViewModel : ObservableObject
         }
 
         MailConfigurationEdit? edit = configurationDialogs.EditMail(mailSettings, outlookSmtpAddress);
-        if (edit is null) return;
+        if (edit is null)
+        {
+            logger.LogInformation("Mail configuration dialog was cancelled.");
+            return;
+        }
         IsRunning = true;
         StatusMessage = "Validando y guardando la configuración de correo…";
         try
@@ -337,6 +360,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
             mailSettings = normalized;
             IsMailConfigured = true;
             StatusMessage = "Configuración de correo validada y guardada de forma protegida.";
+            logger.LogInformation("Mail configuration was stored successfully.");
         }
         catch (Exception exception)
         {
@@ -370,6 +394,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         logger.LogInformation(
             "PAM execution completed. Mode={Mode}, Favorites={FavoriteCount}, Processed={ProcessedCount}, Conflicts={ConflictCount}, RequestIdCount={RequestIdCount}.",
             result.Mode, result.FavoriteCount, result.ProcessedCount, result.ConflictCount, result.RequestIds.Count);
+        lastExecutionResult = result;
         HasResult = true;
         HasRequestIds = result.RequestIds.Count > 0;
         ResultTitle = result.Mode == PamExecutionMode.Test ? "Prueba completada" : "Automatización completada";
@@ -405,8 +430,72 @@ public sealed partial class MainWindowViewModel : ObservableObject
         {
             HasResult = false;
         }
-        StatusMessage = message;
-        dialogs?.ShowError(message);
+        StatusMessage = diagnosticExportService is null
+            ? message
+            : message + " Si el problema continúa, usa Exportar diagnóstico y envía el archivo a soporte.";
+        dialogs?.ShowError(StatusMessage);
+    }
+
+    private async Task ExportDiagnosticsAsync()
+    {
+        if (diagnosticExportService is null || dialogs is null) return;
+        string suggestedName = $"pam-automation-diagnostic-{timeProvider.GetUtcNow():yyyyMMdd-HHmmss}.zip";
+        string? destinationPath = dialogs.SelectDiagnosticExportPath(suggestedName);
+        if (string.IsNullOrWhiteSpace(destinationPath))
+        {
+            logger.LogInformation("Diagnostic export path selection was cancelled.");
+            return;
+        }
+
+        IsExportingDiagnostics = true;
+        StatusMessage = "Preparando el diagnóstico seguro…";
+        logger.LogInformation("Diagnostic export started after explicit user selection.");
+        try
+        {
+            await diagnosticExportService.ExportAsync(
+                destinationPath,
+                CaptureDiagnosticContext()).ConfigureAwait(true);
+            logger.LogInformation("Diagnostic export completed successfully.");
+            StatusMessage = "Diagnóstico exportado correctamente.";
+            dialogs.ShowResult(
+                "Diagnóstico exportado",
+                "El paquete se guardó correctamente. Puedes enviarlo a soporte para analizar el problema.");
+        }
+        catch (OperationCanceledException)
+        {
+            logger.LogInformation("Diagnostic export was cancelled.");
+            StatusMessage = "La exportación del diagnóstico fue cancelada.";
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(exception, "Diagnostic export failed.");
+            StatusMessage = "No fue posible exportar el diagnóstico. No se dejó un archivo incompleto.";
+            dialogs.ShowError(StatusMessage);
+        }
+        finally
+        {
+            IsExportingDiagnostics = false;
+        }
+    }
+
+    internal DiagnosticExportContext CaptureDiagnosticContext()
+    {
+        DiagnosticExecutionSummary? execution = lastExecutionResult is null
+            ? null
+            : new DiagnosticExecutionSummary(
+                lastExecutionResult.Mode.ToString(),
+                lastExecutionResult.CompletedAt,
+                lastExecutionResult.FinalAction.ToString(),
+                lastExecutionResult.FavoriteCount,
+                lastExecutionResult.ProcessedCount,
+                lastExecutionResult.ConflictCount,
+                lastExecutionResult.RequestIds.Count,
+                lastExecutionResult.MailDelivery?.Status.ToString());
+        return new DiagnosticExportContext(
+            AreCredentialsConfigured,
+            IsRequestConfigured,
+            IsMailConfigured,
+            execution);
     }
 
     private DateTimeOffset GetEcuadorNow() => timeProvider.GetUtcNow().ToOffset(TimeSpan.FromHours(-5));
@@ -421,6 +510,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
             StatusMessage = SendEmailAtEnd
                 ? "Acción final cambiada a envío por correo."
                 : "Acción final cambiada a mostrar Request ID.";
+            logger.LogInformation("Final action configuration changed. FinalAction={FinalAction}.", settings.FinalAction);
         }
         catch (Exception exception)
         {
@@ -447,6 +537,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     private void RefreshPresentationState()
     {
         OnPropertyChanged(nameof(AreControlsEnabled));
+        OnPropertyChanged(nameof(CanExportDiagnostics));
         OnPropertyChanged(nameof(IsConfigurationComplete));
         OnPropertyChanged(nameof(CanStartAutomation));
         OnPropertyChanged(nameof(IsTestActionVisible));
@@ -461,5 +552,6 @@ public sealed partial class MainWindowViewModel : ObservableObject
         StartTestCommand.NotifyCanExecuteChanged();
         StartAutomationCommand.NotifyCanExecuteChanged();
         ToggleFinalActionCommand.NotifyCanExecuteChanged();
+        ExportDiagnosticsCommand.NotifyCanExecuteChanged();
     }
 }

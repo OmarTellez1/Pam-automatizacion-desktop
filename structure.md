@@ -47,6 +47,7 @@ Las fases construidas hasta ahora son:
 - Fase 16.6: logging seguro de desarrollo con retención local de dos días.
 - Fase 16.7: activación tardía de Outlook COM sin dependencia de la PIA administrada.
 - Fase 16.8: mensajes operativos, animación bajo demanda y recuperación segura de fallos UI.
+- Fase 17: buffer diagnóstico seguro en memoria y exportación ZIP manual y atómica.
 
 Los directorios `.git`, `.vs`, `bin` y `obj` contienen metadatos o salidas generadas y se omiten en el árbol.
 
@@ -119,6 +120,9 @@ PamAutomation\
 │   │   │   ├── CredentialStoreErrorCode.cs
 │   │   │   ├── CredentialStoreException.cs
 │   │   │   └── IPamCredentialStore.cs
+│   │   ├── Diagnostics\
+│   │   │   ├── IDiagnosticEventSource.cs
+│   │   │   └── IDiagnosticExportService.cs
 │   │   ├── Favorites\
 │   │   │   ├── IPamFavoritesPortal.cs
 │   │   │   └── IPamFavoritesPortalFactory.cs
@@ -146,6 +150,10 @@ PamAutomation\
 │   ├── Browser\
 │   │   ├── PamBrowserExceptions.cs
 │   │   └── PamNavigationResponse.cs
+│   ├── Diagnostics\
+│   │   ├── DiagnosticExceptionInfo.cs
+│   │   ├── DiagnosticExportContext.cs
+│   │   └── DiagnosticLogEvent.cs
 │   ├── Favorites\
 │   │   ├── PamFavoriteAccount.cs
 │   │   ├── PamFavoritesErrorCode.cs
@@ -261,7 +269,9 @@ PamAutomation\
 │   │   ├── WindowsCredentialApi.cs
 │   │   └── WindowsPamCredentialStore.cs
 │   ├── Diagnostics\
-│   │   └── DevelopmentFileLoggerFactory.cs
+│   │   ├── DevelopmentFileLoggerFactory.cs
+│   │   ├── DiagnosticExportService.cs
+│   │   └── RuntimeDiagnosticLoggerFactory.cs
 │   └── Time\
 │       └── PamHttpDateClockFactory.cs
 │
@@ -284,7 +294,9 @@ PamAutomation\
     │   └── FlowDocumentHtmlConverterTests.cs
     ├── Infrastructure\
     │   └── Diagnostics\
-    │       └── DevelopmentFileLoggerFactoryTests.cs
+    │       ├── DevelopmentFileLoggerFactoryTests.cs
+    │       ├── DiagnosticExportServiceTests.cs
+    │       └── RuntimeDiagnosticLoggerFactoryTests.cs
     ├── Core\
     │   ├── Authentication\
     │   │   └── PamAuthenticationServiceTests.cs
@@ -407,6 +419,7 @@ Biblioteca para `net10.0`, sin dependencia de WPF o Windows. Actualmente contien
 - `Interfaces/Requests` y `Requests`: contratos separados para prueba, envío y lectura; coordinación de solicitudes, resultados en memoria y reconciliación estricta de Pending.
 - `Interfaces/Outlook` y `Outlook`: contrato del cliente clásico, modelos redactados, validaciones, resultados y errores seguros; `OutlookHtmlComposer` sanea XHTML, valida el marcador y compone Request ID por línea.
 - `Interfaces/Execution` y `Execution`: preparación confirmable, coordinación completa y resultado exclusivamente en memoria.
+- `Interfaces/Diagnostics` y `Diagnostics`: contratos y modelos de lista permitida para capturar y exportar evidencias sin identidades ni secretos.
 
 Los validadores reciben explícitamente la hora actual de Ecuador y no acceden al reloj, sistema de archivos o servicios externos.
 
@@ -482,8 +495,10 @@ Responsabilidad objetivo:
 - Lectura, validación, migración y escritura atómica de configuración.
 - Implementaciones del reloj del sistema y zona horaria de Ecuador.
 - Detección de dependencias instaladas cuando corresponda.
-- Diagnóstico explícito de desarrollo, sin persistencia operativa en producción.
+- Diagnóstico acotado en memoria y exportación explícita, sin persistencia operativa automática en producción.
 - `Diagnostics/DevelopmentFileLoggerFactory`: proveedor estructurado activado solo bajo depurador o variable explícita, escribe archivos diarios seguros en `logs` y elimina los que superan dos días.
+- `Diagnostics/RuntimeDiagnosticLoggerFactory`: buffer circular de 500 eventos, lista permitida de propiedades y metadatos de excepción sin mensajes o rutas locales.
+- `Diagnostics/DiagnosticExportService`: paquete ZIP manual con escritura atómica, limpieza de temporales y contenido estrictamente tipado.
 
 No debe conocer controles WPF, selectores PAM ni objetos COM de Outlook.
 
@@ -527,6 +542,8 @@ Contenido actual:
 - `Infrastructure/Configuration/JsonAppSettingsStoreTests.cs`: valida formato plano, carga, sustitución atómica, cancelación segura y errores de persistencia sin tocar la configuración real del usuario.
 - `Infrastructure/Configuration/DpapiMailSettingsStoreTests.cs`: valida cifrado CurrentUser, ida y vuelta y rechazo de ciphertext corrupto en una carpeta temporal.
 - `Infrastructure/Configuration/DpapiOutlookAccountSettingsStoreTests.cs`: valida el documento separado de cuenta Outlook, su cifrado CurrentUser y el rechazo de SMTP inválido o contenido corrupto.
+- `Infrastructure/Diagnostics/RuntimeDiagnosticLoggerFactoryTests.cs`: valida capacidad, lista permitida y metadatos de excepción sin información privada.
+- `Infrastructure/Diagnostics/DiagnosticExportServiceTests.cs`: valida ZIP, exclusión de identificadores, cancelación y limpieza atómica.
 - `Infrastructure/Credentials/WindowsPamCredentialStoreTests.cs`: valida creación, actualización parcial, límites, corrupción, borrado y limpieza de buffers mediante una API de Windows falsa.
 - `Infrastructure/Time/PamHttpDateClockFactoryTests.cs`: valida calibración, avance monotónico y errores sin consultar el reloj local.
 - `Browser/PamBrowserSessionFactoryTests.cs`: valida Edge visible, contexto temporal, origen exacto, respuesta segura, cancelación y liberación con adaptadores falsos.

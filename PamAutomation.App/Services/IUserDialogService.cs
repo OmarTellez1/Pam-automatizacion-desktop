@@ -10,4 +10,5 @@ public interface IUserDialogService
     bool ConfirmOutlookTestEmail(string recipient);
     void ShowResult(string title, string message);
     void ShowError(string message);
+    string? SelectDiagnosticExportPath(string suggestedFileName);
 }

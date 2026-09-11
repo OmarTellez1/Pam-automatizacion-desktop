@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Windows;
+using Microsoft.Win32;
 using PamAutomation.Core.Execution;
 using PamAutomation.Core.Models.Configuration;
 
@@ -47,4 +48,20 @@ public sealed class WpfUserDialogService : IUserDialogService
 
     public void ShowError(string message) =>
         MessageBox.Show(message, "No se completó la automatización", MessageBoxButton.OK, MessageBoxImage.Error);
+
+    public string? SelectDiagnosticExportPath(string suggestedFileName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(suggestedFileName);
+        var dialog = new SaveFileDialog
+        {
+            Title = "Exportar diagnóstico de Pam Automation",
+            FileName = suggestedFileName,
+            DefaultExt = ".zip",
+            Filter = "Paquete de diagnóstico (*.zip)|*.zip",
+            AddExtension = true,
+            OverwritePrompt = true,
+            CheckPathExists = true
+        };
+        return dialog.ShowDialog(Application.Current.MainWindow) == true ? dialog.FileName : null;
+    }
 }

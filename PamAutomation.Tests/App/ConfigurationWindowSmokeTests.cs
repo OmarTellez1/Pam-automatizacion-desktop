@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using PamAutomation.App;
 using PamAutomation.App.Services;
 using PamAutomation.App.Views;
 using PamAutomation.Core.Models.Configuration;
@@ -14,6 +15,25 @@ namespace PamAutomation.Tests.App;
 [DoNotParallelize]
 public sealed class ConfigurationWindowSmokeTests
 {
+    [STATestMethod]
+    public void MainWindow_WithDiagnosticAction_RendersSuccessfully()
+    {
+        EnsureApplicationResources();
+        var window = new MainWindow();
+
+        try
+        {
+            window.Show();
+            Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+
+            Assert.IsNotNull(window.FindName("ExportDiagnosticsButton"));
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
     [STATestMethod]
     public void ConfigurationWindows_WithApplicationResources_LoadSuccessfully()
     {

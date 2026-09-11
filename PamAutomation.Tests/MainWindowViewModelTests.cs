@@ -2,8 +2,10 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PamAutomation.App.Services;
 using PamAutomation.App.ViewModels;
 using PamAutomation.Core.Execution;
+using PamAutomation.Core.Diagnostics;
 using PamAutomation.Core.Interfaces.Configuration;
 using PamAutomation.Core.Interfaces.Credentials;
+using PamAutomation.Core.Interfaces.Diagnostics;
 using PamAutomation.Core.Interfaces.Execution;
 using PamAutomation.Core.Interfaces.Outlook;
 using PamAutomation.Core.Models.Configuration;
@@ -109,6 +111,63 @@ public sealed class MainWindowViewModelTests
     }
 
     [TestMethod]
+    public async Task UnknownFailure_WithDiagnosticsAvailable_SuggestsSafeExport()
+    {
+        TestContext context = CreateIntegratedViewModel(confirm: true, configureDiagnostics: true);
+        context.Execution.Failure = new InvalidOperationException("internal-sensitive-detail");
+        await context.ViewModel.InitializeAsync();
+
+        await context.ViewModel.StartAutomationCommand.ExecuteAsync(null);
+
+        Assert.Contains("Exportar diagnóstico", context.ViewModel.StatusMessage);
+        Assert.DoesNotContain("internal-sensitive-detail", context.ViewModel.StatusMessage);
+        Assert.AreEqual(context.ViewModel.StatusMessage, context.Dialogs.LastError);
+    }
+
+    [TestMethod]
+    public async Task ExportDiagnostics_WhenPathSelected_ExportsOnlySafeSummary()
+    {
+        TestContext context = CreateIntegratedViewModel(confirm: true, configureDiagnostics: true);
+        await context.ViewModel.InitializeAsync();
+        await context.ViewModel.StartAutomationCommand.ExecuteAsync(null);
+
+        await context.ViewModel.ExportDiagnosticsCommand.ExecuteAsync(null);
+
+        Assert.AreEqual("C:\\support\\diagnostic.zip", context.Diagnostics.LastPath);
+        Assert.IsNotNull(context.Diagnostics.LastContext);
+        Assert.AreEqual(2, context.Diagnostics.LastContext.LastExecution?.RequestIdCount);
+        Assert.IsFalse(context.ViewModel.IsExportingDiagnostics);
+        Assert.Contains("exportado", context.ViewModel.StatusMessage);
+    }
+
+    [TestMethod]
+    public async Task ExportDiagnostics_WhenPickerIsCancelled_DoesNotCreateExport()
+    {
+        TestContext context = CreateIntegratedViewModel(confirm: true, configureDiagnostics: true);
+        context.Dialogs.DiagnosticPath = null;
+
+        await context.ViewModel.ExportDiagnosticsCommand.ExecuteAsync(null);
+
+        Assert.AreEqual(0, context.Diagnostics.ExportCount);
+        Assert.IsFalse(context.ViewModel.IsExportingDiagnostics);
+    }
+
+    [TestMethod]
+    public async Task ExportDiagnostics_WhenExporterFails_RestoresControlsAndShowsSafeError()
+    {
+        TestContext context = CreateIntegratedViewModel(confirm: true, configureDiagnostics: true);
+        context.Diagnostics.Failure = new IOException("private-path-detail");
+
+        await context.ViewModel.ExportDiagnosticsCommand.ExecuteAsync(null);
+
+        Assert.IsFalse(context.ViewModel.IsExportingDiagnostics);
+        Assert.IsTrue(context.ViewModel.AreControlsEnabled);
+        Assert.Contains("No fue posible exportar", context.ViewModel.StatusMessage);
+        Assert.DoesNotContain("private-path-detail", context.ViewModel.StatusMessage);
+        Assert.AreEqual(context.ViewModel.StatusMessage, context.Dialogs.LastError);
+    }
+
+    [TestMethod]
     public async Task ToggleFinalAction_PersistsSelectedAction()
     {
         TestContext context = CreateIntegratedViewModel(confirm: true);
@@ -174,7 +233,10 @@ public sealed class MainWindowViewModelTests
         };
     }
 
-    private static TestContext CreateIntegratedViewModel(bool confirm, bool configureTestEmail = false)
+    private static TestContext CreateIntegratedViewModel(
+        bool confirm,
+        bool configureTestEmail = false,
+        bool configureDiagnostics = false)
     {
         var now = new DateTimeOffset(2026, 9, 10, 16, 0, 0, TimeSpan.FromHours(-5));
         var settings = new AppSettings
@@ -191,27 +253,33 @@ public sealed class MainWindowViewModelTests
         };
         var execution = new FakeExecutionService(now);
         var settingsStore = new FakeSettingsStore(settings);
+        var dialogs = new FakeDialogs(confirm);
+        var diagnostics = new FakeDiagnosticExportService();
         var viewModel = new MainWindowViewModel(
             execution,
             settingsStore,
             new FakeCredentialStore(),
-            new FakeDialogs(confirm),
+            dialogs,
             new AppSettingsValidator(new RequestSettingsValidator()),
-            new FixedTimeProvider(now.ToUniversalTime()));
+            new FixedTimeProvider(now.ToUniversalTime()),
+            diagnosticExportService: configureDiagnostics ? diagnostics : null);
         if (configureTestEmail)
         {
             viewModel = new MainWindowViewModel(
-                execution, settingsStore, new FakeCredentialStore(), new FakeDialogs(confirm),
+                execution, settingsStore, new FakeCredentialStore(), dialogs,
                 new AppSettingsValidator(new RequestSettingsValidator()), new FixedTimeProvider(now.ToUniversalTime()),
-                mailSettingsStore: new FakeMailSettingsStore());
+                mailSettingsStore: new FakeMailSettingsStore(),
+                diagnosticExportService: configureDiagnostics ? diagnostics : null);
         }
-        return new TestContext(viewModel, execution, settingsStore);
+        return new TestContext(viewModel, execution, settingsStore, dialogs, diagnostics);
     }
 
     private sealed record TestContext(
         MainWindowViewModel ViewModel,
         FakeExecutionService Execution,
-        FakeSettingsStore SettingsStore);
+        FakeSettingsStore SettingsStore,
+        FakeDialogs Dialogs,
+        FakeDiagnosticExportService Diagnostics);
 
     private sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider
     {
@@ -274,11 +342,33 @@ public sealed class MainWindowViewModelTests
 
     private sealed class FakeDialogs(bool confirm) : IUserDialogService
     {
+        public string? DiagnosticPath { get; set; } = "C:\\support\\diagnostic.zip";
+        public string? LastError { get; private set; }
         public bool ConfirmRealExecution(PamExecutionPreparation preparation, MailSettings? mailSettings) => confirm;
         public bool ConfirmTestEmail(string recipient) => confirm;
         public bool ConfirmOutlookTestEmail(string recipient) => confirm;
         public void ShowResult(string title, string message) { }
-        public void ShowError(string message) { }
+        public void ShowError(string message) => LastError = message;
+        public string? SelectDiagnosticExportPath(string suggestedFileName) => DiagnosticPath;
+    }
+
+    private sealed class FakeDiagnosticExportService : IDiagnosticExportService
+    {
+        public Exception? Failure { get; set; }
+        public int ExportCount { get; private set; }
+        public string? LastPath { get; private set; }
+        public DiagnosticExportContext? LastContext { get; private set; }
+
+        public Task ExportAsync(
+            string destinationPath,
+            DiagnosticExportContext context,
+            CancellationToken cancellationToken = default)
+        {
+            ExportCount++;
+            LastPath = destinationPath;
+            LastContext = context;
+            return Failure is null ? Task.CompletedTask : Task.FromException(Failure);
+        }
     }
 
     private sealed class FakeExecutionService(DateTimeOffset now) : IPamAutomationExecutionService
