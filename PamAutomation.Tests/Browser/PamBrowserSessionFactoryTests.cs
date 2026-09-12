@@ -10,7 +10,7 @@ namespace PamAutomation.Tests.Browser;
 public sealed class PamBrowserSessionFactoryTests
 {
     [TestMethod]
-    public async Task CreateAsync_ValidAdapters_UsesVisibleEdgeAndRestrictedTemporaryContext()
+    public async Task CreateAsync_ValidAdapters_UsesBackgroundEdgeAndRestrictedTemporaryContext()
     {
         // Arrange
         var harness = new BrowserHarness();
@@ -22,7 +22,7 @@ public sealed class PamBrowserSessionFactoryTests
         // Assert
         Assert.IsNotNull(harness.LaunchOptions);
         Assert.AreEqual("msedge", harness.LaunchOptions.Channel);
-        Assert.IsFalse(harness.LaunchOptions.Headless);
+        Assert.IsTrue(harness.LaunchOptions.Headless);
         Assert.IsNotNull(harness.ContextOptions);
         Assert.IsTrue(harness.ContextOptions.IgnoreHttpSErrors);
         Assert.IsTrue(harness.ContextOptions.BlockServiceWorkers);

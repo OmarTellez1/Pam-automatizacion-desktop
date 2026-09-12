@@ -2,7 +2,7 @@
 
 ## Estado
 
-Este documento describe la lógica objetivo de la aplicación nueva. Ya existen la estructura base, la configuración, el almacenamiento protegido de credenciales, TOTP, navegador restringido, autenticación PAM real visible, lectura de Favorites, solicitudes reales, validación segura de formularios, composición HTML saneada, Outlook clásico aislado y la coordinación del flujo PAM desde la interfaz.
+Este documento describe la lógica objetivo de la aplicación nueva. Ya existen la estructura base, la configuración, el almacenamiento protegido de credenciales, TOTP, navegador automático restringido y oculto, acceso PAM interactivo visible, lectura de Favorites, solicitudes reales, validación segura de formularios, composición HTML saneada, Outlook clásico aislado y la coordinación del flujo PAM desde la interfaz.
 
 ## Capas
 
@@ -151,7 +151,7 @@ La fase 8 implementa `PamAuthenticationService` con un puerto del portal ligado 
 
 La fase 9 implementa en Browser `PamAuthenticationPortalFactory` y `PamAuthenticationPortal`, ligados exclusivamente a la página de un `PamBrowserSession`. El adaptador usa los nombres accesibles reales `Username`, `Password`, `Log In`, `Enter Response`, `Submit` y `Return to dashboard`, y reconoce el rechazo TOTP observado sin registrar su contenido. La transición del portal anuncia `Navigation complete.` con `role=alert`; ese anuncio se ignora expresamente porque no representa un rechazo de credenciales. Los timeouts o estados ambiguos tampoco se convierten en rechazos explícitos.
 
-La integración real permanece detrás de `PAM_AUTOMATION_ALLOW_REAL_LOGIN=LOGIN_ONLY`, recupera los valores únicamente desde Windows Credential Manager y abre Edge visible. La validación autorizada confirmó el dashboard y cerró el contexto temporal; no navegó a Favorites, no creó solicitudes y no abrió Outlook.
+La integración real permanece detrás de `PAM_AUTOMATION_ALLOW_REAL_LOGIN=LOGIN_ONLY`, recupera los valores únicamente desde Windows Credential Manager y ejecuta Edge temporal en segundo plano. La validación autorizada confirmó el dashboard y cerró el contexto; no navegó a Favorites, no creó solicitudes y no abrió Outlook.
 
 El flujo debe:
 
@@ -170,11 +170,11 @@ La aplicación debe diferenciar credenciales rechazadas, TOTP rechazado, fallo d
 
 Playwright .NET debe lanzar el Edge instalado mediante el canal msedge.
 
-La fase 7 implementa `IPamBrowserSessionFactory` e `IPamBrowserSession`. Cada sesión crea un navegador visible y un contexto nuevo no persistente, bloquea service workers e instala una ruta que aborta solicitudes HTTP(S) cuyo esquema, host o puerto efectivo no coincidan con el origen PAM autorizado. La excepción HTTPS queda limitada a ese contexto. La respuesta pública de navegación contiene únicamente URI final, código de estado y el encabezado HTTP `Date`; no enumera ni expone cookies, tokens u otras cabeceras.
+La fase 7 implementa `IPamBrowserSessionFactory` e `IPamBrowserSession`. Cada sesión crea un navegador `headless` y un contexto nuevo no persistente, bloquea service workers e instala una ruta que aborta solicitudes HTTP(S) cuyo esquema, host o puerto efectivo no coincidan con el origen PAM autorizado. La excepción HTTPS queda limitada a ese contexto. La respuesta pública de navegación contiene únicamente URI final, código de estado y el encabezado HTTP `Date`; no enumera ni expone cookies, tokens u otras cabeceras.
 
 No se debe incluir Chromium. La aplicación debe utilizar la opción 1: lanzar el Edge instalado mediante el canal msedge y crear un contexto temporal de Playwright. No debe seleccionar, reutilizar ni modificar el perfil existente del usuario, sus cookies, extensiones o sesiones. No utilizar LaunchPersistentContext, userDataDir ni conexión CDP a un navegador existente. El aislamiento es interno de Playwright y no debe presentarse como una ventana de incógnito.
 
-La primera versión utilizará Edge visible para la comprobación de credenciales y la automatización real. Se conservará el comportamiento funcional validado de la aplicación anterior, no su uso de Chrome, perfiles existentes o ejecución headless. Cualquier modo headless futuro requerirá una decisión explícita y la misma cobertura de seguridad e integración.
+Por decisión posterior, la comprobación de credenciales y la automatización real temporal utilizan Edge `headless`; no muestran la navegación, pero conservan las mismas restricciones, selectores y ciclo de vida. `Acceder a PAM` es la única excepción visible y utiliza el Edge normal descrito anteriormente.
 
 Los locators se refieren al DOM HTML del portal externo. La interfaz propia no utilizará HTML, CSS ni JavaScript. Priorizar roles, labels y atributos estables; CSS o XPath solo como último recurso.
 
@@ -272,4 +272,4 @@ Todas las dependencias externas deben tener interfaces sustituibles:
 
 El framework elegido es MSTest sobre Microsoft Testing Platform. Las pruebas se descubrirán y ejecutarán desde la terminal mediante el runner integrado del proyecto `PamAutomation.Tests`. Las pruebas COM que necesiten apartamento STA utilizarán el soporte STA de MSTest y permanecerán separadas de las pruebas unitarias.
 
-Las pruebas unitarias no deben abrir Edge, PAM ni Outlook. Las pruebas de integración visibles pueden utilizar credenciales reales y el contexto temporal de Playwright cuando exista autorización explícita; deben conservar los mismos controles de seguridad y no deben crear solicitudes ni enviar correos sin una autorización adicional.
+Las pruebas unitarias no deben abrir Edge, PAM ni Outlook. Las pruebas de integración pueden utilizar credenciales reales y el contexto temporal `headless` de Playwright cuando exista autorización explícita; deben conservar los mismos controles de seguridad y no deben crear solicitudes ni enviar correos sin una autorización adicional. Las pruebas del botón interactivo sí pueden mostrar Edge porque validan deliberadamente el flujo visible separado.

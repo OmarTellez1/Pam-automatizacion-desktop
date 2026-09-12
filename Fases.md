@@ -234,6 +234,12 @@ Como ajuste de jerarquía visual, `Acceder a PAM` se trasladó al encabezado ent
 
 La compilación `Release | x64` pasó y una integración real autorizada exigió y confirmó programáticamente el indicador `67 %`. Edge permaneció abierto; no se crearon solicitudes ni se envió correo. **Fase completada.**
 
+## Fase 21.4 — Automatización de solicitudes oculta
+
+El contexto temporal utilizado por `PamBrowserSessionFactory` cambió de Edge visible a `Headless = true`. Por tanto, autenticación, lectura de `Favorites`, apertura y envío de formularios y reconciliación de `Pending` se ejecutan en segundo plano sin mostrar al usuario el recorrido del portal. Se conservan el canal externo `msedge`, el perfil temporal, el bloqueo de orígenes, la excepción HTTPS limitada, los selectores y la liberación completa de recursos.
+
+La modificación no alcanza a `PamInteractiveBrowserSessionFactory`: `Acceder a PAM` continúa abriendo una ventana normal y visible, permite la intervención manual del certificado, mantiene la sesión y aplica el zoom al 67 %. La compilación `Release | x64`, las 12 pruebas de la fábrica y un login real no destructivo en modo oculto pasaron. La integración no abrió `Favorites`, no creó solicitudes y no ejecutó Outlook. **Fase completada.**
+
 ## Fases pendientes
 
 La clasificación siguiente se refiere únicamente a dependencias entre fases pendientes:
@@ -252,7 +258,7 @@ La clasificación siguiente se refiere únicamente a dependencias entre fases pe
 ```text
 Fases 6 a 18 completadas ──► Fase 19
 
-Fases 21–21.3 completadas de forma independiente
+Fases 21–21.4 completadas de forma independiente
 
 Fase 19 ──► Fase 20 (ampliación posterior a la migración)
 ```

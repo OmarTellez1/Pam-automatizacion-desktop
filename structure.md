@@ -21,7 +21,7 @@ La aplicación anterior ubicada en `C:\pam automatizacion` no forma parte de est
 
 ## Estado actual
 
-La solución utiliza `PamAutomation.slnx`, .NET 10 y la plataforma `x64`. Actualmente existen los límites principales de la arquitectura, configuración y credenciales protegidas, TOTP, reloj HTTP, sesión temporal de Edge, autenticación PAM simulada y real visible, lectura de Favorites, validación y descarte seguro de formularios, solicitudes reales confirmadas, lectura y reconciliación de Pending, composición HTML saneada, el adaptador testeable de Outlook clásico y la coordinación del flujo PAM con resultados WPF mantenidos en memoria. La fase 16.5 añadió paridad funcional y estados claros a las ventanas de configuración sin copiar la implementación JavaScript anterior.
+La solución utiliza `PamAutomation.slnx`, .NET 10 y la plataforma `x64`. Actualmente existen los límites principales de la arquitectura, configuración y credenciales protegidas, TOTP, reloj HTTP, sesión temporal `headless` de Edge, acceso PAM interactivo visible, autenticación PAM simulada y real, lectura de Favorites, validación y descarte seguro de formularios, solicitudes reales confirmadas, lectura y reconciliación de Pending, composición HTML saneada, el adaptador testeable de Outlook clásico y la coordinación del flujo PAM con resultados WPF mantenidos en memoria. La fase 16.5 añadió paridad funcional y estados claros a las ventanas de configuración sin copiar la implementación JavaScript anterior.
 
 Las fases construidas hasta ahora son:
 
@@ -60,6 +60,7 @@ Las fases construidas hasta ahora son:
 - Fase 21.1: preflight de Pending con repetición o cancelación explícitas; el intento WebSocket/CDP quedó sustituido en fase 21.2.
 - Fase 21.2: Edge normal mediante Windows UI Automation, confianza manual del certificado y liberación sin cerrar el navegador.
 - Fase 21.3: zoom seguro y verificado al 67 % únicamente sobre la ventana PAM autenticada.
+- Fase 21.4: contexto temporal `headless` para ocultar la navegación de creación de solicitudes; acceso interactivo visible sin cambios.
 
 Los directorios `.git`, `.vs`, `bin` y `obj` contienen metadatos o salidas generadas y se omiten en el árbol.
 
@@ -463,7 +464,7 @@ Regla principal: `Core` no debe referenciar ningún otro proyecto de la solució
 
 Biblioteca para `net10.0-windows`. Referencia `PamAutomation.Core` e implementa la sesión restringida de Playwright, el login real, Favorites, formularios y Pending de las fases 7, 9, 10, 11, 12 y 13, además del adaptador accesible de Edge normal de fase 21.2:
 
-- `PamBrowserSessionFactory`: crea Edge visible mediante el canal `msedge` y administra la inicialización segura.
+- `PamBrowserSessionFactory`: crea Edge `headless` mediante el canal externo `msedge` y administra la inicialización segura del flujo automático.
 - `PamInteractiveBrowserSessionFactory`: excepción exclusiva de fase 21; crea el adaptador sobre el Edge normal del usuario sin CDP, `userDataDir` ni perfil dedicado.
 - `WindowsEdgePamPage`: abre Edge como proceso externo, valida el origen en la barra de direcciones y automatiza solo el login mediante Windows UI Automation. Espera la confianza manual del certificado, ajusta y verifica el zoom PAM al 67 % y nunca cierra el navegador.
 - `IPamCertificateTrustPrompt`: separa la detección del certificado en Browser de su explicación visual en WPF.
@@ -579,7 +580,7 @@ Contenido actual:
 - `Infrastructure/Diagnostics/DiagnosticExportServiceTests.cs`: valida ZIP, exclusión de identificadores, cancelación y limpieza atómica.
 - `Infrastructure/Credentials/WindowsPamCredentialStoreTests.cs`: valida creación, actualización parcial, límites, corrupción, borrado y limpieza de buffers mediante una API de Windows falsa.
 - `Infrastructure/Time/PamHttpDateClockFactoryTests.cs`: valida calibración, avance monotónico y errores sin consultar el reloj local.
-- `Browser/PamBrowserSessionFactoryTests.cs`: valida Edge visible, contexto temporal, origen exacto, respuesta segura, cancelación y liberación con adaptadores falsos.
+- `Browser/PamBrowserSessionFactoryTests.cs`: valida Edge `headless`, contexto temporal, origen exacto, respuesta segura, cancelación y liberación con adaptadores falsos.
 - `Browser/PamInteractiveAccessServiceTests.cs`: valida que el acceso interactivo libere la automatización sin disponer los recursos del navegador entregado al usuario.
 - `Browser/PamAuthenticationPortalTests.cs`: valida el enlace de sesión, el mapeo del portal y la clasificación segura de anuncios sin abrir Edge.
 - `Browser/PamFavoritesPortalTests.cs`: valida el adaptador de Favorites y el formato del paginador con dobles.

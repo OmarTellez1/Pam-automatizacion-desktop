@@ -66,7 +66,7 @@ La observación real confirmó que la columna `Application` de Pending puede usa
 
 ## Recorrido web confirmado
 
-Toda la navegación ocurre en un único contexto temporal de Microsoft Playwright para .NET, usando el Edge externo visible y restringido al origen exacto `https://10.30.17.117`.
+Toda la navegación de creación de solicitudes ocurre en un único contexto temporal y oculto de Microsoft Playwright para .NET, usando el Edge externo en modo `headless` y restringido al origen exacto `https://10.30.17.117`.
 
 1. Abrir `/webconsole/login?redir=dashboard`.
 2. Completar usuario y contraseña mediante los controles accesibles `Username` y `Password` y pulsar `Log In`.

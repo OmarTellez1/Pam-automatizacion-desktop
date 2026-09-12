@@ -3,10 +3,10 @@ using PamAutomation.Core.Interfaces.Browser;
 
 namespace PamAutomation.Browser;
 
-/// <summary>Creates an isolated visible Edge session constrained to the PAM origin.</summary>
+/// <summary>Creates an isolated background Edge session constrained to the PAM origin.</summary>
 public sealed class PamBrowserSessionFactory : IPamBrowserSessionFactory
 {
-    private static readonly EdgeLaunchOptions EdgeOptions = new("msedge", Headless: false);
+    private static readonly EdgeLaunchOptions EdgeOptions = new("msedge", Headless: true);
     private static readonly PamBrowserContextOptions ContextOptions = new(IgnoreHttpSErrors: true, BlockServiceWorkers: true);
 
     private readonly IPlaywrightEngineFactory engineFactory;

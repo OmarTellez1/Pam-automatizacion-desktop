@@ -488,3 +488,10 @@ Cada cambio relevante debe registrar qué se decidió, por qué, qué se verific
 - La primera integración demostró que Edge no expone necesariamente el indicador como `Button`; la implementación final reconoce `67 %` en `Text`, `Group` o `Button` sin confundir porcentajes del contenido web.
 - La segunda integración real confirmó explícitamente `67 %`, conservó Edge abierto y no creó solicitudes ni envió correo.
 - El acceso directo se reubicó en el encabezado, entre `Exportar diagnóstico` y `Enviar correo con Outlook`, sin cambiar su comando ni reglas de habilitación.
+
+## 12 de septiembre de 2026 — Fase 21.4: solicitudes en segundo plano
+
+- El usuario decidió que la navegación de la automatización de solicitudes no debe mostrarse. `PamBrowserSessionFactory` ahora lanza el canal externo `msedge` con `Headless = true`.
+- El cambio cubre el contexto temporal compartido por autenticación, `Favorites`, formularios y `Pending`, sin alterar su perfil aislado, política de origen, excepción HTTPS o disposición de recursos.
+- `Acceder a PAM` permanece deliberadamente visible porque utiliza la fábrica interactiva separada y el Edge normal del usuario.
+- La compilación `Release | x64` y las 12 pruebas de la fábrica pasaron. Un login real autorizado confirmó el dashboard en segundo plano y cerró el contexto sin visitar `Favorites`, crear solicitudes ni abrir Outlook.
