@@ -6,7 +6,7 @@ namespace PamAutomation.App.Services;
 public interface IUserDialogService
 {
     bool ConfirmRepeatedPendingRequests(PamExecutionPreparation preparation);
-    bool ConfirmRealExecution(PamExecutionPreparation preparation, MailSettings? mailSettings);
+    bool ConfirmAutomationStart(AppSettings settings, MailSettings? mailSettings);
     bool ConfirmTestEmail(string recipient);
     bool ConfirmOutlookTestEmail(string recipient);
     void ShowResult(string title, string message);

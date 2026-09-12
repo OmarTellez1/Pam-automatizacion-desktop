@@ -27,25 +27,45 @@ public sealed class WpfUserDialogService : IUserDialogService
             MessageBoxResult.No) == MessageBoxResult.Yes;
     }
 
-    public bool ConfirmRealExecution(PamExecutionPreparation preparation, MailSettings? mailSettings)
+    public bool ConfirmAutomationStart(AppSettings settings, MailSettings? mailSettings)
     {
-        ArgumentNullException.ThrowIfNull(preparation);
-        string message = string.Join(
+        ArgumentNullException.ThrowIfNull(settings);
+        string message = FormatAutomationStartMessage(settings, mailSettings);
+        return MessageBox.Show(message, "Iniciar automatización PAM", MessageBoxButton.YesNo,
+            MessageBoxImage.Warning, MessageBoxResult.No) == MessageBoxResult.Yes;
+    }
+
+    internal static string FormatAutomationStartMessage(AppSettings settings, MailSettings? mailSettings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        RequestSettings request = settings.Request;
+        string startTime = request.StartTime.ToString(
+            "hh:mm tt",
+            CultureInfo.GetCultureInfo("en-US"));
+        string toRecipients = mailSettings is not null && mailSettings.ToRecipients.Count > 0
+            ? string.Join("; ", mailSettings.ToRecipients)
+            : "Ninguno";
+        string ccRecipients = mailSettings is not null && mailSettings.CcRecipients.Count > 0
+            ? string.Join("; ", mailSettings.CcRecipients)
+            : "Ninguno";
+
+        return string.Join(
             Environment.NewLine,
-            "Se crearán solicitudes reales en PAM.",
+            "¿Deseas iniciar la automatización y crear solicitudes reales en PAM?",
             string.Empty,
-            $"Favorites rows: {preparation.FavoriteCount}",
-            $"Inicio: {preparation.Request.StartDate:dd/MM/yyyy} {preparation.Request.StartTime:hh\\:mm}",
-            $"Duración: {preparation.Request.SessionHours.ToString(CultureInfo.InvariantCulture)} hora(s)",
-            $"Razón: {preparation.Request.RequestReason}",
-            $"Acción final: {(preparation.FinalAction == FinalAction.SendEmail ? "Enviar correo" : "Mostrar Request ID")}",
-            preparation.FinalAction == FinalAction.SendEmail && mailSettings is not null
-                ? $"Destinatarios: {string.Join("; ", mailSettings.ToRecipients)}"
+            $"Inicio: {request.StartDate:dd/MM/yyyy} {startTime}",
+            $"Duración: {request.SessionHours.ToString(CultureInfo.InvariantCulture)} hora(s)",
+            $"Razón: {request.RequestReason}",
+            $"Acción final: {(settings.FinalAction == FinalAction.SendEmail ? "Enviar correo" : "Mostrar Request ID")}",
+            settings.FinalAction == FinalAction.SendEmail && mailSettings is not null
+                ? $"Para: {toRecipients}"
+                : string.Empty,
+            settings.FinalAction == FinalAction.SendEmail && mailSettings is not null
+                ? $"CC: {ccRecipients}"
                 : string.Empty,
             string.Empty,
-            "La ejecución se cancelará si Favorites o la configuración cambian.");
-        return MessageBox.Show(message, "Confirmar solicitudes PAM", MessageBoxButton.YesNo,
-            MessageBoxImage.Warning, MessageBoxResult.No) == MessageBoxResult.Yes;
+            "Después de confirmar, las validaciones se ejecutarán en segundo plano.",
+            "Solo se solicitará otra decisión si existen solicitudes idénticas en Pending.");
     }
 
     public bool ConfirmTestEmail(string recipient) => MessageBox.Show(

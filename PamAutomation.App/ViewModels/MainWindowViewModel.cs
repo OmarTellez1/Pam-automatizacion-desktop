@@ -274,10 +274,17 @@ public sealed partial class MainWindowViewModel : ObservableObject
     {
         if (!TryGetExecutionDependencies(out PamCredentials? credentials)) return;
 
+        if (!dialogs!.ConfirmAutomationStart(settings, mailSettings))
+        {
+            logger.LogInformation("Real PAM execution was cancelled before preparation.");
+            StatusMessage = "Ejecución cancelada. No se inició ninguna validación ni se creó ninguna solicitud.";
+            return;
+        }
+
         IsRunning = true;
         logger.LogInformation("Real PAM execution started.");
         HasResult = false;
-        StatusMessage = "Leyendo Favorites y Pending para preparar la confirmación…";
+        StatusMessage = "Validando Favorites y Pending en segundo plano…";
         try
         {
             PamExecutionPreparation preparation = await executionService!.PrepareRealAsync(
@@ -289,13 +296,6 @@ public sealed partial class MainWindowViewModel : ObservableObject
                     "Real PAM execution was cancelled because exact Pending duplicates were found. DuplicateCount={DuplicateCount}.",
                     preparation.ExactPendingDuplicateCount);
                 StatusMessage = "Ejecución cancelada. Las solicitudes repetidas de Pending no se volvieron a crear.";
-                return;
-            }
-
-            if (!dialogs!.ConfirmRealExecution(preparation, mailSettings))
-            {
-                logger.LogInformation("Real PAM execution was cancelled before submission.");
-                StatusMessage = "Ejecución cancelada. No se creó ninguna solicitud.";
                 return;
             }
 

@@ -495,3 +495,19 @@ Cada cambio relevante debe registrar qué se decidió, por qué, qué se verific
 - El cambio cubre el contexto temporal compartido por autenticación, `Favorites`, formularios y `Pending`, sin alterar su perfil aislado, política de origen, excepción HTTPS o disposición de recursos.
 - `Acceder a PAM` permanece deliberadamente visible porque utiliza la fábrica interactiva separada y el Edge normal del usuario.
 - La compilación `Release | x64` y las 12 pruebas de la fábrica pasaron. Un login real autorizado confirmó el dashboard en segundo plano y cerró el contexto sin visitar `Favorites`, crear solicitudes ni abrir Outlook.
+
+## 12 de septiembre de 2026 — Fase 21.5: confirmación antes de preparar
+
+- La confirmación general se movió al primer momento del comando `Iniciar automatización`, usando únicamente la configuración local que ya está disponible.
+- Rechazarla evita por completo `PrepareRealAsync`; por tanto, no autentica, no lee `Favorites` ni `Pending` y no crea solicitudes.
+- Aceptarla inicia todas las validaciones en segundo plano y elimina la confirmación general que antes aparecía al terminar la preparación.
+- El aviso de solicitudes idénticas en `Pending` permanece porque requiere elegir explícitamente entre repetir o cancelar; solo aparece cuando se detectan coincidencias reales.
+- La compilación `Release | x64` y las 22 pruebas de `MainWindowViewModel` pasaron.
+
+## 12 de septiembre de 2026 — Fase 21.6: confirmación y configuración más claras
+
+- El resumen previo convierte la hora interna de 24 horas a `hh:mm AM/PM`, conservando la elección que el usuario entiende desde `Configurar solicitud`.
+- Para el envío por Outlook se sustituyó la etiqueta genérica de destinatarios por líneas independientes `Para` y `CC`; una copia vacía se comunica como `CC: Ninguno`.
+- Se retiró visualmente `Habilitar modo de prueba` de `Configurar solicitud`. El valor interno existente se conserva sin cambios al guardar para no alterar silenciosamente configuraciones compatibles.
+- Se añadieron regresiones de formato y una comprobación de que el control eliminado ya no forma parte del árbol WPF.
+- La compilación `Release | x64` pasó y las 6 pruebas específicas terminaron correctamente; no se contactó PAM ni Outlook.

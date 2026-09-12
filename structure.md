@@ -61,6 +61,8 @@ Las fases construidas hasta ahora son:
 - Fase 21.2: Edge normal mediante Windows UI Automation, confianza manual del certificado y liberación sin cerrar el navegador.
 - Fase 21.3: zoom seguro y verificado al 67 % únicamente sobre la ventana PAM autenticada.
 - Fase 21.4: contexto temporal `headless` para ocultar la navegación de creación de solicitudes; acceso interactivo visible sin cambios.
+- Fase 21.5: confirmación general inmediata antes de preparar y diálogos posteriores reservados a decisiones imprescindibles.
+- Fase 21.6: confirmación con hora `AM/PM`, destinatarios `Para`/`CC` explícitos y configuración de solicitud sin selector visible de modo de prueba.
 
 Los directorios `.git`, `.vs`, `bin` y `obj` contienen metadatos o salidas generadas y se omiten en el árbol.
 
@@ -395,8 +397,8 @@ Contenido actual:
 - `MainWindow.xaml`: portada nativa de la aplicación.
 - `MainWindow.xaml.cs`: inicialización mínima de la ventana; no contiene lógica de negocio.
 - `ViewModels/MainWindowViewModel.cs`: estado de presentación y comandos de la portada mediante `CommunityToolkit.Mvvm`.
-- `Views`: diálogos nativos para credenciales PAM y Outlook, solicitud y plantilla de correo, con estados y validación visibles.
-- `Services`: confirmaciones, adaptación de diálogos, coordinación no destructiva de credenciales, clasificación segura del resultado de correo de prueba, importación acotada de firmas HTML y conversión bidireccional entre `FlowDocument` y XHTML/CID.
+- `Views`: diálogos nativos para credenciales PAM y Outlook, solicitud y plantilla de correo, con estados y validación visibles; la solicitud solo expone fecha, hora, duración y razón.
+- `Services`: confirmaciones —incluida la presentación `AM/PM`, `Para` y `CC`—, adaptación de diálogos, coordinación no destructiva de credenciales, clasificación segura del resultado de correo de prueba, importación acotada de firmas HTML y conversión bidireccional entre `FlowDocument` y XHTML/CID.
 - `Resources/Styles.xaml`: estilos compartidos, incluida la apariencia estática del indicador circular cuya animación controla la ventana únicamente durante operaciones activas.
 - `Resources/Colors.xaml`: colores y pinceles compartidos.
 - `Resources/Styles.xaml`: estilos y plantillas de controles WPF.

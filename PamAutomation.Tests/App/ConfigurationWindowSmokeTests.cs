@@ -95,6 +95,7 @@ public sealed class ConfigurationWindowSmokeTests
             Assert.AreEqual("12", hourBox.Items[11]);
             Assert.AreEqual("05", minuteBox.Text);
             Assert.AreEqual(2, minuteBox.MaxLength);
+            Assert.IsNull(requestWindow.FindName("TestModeBox"));
             Assert.AreEqual("Configurar envío de correo", mailWindow.Title);
             Assert.AreEqual(700d, mailWindow.Width);
             Assert.AreEqual(620d, mailWindow.Height);

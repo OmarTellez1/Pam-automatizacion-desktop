@@ -10,11 +10,13 @@ namespace PamAutomation.App.Views;
 public partial class RequestSettingsWindow : Window
 {
     private readonly DateOnly ecuadorToday;
+    private readonly bool testModeEnabled;
 
     public RequestSettingsWindow(RequestSettings current, bool testModeEnabled, DateOnly ecuadorToday)
     {
         InitializeComponent();
         this.ecuadorToday = ecuadorToday;
+        this.testModeEnabled = testModeEnabled;
         DateOnly date = current.StartDate == default ? ecuadorToday : current.StartDate;
         TimeOnly time = current.StartTime == default ? new TimeOnly(9, 0) : current.StartTime;
         StartDatePicker.DisplayDateStart = ecuadorToday.ToDateTime(TimeOnly.MinValue);
@@ -28,7 +30,6 @@ public partial class RequestSettingsWindow : Window
         MeridiemBox.SelectedIndex = time.Hour < 12 ? 0 : 1;
         DurationBox.Text = current.SessionHours.ToString(CultureInfo.InvariantCulture);
         ReasonBox.Text = current.RequestReason;
-        TestModeBox.IsChecked = testModeEnabled;
         UpdateDateDescription();
     }
 
@@ -89,7 +90,7 @@ public partial class RequestSettingsWindow : Window
                 SessionHours = duration,
                 RequestReason = ReasonBox.Text.Trim()
             },
-            TestModeBox.IsChecked == true);
+            testModeEnabled);
         DialogResult = true;
     }
 

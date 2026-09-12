@@ -217,6 +217,8 @@ public sealed class MainWindowViewModelTests
 
         await context.ViewModel.StartAutomationCommand.ExecuteAsync(null);
 
+        Assert.AreEqual(1, context.Dialogs.AutomationStartConfirmationCount);
+        Assert.AreEqual(1, context.Execution.PreparationCount);
         Assert.AreEqual(1, context.Execution.RealExecutionCount);
         Assert.IsTrue(context.ViewModel.HasResult);
         Assert.IsTrue(context.ViewModel.HasRequestIds);
@@ -239,8 +241,10 @@ public sealed class MainWindowViewModelTests
 
         await context.ViewModel.StartAutomationCommand.ExecuteAsync(null);
 
+        Assert.AreEqual(1, context.Dialogs.AutomationStartConfirmationCount);
+        Assert.AreEqual(0, context.Execution.PreparationCount);
         Assert.AreEqual(0, context.Execution.RealExecutionCount);
-        Assert.Contains("No se creó ninguna solicitud", context.ViewModel.StatusMessage);
+        Assert.Contains("No se inició ninguna validación", context.ViewModel.StatusMessage);
         Assert.IsFalse(context.ViewModel.HasResult);
     }
 
@@ -254,6 +258,8 @@ public sealed class MainWindowViewModelTests
 
         await context.ViewModel.StartAutomationCommand.ExecuteAsync(null);
 
+        Assert.AreEqual(1, context.Dialogs.AutomationStartConfirmationCount);
+        Assert.AreEqual(1, context.Execution.PreparationCount);
         Assert.AreEqual(1, context.Dialogs.RepeatedPendingConfirmationCount);
         Assert.AreEqual(0, context.Execution.RealExecutionCount);
         Assert.Contains("no se volvieron a crear", context.ViewModel.StatusMessage);
@@ -269,6 +275,8 @@ public sealed class MainWindowViewModelTests
 
         await context.ViewModel.StartAutomationCommand.ExecuteAsync(null);
 
+        Assert.AreEqual(1, context.Dialogs.AutomationStartConfirmationCount);
+        Assert.AreEqual(1, context.Execution.PreparationCount);
         Assert.AreEqual(1, context.Dialogs.RepeatedPendingConfirmationCount);
         Assert.AreEqual(1, context.Execution.RealExecutionCount);
     }
@@ -531,13 +539,18 @@ public sealed class MainWindowViewModelTests
         public int ResultDisplayCount { get; private set; }
         public string LastResultMessage { get; private set; } = string.Empty;
         public bool ConfirmRepeatedRequests { get; set; }
+        public int AutomationStartConfirmationCount { get; private set; }
         public int RepeatedPendingConfirmationCount { get; private set; }
         public bool ConfirmRepeatedPendingRequests(PamExecutionPreparation preparation)
         {
             RepeatedPendingConfirmationCount++;
             return ConfirmRepeatedRequests;
         }
-        public bool ConfirmRealExecution(PamExecutionPreparation preparation, MailSettings? mailSettings) => confirm;
+        public bool ConfirmAutomationStart(AppSettings settings, MailSettings? mailSettings)
+        {
+            AutomationStartConfirmationCount++;
+            return confirm;
+        }
         public bool ConfirmTestEmail(string recipient) => confirm;
         public bool ConfirmOutlookTestEmail(string recipient) => confirm;
         public void ShowResult(string title, string message)
@@ -602,6 +615,7 @@ public sealed class MainWindowViewModelTests
     private sealed class FakeExecutionService(DateTimeOffset now) : IPamAutomationExecutionService
     {
         public int RealExecutionCount { get; private set; }
+        public int PreparationCount { get; private set; }
         public Exception? Failure { get; set; }
         public int EmailSendCount { get; private set; }
         public string[] LastEmailIds { get; private set; } = [];
@@ -609,13 +623,16 @@ public sealed class MainWindowViewModelTests
         public int PendingDuplicateCount { get; set; }
 
         public Task<PamExecutionPreparation> PrepareRealAsync(PamCredentials credentials, AppSettings settings,
-            DateTimeOffset ecuadorNow, CancellationToken cancellationToken = default) =>
-            Task.FromResult(new PamExecutionPreparation(
+            DateTimeOffset ecuadorNow, CancellationToken cancellationToken = default)
+        {
+            PreparationCount++;
+            return Task.FromResult(new PamExecutionPreparation(
                 2,
                 settings.Request,
                 settings.FinalAction,
                 PendingDuplicateCount > 0 ? ["7001"] : [],
                 PendingDuplicateCount));
+        }
 
         public Task<PamExecutionResult> ExecuteRealAsync(PamCredentials credentials,
             PamExecutionPreparation preparation, DateTimeOffset ecuadorNow,

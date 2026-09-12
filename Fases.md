@@ -240,6 +240,18 @@ El contexto temporal utilizado por `PamBrowserSessionFactory` cambió de Edge vi
 
 La modificación no alcanza a `PamInteractiveBrowserSessionFactory`: `Acceder a PAM` continúa abriendo una ventana normal y visible, permite la intervención manual del certificado, mantiene la sesión y aplica el zoom al 67 %. La compilación `Release | x64`, las 12 pruebas de la fábrica y un login real no destructivo en modo oculto pasaron. La integración no abrió `Favorites`, no creó solicitudes y no ejecutó Outlook. **Fase completada.**
 
+## Fase 21.5 — Confirmación inmediata y única
+
+La confirmación general de una ejecución real se trasladó al inicio de `StartAutomationAsync`, antes de `PrepareRealAsync` y de cualquier acceso a PAM. El diálogo utiliza la fecha, hora, duración, razón y acción final ya disponibles localmente; ya no espera a que finalicen las lecturas de `Favorites` y `Pending`, ni muestra una segunda confirmación general después de esas lecturas. Si el usuario responde `No`, la ejecución termina sin iniciar validaciones remotas ni crear solicitudes.
+
+Después de responder `Sí`, la preparación, las comprobaciones y el envío continúan automáticamente en segundo plano. Solo se vuelve a consultar al usuario cuando la ejecución necesita una decisión nueva para continuar, actualmente la existencia de solicitudes exactamente iguales en `Pending`; los errores y condiciones bloqueantes se comunican, pero no se convierten en confirmaciones redundantes. Las 22 pruebas del ViewModel verifican cancelación antes de preparar, una sola confirmación inicial y conservación del aviso imprescindible de duplicados. **Fase completada.**
+
+## Fase 21.6 — Resumen previo claro y solicitud simplificada
+
+La confirmación inicial presenta la hora configurada en el mismo formato de 12 horas que eligió el usuario, incluyendo `AM` o `PM`. Cuando la acción final es Outlook, identifica por separado los destinatarios `Para` y `CC`; si no se configuró copia, muestra `CC: Ninguno` para evitar ambigüedad.
+
+`Configurar solicitud` dejó de mostrar el apartado `Habilitar modo de prueba`. El valor interno se conserva al editar para mantener compatibilidad con configuraciones de desarrollo existentes, pero la pantalla queda enfocada exclusivamente en fecha, hora, duración y razón. La compilación `Release | x64` pasó y 6 pruebas específicas de presentación y formato cubrieron la ausencia del control, ambas variantes horarias y los destinatarios. **Fase completada.**
+
 ## Fases pendientes
 
 La clasificación siguiente se refiere únicamente a dependencias entre fases pendientes:
@@ -258,7 +270,7 @@ La clasificación siguiente se refiere únicamente a dependencias entre fases pe
 ```text
 Fases 6 a 18 completadas ──► Fase 19
 
-Fases 21–21.4 completadas de forma independiente
+Fases 21–21.6 completadas de forma independiente
 
 Fase 19 ──► Fase 20 (ampliación posterior a la migración)
 ```
