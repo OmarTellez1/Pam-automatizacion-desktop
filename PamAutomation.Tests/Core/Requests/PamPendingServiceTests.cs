@@ -133,6 +133,67 @@ public sealed class PamPendingServiceTests
     }
 
     [TestMethod]
+    [DataRow("NOSQLBOOSTER", "NOSQLBOOSTER - PGDCPAMSER01")]
+    [DataRow("PLSQL - Nodo1", "PLSQL - BDMOVIL-PGDC01")]
+    [DataRow("PuTTY - Nodo2", "PuTTY 0.77 - PGDCMSA01")]
+    [DataRow("WinSCP - nodo1", "WinSCP 5.21 N2 - PGDCMSA02")]
+    public void Compare_ObservedPortalApplicationFamily_MatchesFavoriteName(
+        string favoriteApplication,
+        string pendingApplication)
+    {
+        var harness = new PendingHarness([]);
+        var expected = new PamFavoriteAccount("system-a", favoriteApplication, "account-a");
+        PamPendingRequest pending = CreatePending("170001", application: pendingApplication);
+
+        PamPendingComparisonResult result = harness.Service.Compare([pending], [expected], CreateForm());
+
+        Assert.IsTrue(result.IsComplete);
+        Assert.AreEqual("170001", result.RequestIds[0]);
+    }
+
+    [TestMethod]
+    public void Compare_SameKnownFamilyTwiceForSameAccount_RejectsAmbiguity()
+    {
+        var harness = new PendingHarness([]);
+        IReadOnlyList<PamFavoriteAccount> expected =
+        [
+            new PamFavoriteAccount("system-a", "PuTTY - Nodo1", "account-a"),
+            new PamFavoriteAccount("system-a", "PuTTY - Nodo2", "account-a"),
+        ];
+        IReadOnlyList<PamPendingRequest> requests =
+        [
+            CreatePending("170001", application: "PuTTY 0.77 - SERVER01"),
+            CreatePending("170002", application: "PuTTY 0.77 - SERVER02"),
+        ];
+
+        PamPendingException exception = Assert.ThrowsExactly<PamPendingException>(
+            () => harness.Service.Compare(requests, expected, CreateForm()));
+
+        Assert.AreEqual(PamPendingErrorCode.AmbiguousIdentity, exception.ErrorCode);
+    }
+
+    [TestMethod]
+    public void Compare_SameAccountWithObservedPuttyAndWinscpNames_MatchesByFamily()
+    {
+        var harness = new PendingHarness([]);
+        IReadOnlyList<PamFavoriteAccount> expected =
+        [
+            new PamFavoriteAccount("pgdcmsa02", "WinSCP - nodo1", "creditengineIg"),
+            new PamFavoriteAccount("pgdcmsa02", "PuTTY - Nodo2", "creditengineIg"),
+        ];
+        IReadOnlyList<PamPendingRequest> requests =
+        [
+            CreatePending("151904", "pgdcmsa02", "PuTTY 0.77 - PGDCMSA02", "creditengineIg"),
+            CreatePending("151905", "pgdcmsa02", "WinSCP 5.21 N2 - PGDCMSA02", "creditengineIg"),
+        ];
+
+        PamPendingComparisonResult result = harness.Service.Compare(requests, expected, CreateForm());
+
+        Assert.IsTrue(result.IsComplete);
+        CollectionAssert.AreEqual(new[] { "151905", "151904" }, result.RequestIds.ToArray());
+    }
+
+    [TestMethod]
     public void Compare_SameAccountWithDifferentApplications_MatchesEachApplication()
     {
         var harness = new PendingHarness([]);

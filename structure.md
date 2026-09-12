@@ -49,6 +49,12 @@ Las fases construidas hasta ahora son:
 - Fase 16.8: mensajes operativos, animación bajo demanda y recuperación segura de fallos UI.
 - Fase 17: buffer diagnóstico seguro en memoria y exportación ZIP manual y atómica.
 - Fase 18: versión nativa, aviso de actualización y publicación portable autocontenida x64.
+- Fase 18.5: ventanas compactas, inicio maximizado y parser de hora `hh`/`mm`/`AM-PM`.
+- Fase 18.6: importación segura de firmas RTF/HTML con formato e imágenes CID.
+- Fase 18.7: pegado HTML prioritario, tablas fieles y editor de correo sin herramientas de construcción manual.
+- Fase 18.8: tabla de correo 2×2 insertada manualmente en el cursor y advertencia contra tablas pegadas.
+- Fase 18.9: reconciliación de las familias reales de `Application` entre Favorites y Pending.
+- Fase 18.10: aviso accionable en la ventana principal para explicar cada bloqueo de `Iniciar automatización`.
 
 Los directorios `.git`, `.vs`, `bin` y `obj` contienen metadatos o salidas generadas y se omiten en el árbol.
 
@@ -85,6 +91,9 @@ PamAutomation\
 │   │   ├── IUserDialogService.cs
 │   │   ├── MailConfigurationEdit.cs
 │   │   ├── RequestConfigurationEdit.cs
+│   │   ├── RequestStartTimeInput.cs
+│   │   ├── RichClipboardHtmlImporter.cs
+│   │   ├── FlowDocumentTableInserter.cs
 │   │   ├── WpfConfigurationDialogService.cs
 │   │   └── WpfUserDialogService.cs
 │   ├── Views\
@@ -373,7 +382,7 @@ Contenido actual:
 - `MainWindow.xaml.cs`: inicialización mínima de la ventana; no contiene lógica de negocio.
 - `ViewModels/MainWindowViewModel.cs`: estado de presentación y comandos de la portada mediante `CommunityToolkit.Mvvm`.
 - `Views`: diálogos nativos para credenciales PAM y Outlook, solicitud y plantilla de correo, con estados y validación visibles.
-- `Services`: confirmaciones, adaptación de diálogos, coordinación no destructiva de credenciales, clasificación segura del resultado de correo de prueba y conversión bidireccional entre `FlowDocument` y XHTML/CID.
+- `Services`: confirmaciones, adaptación de diálogos, coordinación no destructiva de credenciales, clasificación segura del resultado de correo de prueba, importación acotada de firmas HTML y conversión bidireccional entre `FlowDocument` y XHTML/CID.
 - `Resources/Styles.xaml`: estilos compartidos, incluida la apariencia estática del indicador circular cuya animación controla la ventana únicamente durante operaciones activas.
 - `Resources/Colors.xaml`: colores y pinceles compartidos.
 - `Resources/Styles.xaml`: estilos y plantillas de controles WPF.
@@ -382,6 +391,7 @@ Contenido actual:
 Dependencias actuales:
 
 - `CommunityToolkit.Mvvm` 8.4.2.
+- `HtmlAgilityPack` 1.13.0, usado solo para convertir HTML real del portapapeles a un árbol; no decide qué contenido es seguro.
 - Referencia a `PamAutomation.Core`.
 - Referencia a `PamAutomation.Browser`.
 - Referencia a `PamAutomation.Infrastructure`.
@@ -533,9 +543,12 @@ Contenido actual:
 - `TestExplorerSmokeTests.cs`: comprueba el descubrimiento del proyecto por el runner MSTest.
 - `MainWindowViewModelTests.cs`: valida el estado inicial seguro, el bloqueo durante una ejecución y las condiciones del botón de prueba.
 - `App/ConfigurationWindowSmokeTests.cs`: carga y renderiza en STA las ventanas de configuración, valida el ciclo de animación bajo demanda y la recuperación de errores sin abrir servicios externos.
+- `App/RequestStartTimeInputTests.cs`: valida los límites de `hh`, `mm`, `AM/PM` y su conversión determinista a 24 horas.
 - `App/CredentialConfigurationWorkflowTests.cs`: valida guardado y login PAM no destructivo, mensajes seguros, orden verificar-guardar de Outlook y correo de prueba dirigido a la misma cuenta.
 - `Outlook/OutlookComApplicationFactoryTests.cs`: valida con objetos falsos la activación tardía y el recorrido `Application → Session → Accounts → MailItem` sin cargar Outlook ni una PIA.
 - `App/FlowDocumentHtmlConverterTests.cs`: valida ida y vuelta de formato, tablas, marcador e imágenes CID.
+- `App/RichClipboardHtmlImporterTests.cs`: valida firmas HTML con estilos, enlaces, data URI, imagen de respaldo, formatos de portapapeles como string/stream, inserción real en el cursor, tablas con anchos y spans, línea editable posterior y eliminación de contenido activo.
+- `App/FlowDocumentTableInserterTests.cs`: valida inserción 2×2 en medio de un párrafo, marcador único movido a la tabla y rechazo de tablas anidadas.
 - `Core/Configuration/AppSettingsValidatorTests.cs`: valida valores predeterminados, configuración general y propagación de errores.
 - `Core/Configuration/RequestSettingsValidatorTests.cs`: valida fecha, hora, duración y razón de la solicitud.
 - `Core/Configuration/MailSettingsValidatorTests.cs`: valida normalización, saneamiento y correspondencia exacta de imágenes CID.
@@ -563,7 +576,7 @@ Contenido actual:
 - `Core/Favorites/PamFavoritesServiceTests.cs`: valida snapshot, identidades, duplicados, errores seguros y cierre de sesión.
 - `Core/Requests/PamRequestTestServiceTests.cs`: valida configuración previa, recorrido completo, detención segura, cierre de sesión y resultado invariablemente no enviado.
 - `Core/Requests/PamRequestSubmissionServiceTests.cs`: valida autorización por conteo y configuración, resultados, conflictos, fallos parciales, duración técnica y cierre de sesión.
-- `Core/Requests/PamPendingServiceTests.cs`: valida lectura, identidad, expiración, descripción, sufijo de Application, ambigüedad y consistencia eventual.
+- `Core/Requests/PamPendingServiceTests.cs`: valida lectura, identidad, expiración, descripción, familias y sufijos de Application, múltiples aplicaciones bajo la misma cuenta, ambigüedad y consistencia eventual.
 - `Core/Authentication/PamAuthenticationServiceTests.cs`: valida el flujo simulado, RTT, ventana TOTP, reintento único, errores y cancelación.
 - `Outlook/OutlookClassicClientTests.cs`: valida cuenta exacta, mensajes temporales, redacción, STA, huellas, duplicados, adjuntos CID, liberación y estados de envío mediante COM falso.
 - `Outlook/OutlookHtmlComposerTests.cs`: valida allowlist XHTML, contenido activo, recursos externos, estilos, marcador, Request ID y errores redactados.

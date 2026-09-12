@@ -111,7 +111,8 @@ namespace PamAutomation.App
                 TimeProvider.System,
                 new WpfConfigurationDialogService(
                     credentialWorkflow,
-                    loggerFactory.CreateLogger<CredentialsWindow>()),
+                    loggerFactory.CreateLogger<CredentialsWindow>(),
+                    loggerFactory.CreateLogger<MailSettingsWindow>()),
                 mailSettingsStore,
                 new MailSettingsValidator(),
                 outlookAccountStore,

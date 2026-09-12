@@ -9,6 +9,14 @@ namespace PamAutomation.Core.Requests;
 /// <summary>Coordinates read-only discovery and comparison of PAM <c>Pending</c> requests.</summary>
 public sealed class PamPendingService
 {
+    private static readonly string[] KnownApplicationFamilies =
+    [
+        "nosqlbooster",
+        "plsql",
+        "putty",
+        "winscp",
+    ];
+
     private readonly IPamAuthenticatedSessionFactory authenticatedSessionFactory;
     private readonly IPamPendingPortalFactory portalFactory;
     private readonly IAsyncDelay asyncDelay;
@@ -237,9 +245,22 @@ public sealed class PamPendingService
     {
         string normalizedRequested = Normalize(requested);
         string normalizedObserved = Normalize(observed);
-        return string.Equals(normalizedObserved, normalizedRequested, StringComparison.Ordinal) ||
-            normalizedObserved.StartsWith(normalizedRequested + " - ", StringComparison.Ordinal);
+        if (string.Equals(normalizedObserved, normalizedRequested, StringComparison.Ordinal) ||
+            normalizedObserved.StartsWith(normalizedRequested + " - ", StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        string? requestedFamily = GetKnownApplicationFamily(normalizedRequested);
+        return requestedFamily is not null &&
+            string.Equals(requestedFamily, GetKnownApplicationFamily(normalizedObserved), StringComparison.Ordinal);
     }
+
+    private static string? GetKnownApplicationFamily(string normalizedApplication) =>
+        KnownApplicationFamilies.FirstOrDefault(family =>
+            string.Equals(normalizedApplication, family, StringComparison.Ordinal) ||
+            normalizedApplication.StartsWith(family + " ", StringComparison.Ordinal) ||
+            normalizedApplication.StartsWith(family + "-", StringComparison.Ordinal));
 
     private static string NormalizeDescription(string value) =>
         string.Join(' ', value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));

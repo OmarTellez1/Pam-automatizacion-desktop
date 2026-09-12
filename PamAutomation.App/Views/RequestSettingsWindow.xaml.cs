@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using PamAutomation.App.Services;
 using PamAutomation.Core.Models.Configuration;
 
@@ -19,7 +20,11 @@ public partial class RequestSettingsWindow : Window
         StartDatePicker.DisplayDateStart = ecuadorToday.ToDateTime(TimeOnly.MinValue);
         StartDatePicker.SelectedDate = date.ToDateTime(TimeOnly.MinValue);
         int hour12 = time.Hour % 12;
-        TimeBox.Text = $"{(hour12 == 0 ? 12 : hour12):00}:{time.Minute:00}";
+        HourBox.ItemsSource = Enumerable.Range(1, 12)
+            .Select(hour => hour.ToString("00", CultureInfo.InvariantCulture))
+            .ToArray();
+        HourBox.SelectedItem = (hour12 == 0 ? 12 : hour12).ToString("00", CultureInfo.InvariantCulture);
+        MinuteBox.Text = time.Minute.ToString("00", CultureInfo.InvariantCulture);
         MeridiemBox.SelectedIndex = time.Hour < 12 ? 0 : 1;
         DurationBox.Text = current.SessionHours.ToString(CultureInfo.InvariantCulture);
         ReasonBox.Text = current.RequestReason;
@@ -37,18 +42,27 @@ public partial class RequestSettingsWindow : Window
             return;
         }
 
-        if (!TimeOnly.TryParseExact(
-                TimeBox.Text.Trim(),
-                ["h:mm", "hh:mm"],
-                CultureInfo.InvariantCulture,
-                DateTimeStyles.None,
-                out TimeOnly time12) || time12.Hour is < 1 or > 12)
+        string? hourText = HourBox.SelectedItem as string;
+        string? meridiemText = (MeridiemBox.SelectedItem as ComboBoxItem)?.Content?.ToString();
+        RequestStartTimeInputError timeError = RequestStartTimeInput.TryParse(
+            hourText,
+            MinuteBox.Text.Trim(),
+            meridiemText,
+            out TimeOnly startTime);
+
+        if (timeError == RequestStartTimeInputError.InvalidHour)
         {
-            ShowValidation("Ingresa la hora con formato hh:mm y selecciona AM o PM.");
+            ShowValidation("Selecciona una hora entre 01 y 12.");
             return;
         }
 
-        if (MeridiemBox.SelectedItem is not ComboBoxItem meridiem)
+        if (timeError == RequestStartTimeInputError.InvalidMinute)
+        {
+            ShowValidation("Ingresa minutos válidos entre 0 y 59.");
+            return;
+        }
+
+        if (timeError == RequestStartTimeInputError.InvalidMeridiem)
         {
             ShowValidation("Selecciona AM o PM.");
             return;
@@ -67,13 +81,11 @@ public partial class RequestSettingsWindow : Window
             return;
         }
 
-        int hour24 = time12.Hour % 12 +
-            (string.Equals(meridiem.Content?.ToString(), "PM", StringComparison.Ordinal) ? 12 : 0);
         Edit = new RequestConfigurationEdit(
             new RequestSettings
             {
                 StartDate = DateOnly.FromDateTime(date),
-                StartTime = new TimeOnly(hour24, time12.Minute),
+                StartTime = startTime,
                 SessionHours = duration,
                 RequestReason = ReasonBox.Text.Trim()
             },
@@ -83,6 +95,9 @@ public partial class RequestSettingsWindow : Window
 
     private void StartDatePicker_SelectedDateChanged(object sender, SelectionChangedEventArgs e) =>
         UpdateDateDescription();
+
+    private void MinuteBox_PreviewTextInput(object sender, TextCompositionEventArgs e) =>
+        e.Handled = e.Text.Any(character => !char.IsDigit(character));
 
     private void UpdateDateDescription()
     {

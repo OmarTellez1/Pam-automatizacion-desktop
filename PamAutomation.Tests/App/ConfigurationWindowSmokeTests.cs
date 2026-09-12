@@ -34,8 +34,11 @@ public sealed class ConfigurationWindowSmokeTests
 
             Assert.IsNotNull(window.FindName("ExportDiagnosticsButton"));
             var updateBanner = Assert.IsInstanceOfType<Border>(window.FindName("UpdateNotificationBanner"));
+            var startWarning = Assert.IsInstanceOfType<Border>(window.FindName("StartAutomationWarningBanner"));
             Assert.AreEqual(Visibility.Visible, updateBanner.Visibility);
+            Assert.AreEqual(Visibility.Visible, startWarning.Visibility);
             Assert.AreEqual("PAM Automation V. 0.0.1", window.Title);
+            Assert.AreEqual(WindowState.Maximized, window.WindowState);
         }
         finally
         {
@@ -82,7 +85,17 @@ public sealed class ConfigurationWindowSmokeTests
             Assert.IsNotNull(credentialsWindow.FindName("PamOperationSpinner"));
             Assert.IsNotNull(credentialsWindow.FindName("OutlookOperationSpinner"));
             Assert.AreEqual("Configurar solicitud", requestWindow.Title);
+            var hourBox = Assert.IsInstanceOfType<ComboBox>(requestWindow.FindName("HourBox"));
+            var minuteBox = Assert.IsInstanceOfType<TextBox>(requestWindow.FindName("MinuteBox"));
+            Assert.HasCount(12, hourBox.Items);
+            Assert.AreEqual("01", hourBox.Items[0]);
+            Assert.AreEqual("12", hourBox.Items[11]);
+            Assert.AreEqual("05", minuteBox.Text);
+            Assert.AreEqual(2, minuteBox.MaxLength);
             Assert.AreEqual("Configurar envío de correo", mailWindow.Title);
+            Assert.AreEqual(700d, mailWindow.Width);
+            Assert.AreEqual(620d, mailWindow.Height);
+            Assert.IsNotNull(mailWindow.FindName("BodyEditor"));
         }
         finally
         {

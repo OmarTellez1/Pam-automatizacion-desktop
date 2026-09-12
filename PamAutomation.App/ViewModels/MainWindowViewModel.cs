@@ -121,6 +121,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public bool CanStartAutomation => AreControlsEnabled && IsConfigurationComplete;
     public bool IsTestActionVisible => IsTestModeEnabled && IsConfigurationComplete;
     public bool IsTestActionEnabled => AreControlsEnabled && IsTestActionVisible;
+    public bool IsStartAutomationWarningVisible => AreControlsEnabled && !IsConfigurationComplete;
+    public string StartAutomationWarningMessage => GetStartAutomationWarningMessage();
     public string ConfigurationSummaryText => IsConfigurationComplete ? "Configuración completa" : "Configuración pendiente";
     public string CredentialsActionText => AreCredentialsConfigured ? "Editar credenciales" : "Configurar credenciales";
     public string RequestActionText => IsRequestConfigured ? "Editar solicitud" : "Configurar solicitud";
@@ -161,6 +163,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
             StatusMessage = IsConfigurationComplete
                 ? "La configuración está lista para ejecutar."
                 : "Completa o actualiza la configuración para habilitar la automatización.";
+            RefreshPresentationState();
             logger.LogInformation("Main window configuration initialization completed. Complete={IsComplete}.", IsConfigurationComplete);
         }
         catch (Exception exception)
@@ -574,6 +577,41 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     private void ShowPendingFeature(string message) => StatusMessage = message;
 
+    private string GetStartAutomationWarningMessage()
+    {
+        if (!AreCredentialsConfigured)
+        {
+            return "El botón está desactivado porque faltan las credenciales PAM. Abre Editar credenciales para configurarlas.";
+        }
+
+        if (!IsRequestConfigured)
+        {
+            ConfigurationValidationFailure? failure = settingsValidator
+                .Validate(settings, GetEcuadorNow())
+                .Failures
+                .FirstOrDefault();
+
+            return failure?.Code switch
+            {
+                ConfigurationValidationErrorCode.StartDateInPast =>
+                    "El botón está desactivado porque la fecha de inicio configurada ya pasó. Abre Configurar solicitud y elige una fecha y hora futuras.",
+                ConfigurationValidationErrorCode.StartTimeInPast =>
+                    "El botón está desactivado porque la hora de inicio configurada ya pasó. Abre Configurar solicitud y elige una fecha y hora futuras.",
+                _ when failure is not null =>
+                    $"El botón está desactivado porque la solicitud no es válida: {failure.Message} Abre Configurar solicitud para corregirla.",
+                _ =>
+                    "El botón está desactivado porque falta configurar la solicitud. Abre Configurar solicitud para completarla."
+            };
+        }
+
+        if (SendEmailAtEnd && !IsMailConfigured)
+        {
+            return "El botón está desactivado porque elegiste enviar el resultado por Outlook y falta configurar el correo. Abre Configurar envío de correo.";
+        }
+
+        return string.Empty;
+    }
+
     private void RefreshPresentationState()
     {
         OnPropertyChanged(nameof(AreControlsEnabled));
@@ -582,6 +620,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(CanStartAutomation));
         OnPropertyChanged(nameof(IsTestActionVisible));
         OnPropertyChanged(nameof(IsTestActionEnabled));
+        OnPropertyChanged(nameof(IsStartAutomationWarningVisible));
+        OnPropertyChanged(nameof(StartAutomationWarningMessage));
         OnPropertyChanged(nameof(ConfigurationSummaryText));
         OnPropertyChanged(nameof(CredentialsActionText));
         OnPropertyChanged(nameof(RequestActionText));

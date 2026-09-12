@@ -16,7 +16,7 @@ public static class OutlookHtmlComposer
     private static readonly HashSet<string> AllowedElements = new(StringComparer.Ordinal)
     {
         "b", "blockquote", "br", "div", "em", "h1", "h2", "h3", "h4", "h5", "h6",
-        "i", "img", "li", "ol", "p", "pre", "span", "strong", "table", "tbody", "td",
+        "a", "col", "colgroup", "i", "img", "li", "ol", "p", "pre", "span", "strong", "table", "tbody", "td",
         "tfoot", "th", "thead", "tr", "u", "ul",
     };
     private static readonly HashSet<string> DangerousElements = new(StringComparer.Ordinal)
@@ -46,6 +46,16 @@ public static class OutlookHtmlComposer
     {
         XElement root = ParseAndSanitize(htmlTemplate);
         EnsureSingleMarker(root);
+        return SerializeFragment(root);
+    }
+
+    /// <summary>Sanitizes an XHTML fragment without requiring the request identifier marker.</summary>
+    /// <param name="htmlFragment">The untrusted fragment to sanitize.</param>
+    /// <returns>A deterministic allowlisted XHTML fragment.</returns>
+    /// <exception cref="OutlookHtmlCompositionException">The fragment is invalid or unsafe.</exception>
+    public static string SanitizeFragment(string? htmlFragment)
+    {
+        XElement root = ParseAndSanitize(htmlFragment);
         return SerializeFragment(root);
     }
 
@@ -222,6 +232,7 @@ public static class OutlookHtmlComposer
             "colspan" or "rowspan" when elementName is "td" or "th" =>
                 SanitizeInteger(value, 1, 100),
             "src" when elementName == "img" => SanitizeContentId(value),
+            "href" when elementName == "a" => SanitizeLink(value),
             _ => null,
         };
     }
@@ -296,6 +307,18 @@ public static class OutlookHtmlComposer
         return identifier.Length is > 0 and <= 200 && identifier.All(IsContentIdCharacter)
             ? prefix + identifier
             : null;
+    }
+
+    private static string? SanitizeLink(string value)
+    {
+        string normalized = value.Trim();
+        if (!Uri.TryCreate(normalized, UriKind.Absolute, out Uri? uri) ||
+            (uri.Scheme != Uri.UriSchemeHttps && !string.Equals(uri.Scheme, "mailto", StringComparison.OrdinalIgnoreCase)))
+        {
+            return null;
+        }
+
+        return normalized;
     }
 
     private static XText EnsureSingleMarker(XElement root)

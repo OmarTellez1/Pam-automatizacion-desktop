@@ -158,6 +158,42 @@ Se añadió un contrato de actualización en Core, un lector HTTP limitado y val
 
 La compilación y 280 pruebas ordinarias validan versión, comparación, manifiesto inválido, límite de tamaño, repositorio inesperado, fallo remoto y renderizado del banner. El origen se migró desde Google Drive, bloqueado por Fortinet, a la URL `raw` pública del repositorio GitHub. Tras corregir `repositoryUrl`, la integración real de solo lectura pasó 1/1 y confirmó red, TLS, descarga, análisis y validación del repositorio. La salida canónica contiene un único ejecutable portable. No se abrió PAM ni Outlook, no se crearon solicitudes y no se enviaron correos. **Fase completada.**
 
+## Fase 18.5 — Compactación visual y entrada horaria separada
+
+La aplicación principal inicia maximizada y reduce anchos, alturas, tipografía, márgenes y espaciados de sus acciones principales. Las ventanas `Editar credenciales`, `Editar solicitud` y `Editar envío de correo` usan dimensiones iniciales y mínimas más contenidas; conservan scroll y la barra del editor de correo ahora puede envolver sus acciones para evitar recortes en pantallas estrechas.
+
+La entrada de `Hora de inicio` se dividió en un desplegable `hh` con `01` a `12`, un campo editable `mm` de hasta dos dígitos y el selector `AM/PM`. Un parser interno rechaza horas, minutos o meridiano inválidos y convierte correctamente medianoche, mediodía y el resto de horas al formato de 24 horas que consume el dominio. La compilación `Release | x64`, 14 pruebas focalizadas y la suite ordinaria ampliada a 290 pruebas finalizaron correctamente. Solo permanece la advertencia heredada `MSTEST0032`. **Fase completada.**
+
+## Fase 18.6 — Firma enriquecida desde el portapapeles
+
+`Editar envío de correo` redujo nuevamente dimensiones, márgenes, tarjeta, editor y acciones. El pegado ahora prioriza RTF nativo de Outlook y admite CF_HTML de navegador o aplicaciones Office mediante un importador acotado. Texto, fuentes, tamaño, énfasis, colores, fondo, alineación, tablas, enlaces seguros e imágenes quedan representados en `FlowDocument`; las imágenes se normalizan a PNG y se guardan como CID mediante el flujo DPAPI existente.
+
+`OutlookHtmlComposer` añadió saneamiento de fragmentos sin marcador y enlaces limitados a `mailto:` y HTTPS. El importador limita el contenido a 8 MB, 20.000 nodos y 64 niveles, elimina contenido activo y no descarga imágenes remotas. `HtmlAgilityPack` 1.13.0 se incorporó únicamente para analizar HTML real malformado; toda autorización continúa en el saneador propio. La compilación `Release | x64`, 25 pruebas focalizadas y las 294 pruebas ordinarias pasaron. Solo permanece `MSTEST0032`. **Fase completada.**
+
+## Fase 18.7 — Tablas pegadas y editor simplificado
+
+La comparación con la aplicación JavaScript confirmó que el usuario no necesita construir formato dentro de la aplicación: prepara el correo externamente y lo pega completo. Por ello `Editar envío de correo` retiró negrita, cursiva, subrayado, lista, `Tabla 2×2` y `Pegar imagen`; conserva únicamente `Insertar {{REQUEST_IDS}}`. El pegado ahora prioriza CF_HTML sobre RTF, igual que la referencia anterior, sin omitir el saneamiento C#.
+
+`FlowDocumentHtmlConverter` conserva `colgroup`, anchos de columnas, `rowspan`, `colspan`, padding y bordes básicos. Cuando el fragmento termina en una tabla añade una línea vacía editable, evitando que nuevos clics o pulsaciones prolonguen la última celda. Una corrección posterior cubrió la diferencia entre el DOM del navegador y WPF: el portapapeles puede entregar HTML como `HTML Format` o `text/html` y como string, bytes o stream, por lo que el importador normaliza todas esas representaciones antes de convertir. El flujo registra únicamente etapa, tamaño, presencia de imagen y conteos estructurales, nunca contenido. Pruebas STA reproducen la tabla, ambas formas de portapapeles y la inserción efectiva en el cursor. La compilación `Release | x64` y las 298 pruebas ordinarias pasaron. Solo permanece `MSTEST0032`. No se abrió Outlook, no se envió correo y no se contactó PAM. **Fase completada.**
+
+## Fase 18.8 — Tabla manual estable para el correo
+
+Se conservó el pegado enriquecido que ya funciona para texto y firma, pero la interfaz ahora advierte explícitamente que las tablas externas no deben pegarse. `Insertar tabla 2×2` crea una estructura controlada con columnas 30/70, las filas `Solicitudes de PAM` y `Motivo del acceso`, bordes y padding. La tabla se inserta en la posición real del cursor dividiendo el párrafo, no al final del documento; deja un párrafo posterior editable y traslada a su celda el único marcador `{{REQUEST_IDS}}` para evitar duplicados.
+
+Si el cursor está dentro de otra tabla, la operación se rechaza con una indicación segura y no crea una tabla anidada ni amplía la existente. Tres pruebas STA cubren inserción en mitad de contenido, conservación de un solo marcador y segundo clic dentro de la tabla. La compilación `Release | x64` y las 301 pruebas ordinarias pasaron. No se abrió Outlook, no se enviaron correos y no se contactó PAM. **Fase completada.**
+
+## Fase 18.9 — Nomenclatura real de Application en Pending
+
+El primer flujo completo del usuario creó correctamente 13 solicitudes, pero la reconciliación se detuvo antes del correo. El diagnóstico y las capturas horizontales confirmaron que `Request Start Date`, `Expires`, `Description`, `System` y `Account` eran exactos; la divergencia estaba en `Application`. Favorites usa nombres como `PLSQL - Nodo1`, `PuTTY - Nodo2` y `WinSCP - nodo1`, mientras Pending presenta respectivamente `PLSQL - BDMOVIL-…`, `PuTTY 0.77 - …` y `WinSCP 5.21 N2 - …`.
+
+`PamPendingService` mantiene la asociación por fecha/hora más `System + Account` y admite equivalencia solamente para las familias observadas `NOSQLBOOSTER`, `PLSQL`, `PuTTY` y `WinSCP`. No usa `Ticket`, no compara aplicaciones desconocidas aproximadamente y conserva el rechazo ambiguo cuando dos filas de la misma familia compiten bajo una cuenta. Se añadieron seis ejecuciones de prueba que cubren las cuatro familias, el caso real PuTTY/WinSCP bajo el mismo `System + Account` y la ambigüedad. La compilación `Release | x64` y las 307 pruebas ordinarias pasaron. No se contactó PAM, no se crearon solicitudes y no se envió correo. **Fase completada.**
+
+## Fase 18.10 — Motivo visible de automatización bloqueada
+
+La ventana principal ya no depende del mensaje operativo genérico para explicar por qué `Iniciar automatización` está desactivado. Presenta un aviso ámbar independiente y accionable cuando faltan credenciales PAM, la solicitud no es válida o el envío por Outlook está seleccionado sin una configuración de correo completa. Para fechas u horas vencidas distingue ambos casos y dirige al usuario a `Configurar solicitud` para elegir un inicio futuro.
+
+El aviso se oculta cuando la configuración está completa y también durante una operación, de modo que no compite con el progreso. Dos pruebas de presentación cubren una hora vencida al iniciar la aplicación y la desaparición del aviso con una configuración válida. La compilación `Release | x64` y las 309 pruebas ordinarias pasaron. No se contactó PAM, no se crearon solicitudes y no se envió correo. **Fase completada.**
+
 ## Fases pendientes
 
 La clasificación siguiente se refiere únicamente a dependencias entre fases pendientes:

@@ -36,6 +36,48 @@ public sealed class MainWindowViewModelTests
     }
 
     [TestMethod]
+    public async Task InitializeAsync_RequestStartTimeInPast_ExplainsWhyAutomationIsDisabled()
+    {
+        var now = new DateTimeOffset(2026, 9, 11, 17, 30, 0, TimeSpan.FromHours(-5));
+        var settings = new AppSettings
+        {
+            Request = new RequestSettings
+            {
+                StartDate = new DateOnly(2026, 9, 11),
+                StartTime = new TimeOnly(17, 0),
+                SessionHours = 1,
+                RequestReason = "Prueba de aviso"
+            }
+        };
+        var viewModel = new MainWindowViewModel(
+            new FakeExecutionService(now),
+            new FakeSettingsStore(settings),
+            new FakeCredentialStore(),
+            new FakeDialogs(confirm: true),
+            new AppSettingsValidator(new RequestSettingsValidator()),
+            new FixedTimeProvider(now.ToUniversalTime()));
+
+        await viewModel.InitializeAsync();
+
+        Assert.IsFalse(viewModel.CanStartAutomation);
+        Assert.IsTrue(viewModel.IsStartAutomationWarningVisible);
+        Assert.Contains("hora de inicio configurada ya pasó", viewModel.StartAutomationWarningMessage);
+        Assert.Contains("Configurar solicitud", viewModel.StartAutomationWarningMessage);
+    }
+
+    [TestMethod]
+    public async Task InitializeAsync_CompleteConfiguration_HidesAutomationWarning()
+    {
+        TestContext context = CreateIntegratedViewModel(confirm: true);
+
+        await context.ViewModel.InitializeAsync();
+
+        Assert.IsTrue(context.ViewModel.CanStartAutomation);
+        Assert.IsFalse(context.ViewModel.IsStartAutomationWarningVisible);
+        Assert.AreEqual(string.Empty, context.ViewModel.StartAutomationWarningMessage);
+    }
+
+    [TestMethod]
     public async Task CheckForUpdateAsync_NewerVersion_ShowsDismissibleNotice()
     {
         var updateService = new FakeUpdateService(

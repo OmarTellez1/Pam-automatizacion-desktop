@@ -452,6 +452,7 @@ Dependencias principales:
 
 - `Microsoft.Playwright`.
 - `CommunityToolkit.Mvvm`.
+- `HtmlAgilityPack` exclusivamente para interpretar HTML real y potencialmente malformado del portapapeles antes del saneamiento estricto de firmas.
 - `Microsoft.Extensions.DependencyInjection`.
 - `Microsoft.Extensions.Logging`.
 - `Microsoft.Office.Interop.Outlook` o referencia COM oficial a Outlook Object Library.

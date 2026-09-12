@@ -393,3 +393,47 @@ Cada cambio relevante debe registrar qué se decidió, por qué, qué se verific
 - Se documentó el flujo de release: incrementar metadatos, restaurar, compilar, probar, publicar con `Portable-x64`, adjuntar el ejecutable a un GitHub Release y actualizar `latest.json` al final.
 - El usuario corrigió el manifiesto público. La integración explícita de solo lectura pasó 1/1 en 825 ms y confirmó HTTPS, TLS, JSON, versión y repositorio sin contactar PAM ni Outlook.
 - Se regeneró la salida canónica `artifacts/publish/final/PAM-Automation-0.0.1/PAM Automation.exe`: es el único archivo de la carpeta, pesa 247.748.746 bytes y tiene SHA-256 `DBFD6226B3EC31CB6290C65C67B0B35D5ECE1F5BAFAF1D2168AC9484EE835D71`. Con esta evidencia la fase 18 quedó completada.
+
+## 11 de septiembre de 2026 — Fase 18.5: interfaz compacta y hora separada
+
+- La ventana principal pasó a iniciar maximizada y se redujeron botones, tarjetas, tipografías, márgenes y anchos del contenido para aprovechar mejor pantallas de trabajo.
+- `CredentialsWindow`, `RequestSettingsWindow` y `MailSettingsWindow` recibieron dimensiones iniciales y mínimas más pequeñas. La barra de formato del correo usa un panel adaptable para envolver acciones cuando no caben horizontalmente.
+- `Hora de inicio` dejó de ser un único campo `hh:mm`: `hh` es un desplegable de `01` a `12`, `mm` acepta hasta dos dígitos y se valida entre `0` y `59`, y `AM/PM` permanece separado. `RequestStartTimeInput` convierte la selección al formato de 24 horas.
+- La compilación `Release | x64`, 14 pruebas focalizadas y las 290 pruebas ordinarias pasaron. No se abrió PAM ni Outlook, no se crearon solicitudes y no se enviaron correos.
+
+## 11 de septiembre de 2026 — Fase 18.6: firma enriquecida y ventana de correo compacta
+
+- La ventana de correo pasó a `700×620`, redujo su mínimo a `560×500` y compactó márgenes, avisos, editor y botones sin retirar scroll ni la barra adaptable.
+- La aplicación anterior demostró que el caso de firma dependía de interceptar HTML y sus imágenes. La versión WPF ahora prioriza RTF de Outlook y, si solo existe CF_HTML, usa `RichClipboardHtmlImporter` con límites de tamaño, nodos y profundidad.
+- Se añadió `HtmlAgilityPack` 1.13.0 como parser tolerante de 1,37 MB; el saneamiento propio sigue siendo la única autoridad. Se conservan estilos visuales seguros, enlaces `mailto:`/HTTPS, tablas e imágenes PNG/CID; se eliminan scripts, protocolos peligrosos y recursos remotos.
+- `FlowDocumentHtmlConverter` conserva estilos, enlaces y dimensiones de imágenes durante la ida y vuelta, por lo que la firma no se pierde al guardar y reabrir la configuración DPAPI.
+- La compilación `Release | x64`, 25 pruebas focalizadas y las 294 pruebas ordinarias pasaron. No se abrió Outlook, no se usó el portapapeles real, no se enviaron correos y no se contactó PAM.
+
+## 11 de septiembre de 2026 — Fase 18.7: tablas pegadas y editor simplificado
+
+- La aplicación JavaScript se revisó como referencia de lectura: su editor no ofrece una barra de construcción y al pegar prioriza `text/html`. La versión WPF adoptó esa misma interacción sin copiar su implementación ni relajar el saneamiento.
+- Se retiraron las acciones de negrita, cursiva, subrayado, lista, creación de tabla e imagen. Solo permanece la inserción explícita de `{{REQUEST_IDS}}`; imágenes, tablas y formato se incorporan al pegar el contenido compuesto externamente.
+- La conversión de tablas ahora conserva anchos de `colgroup`, `rowspan`, `colspan`, padding y bordes básicos. También crea un párrafo posterior cuando una tabla es el último bloque, permitiendo continuar escribiendo fuera de ella.
+- La compilación `Release | x64` terminó con 0 errores y la suite ordinaria pasó 295/295. No se abrió Outlook, no se utilizó el portapapeles real, no se enviaron correos y no se contactó PAM.
+- La primera corrección probó conversión y persistencia, pero asumía que WPF siempre entregaría `DataFormats.Html` como `string`; esa suposición no equivale a `clipboardData.getData("text/html")` del navegador y no cubría `text/html` ni streams. Se añadió normalización explícita de formatos y representaciones, logging seguro del recorrido y una prueba que carga el paquete resultante en el cursor real de un `RichTextBox`. La suite quedó en 298/298.
+
+## 11 de septiembre de 2026 — Fase 18.8: tabla manual estable
+
+- Se decidió conservar el pegado enriquecido para texto y firma, pero dejar de depender de tablas externas porque WPF no reproduce consistentemente todos los formatos que generan Outlook, navegadores y otras aplicaciones.
+- `Editar envío de correo` muestra una advertencia y recupera una única acción `Insertar tabla 2×2`. La tabla controlada contiene las filas de solicitudes y motivo, columnas 30/70 y el marcador único.
+- `FlowDocumentTableInserter` divide el párrafo en el cursor, inserta la tabla entre ambas partes, mantiene una línea posterior y evita anidarla si la acción se vuelve a pulsar con el foco dentro de ella.
+- Una primera prueba reveló que modificar un `Run` mientras se enumeraba su `InlineCollection` invalida el enumerador; se corrigió trabajando sobre snapshots antes de modificar el marcador. La compilación quedó limpia y la suite pasó 301/301.
+
+## 11 de septiembre de 2026 — Fase 18.9: reconciliación de Application observada
+
+- El diagnóstico exportado de la primera ejecución completa confirmó 13 envíos correctos y un fallo posterior dentro de `PamPendingService.Compare`; el correo no llegó a ejecutarse.
+- Las capturas aportadas demostraron coincidencia exacta de inicio `05:30 PM`, expiración `06:30 PM`, `Description = Pruebas`, `System` y `Account`. La diferencia estaba en la representación de `Application` entre Favorites y Pending.
+- La comparación incorporó familias controladas para `NOSQLBOOSTER`, `PLSQL`, `PuTTY` y `WinSCP`, sin derivarlas desde `System` ni utilizar `Ticket`. Las aplicaciones desconocidas siguen requiriendo la regla estricta anterior y las colisiones de familia se rechazan como ambiguas.
+- Se reprodujeron los nombres observados, incluido un mismo `System + Account` con PuTTY y WinSCP. La compilación `Release | x64` pasó y la suite terminó 307/307 sin contactar PAM, crear solicitudes ni enviar correo.
+
+## 11 de septiembre de 2026 — Fase 18.10: aviso de inicio bloqueado
+
+- Se confirmó que una solicitud con fecha u hora pasada deshabilitaba correctamente `Iniciar automatización`, pero el texto operativo podía seguir mostrando un estado ajeno, como `Configuración de credenciales sin cambios`.
+- La ventana principal incorporó un aviso ámbar separado que explica la primera causa pendiente y señala la sección que debe corregirse. Los casos de fecha y hora vencidas tienen textos específicos.
+- El aviso se actualiza al cargar o cambiar el estado de configuración y se oculta durante operaciones o cuando el inicio vuelve a estar habilitado.
+- La compilación `Release | x64` pasó y la suite terminó 309/309 sin contactar PAM, crear solicitudes ni enviar correo.

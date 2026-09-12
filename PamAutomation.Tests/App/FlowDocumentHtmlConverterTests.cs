@@ -1,3 +1,4 @@
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Media;
@@ -36,5 +37,38 @@ public sealed class FlowDocumentHtmlConverterTests
         Assert.HasCount(1, content.InlineImages);
         Assert.HasCount(1, second.InlineImages);
         Assert.Contains(OutlookHtmlComposer.RequestIdsMarker, second.HtmlTemplate);
+    }
+
+    [STATestMethod]
+    public void RoundTrip_PastedSignatureFormattingAndMailLink_ArePreserved()
+    {
+        var name = new Run("OMAR TÉLLEZ")
+        {
+            FontFamily = new FontFamily("Georgia"),
+            FontSize = 18,
+            FontWeight = FontWeights.Bold,
+            Foreground = Brushes.White,
+            Background = Brushes.Black
+        };
+        var email = new Hyperlink(new Run("omar@example.test"))
+        {
+            NavigateUri = new Uri("mailto:omar@example.test"),
+            Foreground = Brushes.Blue,
+            TextDecorations = TextDecorations.Underline
+        };
+        var document = new FlowDocument(new Paragraph(name));
+        document.Blocks.Add(new Paragraph(email));
+        document.Blocks.Add(new Paragraph(new Run(OutlookHtmlComposer.RequestIdsMarker)));
+
+        FlowDocumentMailContent content = FlowDocumentHtmlConverter.ToMailContent(document);
+        FlowDocument restored = FlowDocumentHtmlConverter.FromXhtml(content.HtmlTemplate, content.InlineImages);
+        FlowDocumentMailContent second = FlowDocumentHtmlConverter.ToMailContent(restored);
+
+        Assert.Contains("font-family:'Georgia'", second.HtmlTemplate);
+        Assert.Contains("font-size:18px", second.HtmlTemplate);
+        Assert.Contains("font-weight:bold", second.HtmlTemplate);
+        Assert.Contains("background-color:#000000", second.HtmlTemplate);
+        Assert.Contains("href=\"mailto:omar@example.test\"", second.HtmlTemplate);
+        Assert.Contains("text-decoration:underline", second.HtmlTemplate);
     }
 }

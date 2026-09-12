@@ -42,10 +42,23 @@ public sealed class OutlookHtmlComposerTests
         Assert.DoesNotContain("script", result);
         Assert.DoesNotContain("active", result);
         Assert.DoesNotContain("iframe", result);
-        Assert.DoesNotContain("https://", result);
+        Assert.Contains("href=\"https://example.test\"", result);
         Assert.DoesNotContain("<img", result);
-        Assert.DoesNotContain("<a", result);
         Assert.Contains("Texto conservado", result);
+    }
+
+    [TestMethod]
+    public void SanitizeFragment_SafeMailAndHttpsLinks_PreservesOnlyAllowedTargets()
+    {
+        string result = OutlookHtmlComposer.SanitizeFragment(
+            "<a href=\"mailto:user@example.test\">Correo</a>" +
+            "<a href=\"https://example.test/help\">Ayuda</a>" +
+            "<a href=\"javascript:alert(1)\">No seguro</a>");
+
+        Assert.Contains("href=\"mailto:user@example.test\"", result);
+        Assert.Contains("href=\"https://example.test/help\"", result);
+        Assert.DoesNotContain("javascript:", result);
+        Assert.Contains("No seguro", result);
     }
 
     [TestMethod]
