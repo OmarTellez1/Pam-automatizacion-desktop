@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Net.Http;
+using System.Runtime.InteropServices;
 using System.Windows.Automation;
 using Microsoft.Extensions.Logging;
 using PamAutomation.Core.Authentication;
@@ -39,7 +40,10 @@ internal sealed class WindowsEdgePamPage : IManagedPage, IPamLoginPage
     private readonly PamOriginPolicy originPolicy = new();
     private readonly HttpClient clockClient;
     private AutomationElement? browserWindow;
+    private bool zoomAttempted;
     private bool released;
+
+    internal bool IsZoomConfirmed { get; private set; }
 
     public WindowsEdgePamPage(
         string edgeExecutablePath,
@@ -138,10 +142,39 @@ internal sealed class WindowsEdgePamPage : IManagedPage, IPamLoginPage
         }
     }
 
-    public Task<bool> WaitForDashboardAsync(CancellationToken cancellationToken)
+    public async Task<bool> WaitForDashboardAsync(CancellationToken cancellationToken)
     {
         AutomationElement window = GetWindow();
-        return WaitUntilAsync(() => IsAuthenticated(window), PortalResponseTimeout, cancellationToken);
+        bool authenticated = await WaitUntilAsync(
+            () => IsAuthenticated(window),
+            PortalResponseTimeout,
+            cancellationToken).ConfigureAwait(false);
+        if (!authenticated || zoomAttempted) return authenticated;
+
+        zoomAttempted = true;
+        try
+        {
+            bool zoomConfirmed = await ApplyPamZoomAsync(window, cancellationToken).ConfigureAwait(false);
+            IsZoomConfirmed = zoomConfirmed;
+            if (zoomConfirmed)
+            {
+                logger.LogInformation("Normal Edge confirmed 67 percent zoom for the PAM page.");
+            }
+            else
+            {
+                logger.LogWarning("PAM login completed, but Edge did not confirm 67 percent zoom.");
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception exception) when (exception is InvalidOperationException or ElementNotAvailableException)
+        {
+            logger.LogWarning(exception, "PAM login completed, but its Edge zoom could not be adjusted.");
+        }
+
+        return true;
     }
 
     public ValueTask DisposeAsync() => ReleaseAsync();
@@ -422,6 +455,87 @@ internal sealed class WindowsEdgePamPage : IManagedPage, IPamLoginPage
         }
     }
 
+    private static async Task<bool> ApplyPamZoomAsync(
+        AutomationElement window,
+        CancellationToken cancellationToken)
+    {
+        if (!IsAuthenticated(window))
+        {
+            throw new InvalidOperationException("El zoom solo puede ajustarse en una página PAM autenticada.");
+        }
+
+        AutomationElement addressBar = FindAddressBar(window)
+            ?? throw new InvalidOperationException("No se encontró la barra de direcciones de Edge para ajustar el zoom.");
+        int windowHandle = window.Current.NativeWindowHandle;
+        if (windowHandle == 0)
+        {
+            throw new InvalidOperationException("La ventana de Edge no proporcionó un identificador válido.");
+        }
+
+        NativeKeyboard.TryBringToForeground(windowHandle);
+        addressBar.SetFocus();
+        await Task.Delay(200, cancellationToken).ConfigureAwait(false);
+        if (!HasKeyboardFocus(addressBar))
+        {
+            throw new InvalidOperationException("Edge no permitió enfocar de forma segura su barra de direcciones.");
+        }
+
+        NativeKeyboard.SendControlShortcut(NativeKeyboard.VirtualKeyZero);
+        await Task.Delay(150, cancellationToken).ConfigureAwait(false);
+        for (int step = 0; step < 4; step++)
+        {
+            NativeKeyboard.SendControlShortcut(NativeKeyboard.VirtualKeySubtract);
+            await Task.Delay(100, cancellationToken).ConfigureAwait(false);
+        }
+
+        return await WaitUntilAsync(
+            () => IsZoom67Visible(window),
+            TimeSpan.FromSeconds(3),
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    private static bool HasKeyboardFocus(AutomationElement expected)
+    {
+        try
+        {
+            AutomationElement focused = AutomationElement.FocusedElement;
+            return expected.GetRuntimeId().SequenceEqual(focused.GetRuntimeId());
+        }
+        catch (ElementNotAvailableException)
+        {
+            return false;
+        }
+    }
+
+    private static bool IsZoom67Visible(AutomationElement window)
+    {
+        try
+        {
+            var condition = new OrCondition(
+                new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Button),
+                new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Text),
+                new PropertyCondition(AutomationElement.ControlTypeProperty, ControlType.Group));
+            AutomationElementCollection elements = window.FindAll(TreeScope.Descendants, condition);
+            for (int index = 0; index < elements.Count; index++)
+            {
+                string name = elements[index].Current.Name;
+                string compactName = string.Concat(name.Where(static character => !char.IsWhiteSpace(character)));
+                if (string.Equals(compactName, "67%", StringComparison.Ordinal) ||
+                    (compactName.Contains("zoom", StringComparison.OrdinalIgnoreCase) &&
+                     compactName.Contains("67%", StringComparison.Ordinal)))
+                {
+                    return true;
+                }
+            }
+        }
+        catch (ElementNotAvailableException)
+        {
+            return false;
+        }
+
+        return false;
+    }
+
     private static async Task<bool> WaitUntilAsync(
         Func<bool> condition,
         TimeSpan timeout,
@@ -445,5 +559,30 @@ internal sealed class WindowsEdgePamPage : IManagedPage, IPamLoginPage
         }
 
         return false;
+    }
+
+    private static class NativeKeyboard
+    {
+        internal const byte VirtualKeyZero = 0x30;
+        internal const byte VirtualKeySubtract = 0x6D;
+        private const byte VirtualKeyControl = 0x11;
+        private const uint KeyUp = 0x0002;
+
+        [DllImport("user32.dll")]
+        private static extern bool SetForegroundWindow(nint windowHandle);
+
+        [DllImport("user32.dll")]
+        private static extern void keybd_event(byte virtualKey, byte scanCode, uint flags, nuint extraInfo);
+
+        internal static void TryBringToForeground(int windowHandle) =>
+            _ = SetForegroundWindow(windowHandle);
+
+        internal static void SendControlShortcut(byte virtualKey)
+        {
+            keybd_event(VirtualKeyControl, 0, 0, 0);
+            keybd_event(virtualKey, 0, 0, 0);
+            keybd_event(virtualKey, 0, KeyUp, 0);
+            keybd_event(VirtualKeyControl, 0, KeyUp, 0);
+        }
     }
 }

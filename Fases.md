@@ -226,6 +226,14 @@ La aplicación nunca acepta silenciosamente el certificado del navegador. Si rec
 
 La compilación `Release | x64` pasó, la suite ordinaria terminó 321/321 y una integración real autorizada confirmó el dashboard mediante el Edge normal, que permaneció abierto. La prueba creó cero solicitudes y envió cero correos. Solo permanece la advertencia heredada `MSTEST0032`. **Fase completada.**
 
+## Fase 21.3 — Zoom de PAM al 67 %
+
+`Acceder a PAM` ajusta únicamente la ventana autenticada que acaba de abrir. Después de validar el origen y el dashboard, enfoca la barra de direcciones, confirma que ese elemento recibió el foco, ejecuta `Ctrl+0` y cuatro reducciones, y reconoce `67 %` tanto si Edge lo expone como texto, grupo o botón. El ajuste se intenta una sola vez y un fallo queda registrado de forma controlada sin cerrar la sesión ya iniciada ni enviar teclas cuando el foco es incierto.
+
+Como ajuste de jerarquía visual, `Acceder a PAM` se trasladó al encabezado entre `Exportar diagnóstico` y el toggle `Enviar correo con Outlook`; su comando, disponibilidad y comportamiento no cambiaron.
+
+La compilación `Release | x64` pasó y una integración real autorizada exigió y confirmó programáticamente el indicador `67 %`. Edge permaneció abierto; no se crearon solicitudes ni se envió correo. **Fase completada.**
+
 ## Fases pendientes
 
 La clasificación siguiente se refiere únicamente a dependencias entre fases pendientes:
@@ -244,7 +252,7 @@ La clasificación siguiente se refiere únicamente a dependencias entre fases pe
 ```text
 Fases 6 a 18 completadas ──► Fase 19
 
-Fases 21–21.2 completadas de forma independiente
+Fases 21–21.3 completadas de forma independiente
 
 Fase 19 ──► Fase 20 (ampliación posterior a la migración)
 ```

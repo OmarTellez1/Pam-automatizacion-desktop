@@ -480,3 +480,11 @@ Cada cambio relevante debe registrar qué se decidió, por qué, qué se verific
 - Si Edge presenta el certificado interno, la aplicación muestra instrucciones y espera que el usuario elija manualmente `Avanzado` y `Continuar`; la automatización se reanuda al aparecer `Username`. La petición auxiliar para el reloj permite el certificado exclusivamente en el origen autorizado y no altera la confianza del navegador.
 - El foco de ventana es una mejora opcional: una denegación de foco de Windows ya no aborta el flujo. Timeouts, cierre de ventana y controles ausentes producen errores controlados sin registrar secretos.
 - La compilación `Release | x64` pasó; la suite ordinaria terminó 321/321 y una integración real autorizada confirmó el dashboard dejando Edge abierto. No se crearon solicitudes ni se envió correo; permanece la advertencia heredada `MSTEST0032`.
+
+## 12 de septiembre de 2026 — Fase 21.3: zoom de PAM al 67 %
+
+- Se trasladó a C# el comportamiento validado de la aplicación anterior: tras autenticar el dashboard se ejecuta `Ctrl+0` y cuatro veces `Ctrl+-` exclusivamente sobre la ventana PAM recién abierta.
+- Antes de enviar teclas se vuelve a validar el origen, se enfoca la barra de direcciones y se comprueba el elemento que recibió el foco. Si Windows no permite demostrarlo, el zoom se omite de forma controlada y la sesión permanece abierta.
+- La primera integración demostró que Edge no expone necesariamente el indicador como `Button`; la implementación final reconoce `67 %` en `Text`, `Group` o `Button` sin confundir porcentajes del contenido web.
+- La segunda integración real confirmó explícitamente `67 %`, conservó Edge abierto y no creó solicitudes ni envió correo.
+- El acceso directo se reubicó en el encabezado, entre `Exportar diagnóstico` y `Enviar correo con Outlook`, sin cambiar su comando ni reglas de habilitación.

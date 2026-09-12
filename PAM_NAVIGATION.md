@@ -100,7 +100,8 @@ El botón `Acceder a PAM` es una excepción deliberada al contexto temporal ante
 5. Si se muestra el login, automatizar solo los controles accesibles observados: `Username`, `Password`, `Log In`, `Enter Response` y `Submit`.
 6. Obtener el `Date` HTTP mediante una petición auxiliar cuya excepción HTTPS acepta exclusivamente el origen PAM; esta petición no altera la seguridad del navegador y solo calibra TOTP.
 7. Confirmar por la barra de direcciones que Edge salió de `/login` y liberar la referencia de accesibilidad sin cerrar la ventana ni el proceso.
-8. No navegar automáticamente a `Favorites`, formularios de solicitud, `Pending` ni correo. Desde ese momento toda navegación es manual y no está limitada al origen PAM.
+8. Con la ventana PAM autenticada y su barra de direcciones enfocada, enviar `Ctrl+0` y cuatro veces `Ctrl+-`; exigir que el panel accesible de Edge confirme `67 %`. El foco y la validación exacta del origen evitan aplicar teclas sobre otra ventana o sitio.
+9. No navegar automáticamente a `Favorites`, formularios de solicitud, `Pending` ni correo. Desde ese momento toda navegación es manual y no está limitada al origen PAM.
 
 La decisión de confiar en el certificado pertenece al usuario y queda persistida por el navegador normal según sus propias políticas. La contraseña, la semilla y los códigos TOTP no se escriben en el perfil ni en logs. Esta excepción de uso del perfil normal se limita a `Acceder a PAM`; la automatización de solicitudes continúa usando Playwright con un contexto temporal, aislado y restringido al origen autorizado.
 

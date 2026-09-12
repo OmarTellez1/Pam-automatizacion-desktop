@@ -65,6 +65,15 @@
                             Content="Exportar diagnóstico"
                             IsEnabled="{Binding CanExportDiagnostics}"
                             Style="{StaticResource SecondaryButtonStyle}" />
+                    <Button x:Name="AccessPamButton"
+                            Width="135"
+                            Height="40"
+                            Margin="0,0,12,0"
+                            AutomationProperties.Name="Acceder a PAM"
+                            Command="{Binding AccessPamCommand}"
+                            Content="Acceder a PAM"
+                            Style="{StaticResource SecondaryButtonStyle}"
+                            ToolTip="Abre BeyondInsight e inicia sesión con las credenciales PAM configuradas." />
                     <ToggleButton VerticalAlignment="Center"
                                   AutomationProperties.Name="Seleccionar acción final"
                                   Command="{Binding ToggleFinalActionCommand}"
@@ -139,16 +148,6 @@
                         Content="Iniciar automatización"
                         IsEnabled="{Binding CanStartAutomation}"
                         Style="{StaticResource HeroButtonStyle}" />
-
-                <Button x:Name="AccessPamButton"
-                        MinWidth="230"
-                        Margin="0,12,0,0"
-                        HorizontalAlignment="Center"
-                        AutomationProperties.Name="Acceder a PAM"
-                        Command="{Binding AccessPamCommand}"
-                        Content="Acceder a PAM"
-                        Style="{StaticResource SecondaryButtonStyle}"
-                        ToolTip="Abre BeyondInsight e inicia sesión con las credenciales PAM configuradas." />
 
                 <Button Margin="0,14,0,0"
                         MinWidth="250"

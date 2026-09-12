@@ -59,6 +59,7 @@ Las fases construidas hasta ahora son:
 - Fase 21: acceso interactivo persistente separado del flujo de solicitudes.
 - Fase 21.1: preflight de Pending con repetición o cancelación explícitas; el intento WebSocket/CDP quedó sustituido en fase 21.2.
 - Fase 21.2: Edge normal mediante Windows UI Automation, confianza manual del certificado y liberación sin cerrar el navegador.
+- Fase 21.3: zoom seguro y verificado al 67 % únicamente sobre la ventana PAM autenticada.
 
 Los directorios `.git`, `.vs`, `bin` y `obj` contienen metadatos o salidas generadas y se omiten en el árbol.
 
@@ -464,7 +465,7 @@ Biblioteca para `net10.0-windows`. Referencia `PamAutomation.Core` e implementa 
 
 - `PamBrowserSessionFactory`: crea Edge visible mediante el canal `msedge` y administra la inicialización segura.
 - `PamInteractiveBrowserSessionFactory`: excepción exclusiva de fase 21; crea el adaptador sobre el Edge normal del usuario sin CDP, `userDataDir` ni perfil dedicado.
-- `WindowsEdgePamPage`: abre Edge como proceso externo, valida el origen en la barra de direcciones y automatiza solo el login mediante Windows UI Automation. Espera la confianza manual del certificado y nunca cierra el navegador.
+- `WindowsEdgePamPage`: abre Edge como proceso externo, valida el origen en la barra de direcciones y automatiza solo el login mediante Windows UI Automation. Espera la confianza manual del certificado, ajusta y verifica el zoom PAM al 67 % y nunca cierra el navegador.
 - `IPamCertificateTrustPrompt`: separa la detección del certificado en Browser de su explicación visual en WPF.
 - `PamInteractiveAccessService`: ejecuta únicamente la autenticación y libera las referencias de automatización sin cerrar el navegador externo.
 - `PamBrowserSession`: valida cada navegación y libera página, contexto, navegador y runtime en orden.

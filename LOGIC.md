@@ -43,6 +43,8 @@ Al completar una ejecución, la interfaz restaura primero el estado inactivo y h
 
 Este flujo no usa CDP, depuración remota, `userDataDir` ni un perfil dedicado. Windows UI Automation se limita a las ventanas del proceso `msedge`, al origen PAM exacto y a los controles accesibles `Username`, `Password`, `Log In`, `Enter Response` y `Submit`. Si aparece el certificado interno, la aplicación informa los pasos pero no lo omite: espera la decisión manual del usuario y reanuda al detectar el login. La única excepción HTTPS automática es una petición HTTP auxiliar restringida al origen PAM para leer `Date` y calibrar TOTP; no cambia la confianza de Edge.
 
+Después de confirmar el dashboard, el flujo interactivo enfoca de forma comprobable la barra de direcciones de esa ventana PAM, restablece el zoom con `Ctrl+0`, lo reduce cuatro niveles y valida en el árbol accesible de Edge el indicador `67 %`. El ajuste se intenta una sola vez por apertura y nunca se envía si no puede demostrarse el foco correcto. Un fallo de zoom se registra sin secretos y no cierra la sesión PAM ya autenticada.
+
 El cuerpo HTML final hereda Aptos 11 y usa Calibri y Segoe UI como respaldos compatibles con Outlook clásico. Los estilos explícitos importados —incluida la firma— prevalecen por cascada. Las tablas generadas por el editor se serializan al 85% del ancho, centradas y con contenido alineado arriba.
 
 ## Persistencia y configuración
