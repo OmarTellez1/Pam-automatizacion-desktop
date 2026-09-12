@@ -78,7 +78,7 @@ public sealed class OutlookHtmlComposerTests
         string result = OutlookHtmlComposer.Compose(template, ["150901", "150902", "150903"]);
 
         Assert.AreEqual(
-            "<table><tr><td>Solicitudes</td><td>150901<br />150902<br />150903</td></tr></table>",
+            "<div style=\"font-family:Aptos,Calibri,'Segoe UI',sans-serif;font-size:11pt\"><table><tr><td>Solicitudes</td><td>150901<br />150902<br />150903</td></tr></table></div>",
             result);
         Assert.DoesNotContain(OutlookHtmlComposer.RequestIdsMarker, result);
     }
@@ -90,7 +90,9 @@ public sealed class OutlookHtmlComposerTests
             "<p>IDs: {{REQUEST_IDS}}.</p>",
             ["150901", "150902"]);
 
-        Assert.AreEqual("<p>IDs: 150901<br />150902.</p>", result);
+        Assert.AreEqual(
+            "<div style=\"font-family:Aptos,Calibri,'Segoe UI',sans-serif;font-size:11pt\"><p>IDs: 150901<br />150902.</p></div>",
+            result);
     }
 
     [TestMethod]

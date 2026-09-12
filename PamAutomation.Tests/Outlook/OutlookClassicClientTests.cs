@@ -92,6 +92,7 @@ public sealed class OutlookClassicClientTests
         Assert.IsFalse(first.IsConfirmed);
         Assert.IsFalse(second.IsConfirmed);
         Assert.AreEqual(OutlookDeliveryStatus.SubmittedUnconfirmed, first.Status);
+        Assert.AreEqual("El correo se envió correctamente desde Outlook.", first.Message);
         Assert.AreEqual(2, harness.Messages.Count);
         CollectionAssert.AreEqual(new[] { "subject", "html", "to", "cc", "account", "fingerprint", "send", "dispose" }, harness.Messages[0].Events);
         Assert.IsTrue(harness.AllResourcesDisposed);

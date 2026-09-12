@@ -232,6 +232,49 @@ public sealed class PamPendingServiceTests
     }
 
     [TestMethod]
+    public void FindExactMatches_RepeatedPendingRows_ReturnsOnlyFullyEqualRequests()
+    {
+        var harness = new PendingHarness([]);
+        var expected = new PamFavoriteAccount("system-a", "WinSCP", "account-a");
+        IReadOnlyList<PamPendingRequest> requests =
+        [
+            CreatePending("170001"),
+            CreatePending("170002"),
+            CreatePending("170003", description: "Different reason"),
+            CreatePending("170004", startTime: new TimeOnly(9, 5)),
+        ];
+
+        IReadOnlyList<PamPendingRequest> duplicates = harness.Service.FindExactMatches(
+            requests,
+            [expected],
+            CreateForm());
+
+        CollectionAssert.AreEqual(new[] { "170001", "170002" },
+            duplicates.Select(static request => request.RequestId).ToArray());
+    }
+
+    [TestMethod]
+    public void Compare_PreexistingExactRowExcluded_MatchesOnlyNewRepeatedRequest()
+    {
+        var harness = new PendingHarness([]);
+        var expected = new PamFavoriteAccount("system-a", "WinSCP", "account-a");
+        IReadOnlyList<PamPendingRequest> requests =
+        [
+            CreatePending("170001"),
+            CreatePending("170002"),
+        ];
+
+        PamPendingComparisonResult result = harness.Service.Compare(
+            requests,
+            [expected],
+            CreateForm(),
+            excludedRequestIds: ["170001"]);
+
+        Assert.IsTrue(result.IsComplete);
+        Assert.AreEqual("170002", result.RequestIds[0]);
+    }
+
+    [TestMethod]
     public void Compare_DuplicateNormalizedExpectedIdentity_RejectsAmbiguity()
     {
         var harness = new PendingHarness([]);

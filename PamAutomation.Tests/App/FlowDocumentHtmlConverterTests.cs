@@ -34,6 +34,9 @@ public sealed class FlowDocumentHtmlConverterTests
 
         Assert.Contains("<strong>", content.HtmlTemplate);
         Assert.Contains("<table", content.HtmlTemplate);
+        Assert.Contains("width=\"85%\"", content.HtmlTemplate);
+        Assert.Contains("align=\"center\"", content.HtmlTemplate);
+        Assert.Contains("valign=\"top\"", content.HtmlTemplate);
         Assert.HasCount(1, content.InlineImages);
         Assert.HasCount(1, second.InlineImages);
         Assert.Contains(OutlookHtmlComposer.RequestIdsMarker, second.HtmlTemplate);

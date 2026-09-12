@@ -3,6 +3,8 @@ using PamAutomation.App.Services;
 using PamAutomation.App.ViewModels;
 using PamAutomation.Core.Execution;
 using PamAutomation.Core.Diagnostics;
+using PamAutomation.Core.Authentication;
+using PamAutomation.Core.Interfaces.Authentication;
 using PamAutomation.Core.Interfaces.Configuration;
 using PamAutomation.Core.Interfaces.Credentials;
 using PamAutomation.Core.Interfaces.Diagnostics;
@@ -60,6 +62,7 @@ public sealed class MainWindowViewModelTests
         await viewModel.InitializeAsync();
 
         Assert.IsFalse(viewModel.CanStartAutomation);
+        Assert.IsFalse(viewModel.CanAccessPam);
         Assert.IsTrue(viewModel.IsStartAutomationWarningVisible);
         Assert.Contains("hora de inicio configurada ya pasó", viewModel.StartAutomationWarningMessage);
         Assert.Contains("Configurar solicitud", viewModel.StartAutomationWarningMessage);
@@ -128,6 +131,62 @@ public sealed class MainWindowViewModelTests
     }
 
     [TestMethod]
+    public async Task AccessPamAsync_ConfiguredCredentials_OpensIndependentAuthenticatedBrowser()
+    {
+        var interactiveAccess = new FakeInteractiveAccessService();
+        var dialogs = new FakeDialogs(confirm: true);
+        var viewModel = new MainWindowViewModel(
+            null,
+            null,
+            new FakeCredentialStore(),
+            dialogs,
+            new AppSettingsValidator(new RequestSettingsValidator()),
+            TimeProvider.System,
+            interactiveAccessService: interactiveAccess)
+        {
+            AreCredentialsConfigured = true
+        };
+
+        Assert.IsTrue(viewModel.AccessPamCommand.CanExecute(null));
+
+        await viewModel.AccessPamCommand.ExecuteAsync(null);
+
+        Assert.AreEqual(1, interactiveAccess.OpenCount);
+        Assert.IsFalse(viewModel.IsAccessingPam);
+        Assert.Contains("sesión PAM se inició correctamente", viewModel.StatusMessage);
+        Assert.IsNull(dialogs.LastError);
+
+    }
+
+    [TestMethod]
+    public async Task AccessPamAsync_AuthenticationRejected_RestoresControlsAndShowsSafeError()
+    {
+        var interactiveAccess = new FakeInteractiveAccessService
+        {
+            Failure = new PamAuthenticationException(PamAuthenticationErrorCode.CredentialsRejected)
+        };
+        var dialogs = new FakeDialogs(confirm: true);
+        var viewModel = new MainWindowViewModel(
+            null,
+            null,
+            new FakeCredentialStore(),
+            dialogs,
+            new AppSettingsValidator(new RequestSettingsValidator()),
+            TimeProvider.System,
+            interactiveAccessService: interactiveAccess)
+        {
+            AreCredentialsConfigured = true
+        };
+
+        await viewModel.AccessPamCommand.ExecuteAsync(null);
+
+        Assert.IsFalse(viewModel.IsAccessingPam);
+        Assert.IsTrue(viewModel.AreControlsEnabled);
+        Assert.Contains("rechazó las credenciales", viewModel.StatusMessage);
+        Assert.AreEqual(viewModel.StatusMessage, dialogs.LastError);
+    }
+
+    [TestMethod]
     public void TestAction_RequiresTestModeAndCompleteConfiguration()
     {
         var viewModel = CreateConfiguredViewModel();
@@ -151,7 +210,7 @@ public sealed class MainWindowViewModelTests
     }
 
     [TestMethod]
-    public async Task RealExecution_WhenConfirmed_PresentsOnlyInMemoryResult()
+    public async Task RealExecution_WhenConfirmed_ExposesResultWithoutOpeningAutomaticDialog()
     {
         TestContext context = CreateIntegratedViewModel(confirm: true);
         await context.ViewModel.InitializeAsync();
@@ -164,6 +223,12 @@ public sealed class MainWindowViewModelTests
         Assert.Contains("Request ID: 2", context.ViewModel.ResultSummary);
         Assert.AreEqual("8001" + Environment.NewLine + "8002", context.ViewModel.RequestIdsText);
         Assert.IsFalse(context.ViewModel.IsRunning);
+        Assert.AreEqual(0, context.Dialogs.ResultDisplayCount);
+
+        context.ViewModel.ShowResultCommand.Execute(null);
+
+        Assert.AreEqual(1, context.Dialogs.ResultDisplayCount);
+        Assert.Contains("8001" + Environment.NewLine + "8002", context.Dialogs.LastResultMessage);
     }
 
     [TestMethod]
@@ -177,6 +242,35 @@ public sealed class MainWindowViewModelTests
         Assert.AreEqual(0, context.Execution.RealExecutionCount);
         Assert.Contains("No se creó ninguna solicitud", context.ViewModel.StatusMessage);
         Assert.IsFalse(context.ViewModel.HasResult);
+    }
+
+    [TestMethod]
+    public async Task RealExecution_ExactPendingDuplicatesRejected_CancelsBeforeSubmission()
+    {
+        TestContext context = CreateIntegratedViewModel(confirm: true);
+        context.Execution.PendingDuplicateCount = 2;
+        context.Dialogs.ConfirmRepeatedRequests = false;
+        await context.ViewModel.InitializeAsync();
+
+        await context.ViewModel.StartAutomationCommand.ExecuteAsync(null);
+
+        Assert.AreEqual(1, context.Dialogs.RepeatedPendingConfirmationCount);
+        Assert.AreEqual(0, context.Execution.RealExecutionCount);
+        Assert.Contains("no se volvieron a crear", context.ViewModel.StatusMessage);
+    }
+
+    [TestMethod]
+    public async Task RealExecution_ExactPendingDuplicatesAccepted_SubmitsAgain()
+    {
+        TestContext context = CreateIntegratedViewModel(confirm: true);
+        context.Execution.PendingDuplicateCount = 2;
+        context.Dialogs.ConfirmRepeatedRequests = true;
+        await context.ViewModel.InitializeAsync();
+
+        await context.ViewModel.StartAutomationCommand.ExecuteAsync(null);
+
+        Assert.AreEqual(1, context.Dialogs.RepeatedPendingConfirmationCount);
+        Assert.AreEqual(1, context.Execution.RealExecutionCount);
     }
 
     [TestMethod]
@@ -422,14 +516,35 @@ public sealed class MainWindowViewModelTests
         public void Delete() => throw new NotSupportedException();
     }
 
-    private sealed class FakeDialogs(bool confirm) : IUserDialogService
+    private sealed class FakeDialogs : IUserDialogService
     {
+        private readonly bool confirm;
+
+        public FakeDialogs(bool confirm)
+        {
+            this.confirm = confirm;
+            ConfirmRepeatedRequests = confirm;
+        }
+
         public string? DiagnosticPath { get; set; } = "C:\\support\\diagnostic.zip";
         public string? LastError { get; private set; }
+        public int ResultDisplayCount { get; private set; }
+        public string LastResultMessage { get; private set; } = string.Empty;
+        public bool ConfirmRepeatedRequests { get; set; }
+        public int RepeatedPendingConfirmationCount { get; private set; }
+        public bool ConfirmRepeatedPendingRequests(PamExecutionPreparation preparation)
+        {
+            RepeatedPendingConfirmationCount++;
+            return ConfirmRepeatedRequests;
+        }
         public bool ConfirmRealExecution(PamExecutionPreparation preparation, MailSettings? mailSettings) => confirm;
         public bool ConfirmTestEmail(string recipient) => confirm;
         public bool ConfirmOutlookTestEmail(string recipient) => confirm;
-        public void ShowResult(string title, string message) { }
+        public void ShowResult(string title, string message)
+        {
+            ResultDisplayCount++;
+            LastResultMessage = message;
+        }
         public void ShowError(string message) => LastError = message;
         public string? SelectDiagnosticExportPath(string suggestedFileName) => DiagnosticPath;
     }
@@ -468,6 +583,22 @@ public sealed class MainWindowViewModelTests
                 : Task.FromException<ApplicationUpdateResult>(failure);
     }
 
+    private sealed class FakeInteractiveAccessService : IPamInteractiveAccessService
+    {
+        public int OpenCount { get; private set; }
+        public Exception? Failure { get; init; }
+
+        public Task OpenAsync(
+            PamCredentials credentials,
+            CancellationToken cancellationToken = default)
+        {
+            OpenCount++;
+            return Failure is null
+                ? Task.CompletedTask
+                : Task.FromException(Failure);
+        }
+    }
+
     private sealed class FakeExecutionService(DateTimeOffset now) : IPamAutomationExecutionService
     {
         public int RealExecutionCount { get; private set; }
@@ -475,10 +606,16 @@ public sealed class MainWindowViewModelTests
         public int EmailSendCount { get; private set; }
         public string[] LastEmailIds { get; private set; } = [];
         public bool LastEmailWasTest { get; private set; }
+        public int PendingDuplicateCount { get; set; }
 
         public Task<PamExecutionPreparation> PrepareRealAsync(PamCredentials credentials, AppSettings settings,
             DateTimeOffset ecuadorNow, CancellationToken cancellationToken = default) =>
-            Task.FromResult(new PamExecutionPreparation(2, settings.Request, settings.FinalAction));
+            Task.FromResult(new PamExecutionPreparation(
+                2,
+                settings.Request,
+                settings.FinalAction,
+                PendingDuplicateCount > 0 ? ["7001"] : [],
+                PendingDuplicateCount));
 
         public Task<PamExecutionResult> ExecuteRealAsync(PamCredentials credentials,
             PamExecutionPreparation preparation, DateTimeOffset ecuadorNow,

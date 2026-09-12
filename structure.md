@@ -55,6 +55,10 @@ Las fases construidas hasta ahora son:
 - Fase 18.8: tabla de correo 2×2 insertada manualmente en el cursor y advertencia contra tablas pegadas.
 - Fase 18.9: reconciliación de las familias reales de `Application` entre Favorites y Pending.
 - Fase 18.10: aviso accionable en la ventana principal para explicar cada bloqueo de `Iniciar automatización`.
+- Fase 18.11: resultado consultable bajo demanda, semántica de envío clara y composición Outlook con tipografía y tabla compactas.
+- Fase 21: acceso interactivo persistente separado del flujo de solicitudes.
+- Fase 21.1: preflight de Pending con repetición o cancelación explícitas; el intento WebSocket/CDP quedó sustituido en fase 21.2.
+- Fase 21.2: Edge normal mediante Windows UI Automation, confianza manual del certificado y liberación sin cerrar el navegador.
 
 Los directorios `.git`, `.vs`, `bin` y `obj` contienen metadatos o salidas generadas y se omiten en el árbol.
 
@@ -95,6 +99,7 @@ PamAutomation\
 │   │   ├── RichClipboardHtmlImporter.cs
 │   │   ├── FlowDocumentTableInserter.cs
 │   │   ├── WpfConfigurationDialogService.cs
+│   │   ├── WpfPamCertificateTrustPrompt.cs
 │   │   └── WpfUserDialogService.cs
 │   ├── Views\
 │   │   ├── CredentialsWindow.xaml
@@ -115,6 +120,7 @@ PamAutomation\
 │   │   ├── Authentication\
 │   │   │   ├── IAsyncDelay.cs
 │   │   │   ├── IPamAuthenticatedSessionFactory.cs
+│   │   │   ├── IPamInteractiveAccessService.cs
 │   │   │   ├── IPamAuthenticationPortal.cs
 │   │   │   ├── IPamAuthenticationPortalFactory.cs
 │   │   │   ├── PamCredentialSubmissionResult.cs
@@ -239,6 +245,8 @@ PamAutomation\
 ├── PamAutomation.Browser\
 │   ├── PamAutomation.Browser.csproj
 │   ├── BrowserAbstractions.cs
+│   ├── GlobalUsings.cs
+│   ├── IPamCertificateTrustPrompt.cs
 │   ├── PamAuthenticationPortal.cs
 │   ├── PamFavoritesPagination.cs
 │   ├── PamFavoritesPortal.cs
@@ -253,6 +261,8 @@ PamAutomation\
 │   ├── PamSubmissionResponseClassifier.cs
 │   ├── PamBrowserSession.cs
 │   ├── PamBrowserSessionFactory.cs
+│   ├── PamInteractiveAccessService.cs
+│   ├── PamInteractiveBrowserSessionFactory.cs
 │   ├── PamLoginAlertClassifier.cs
 │   ├── PamLoginSelectors.cs
 │   ├── PamOriginPolicy.cs
@@ -260,6 +270,7 @@ PamAutomation\
 │   ├── PlaywrightManagedPage.Pending.cs
 │   ├── PlaywrightManagedPage.RequestTest.cs
 │   ├── PlaywrightManagedPage.RequestSubmission.cs
+│   ├── WindowsEdgePamPage.cs
 │   └── PlaywrightEngineFactory.cs
 │
 ├── PamAutomation.Infrastructure\
@@ -330,6 +341,7 @@ PamAutomation\
     │   ├── PamFavoritesPortalTests.cs
     │   ├── PamPendingPortalTests.cs
     │   ├── PamBrowserSessionFactoryTests.cs
+    │   ├── PamInteractiveAccessServiceTests.cs
     │   ├── PamRealFavoritesTests.cs
     │   ├── PamRealPendingMatchTests.cs
     │   ├── PamRealPendingTests.cs
@@ -425,10 +437,11 @@ Biblioteca para `net10.0`, sin dependencia de WPF o Windows. Actualmente contien
 - `Totp`: decodificación Base32, generación RFC 6238 y evaluación de la vigencia mínima antes del envío.
 - `Interfaces/Time`: reloj confiable, fábrica de calibración y errores estables sin dependencia del sistema.
 - `Interfaces/Browser`: contratos de fábrica y sesión que no exponen tipos Playwright.
+- `Interfaces/Authentication/IPamInteractiveAccessService`: contrato del acceso manual que entrega al usuario un Edge autenticado sin ejecutar operaciones PAM posteriores.
 - `Browser`: respuesta de navegación reducida a URI, estado y HTTP `Date`, junto con errores controlados de inicialización y navegación.
 - `Authentication`: servicio de autenticación simulado, espera asincrónica, errores estables y contratos del puerto ligado a una sesión.
 - `Interfaces/Favorites` y `Favorites`: lectura y validación de identidades únicas dentro de una sesión autenticada reutilizable.
-- `Interfaces/Requests` y `Requests`: contratos separados para prueba, envío y lectura; coordinación de solicitudes, resultados en memoria y reconciliación estricta de Pending.
+- `Interfaces/Requests` y `Requests`: contratos separados para prueba, envío y lectura; coordinación de solicitudes, preflight de coincidencias exactas, línea base de Request ID en memoria y reconciliación estricta de las filas nuevas de Pending.
 - `Interfaces/Outlook` y `Outlook`: contrato del cliente clásico, modelos redactados, validaciones, resultados y errores seguros; `OutlookHtmlComposer` sanea XHTML, valida el marcador y compone Request ID por línea.
 - `Interfaces/Execution` y `Execution`: preparación confirmable, coordinación completa y resultado exclusivamente en memoria.
 - `Interfaces/Diagnostics` y `Diagnostics`: contratos y modelos de lista permitida para capturar y exportar evidencias sin identidades ni secretos.
@@ -447,9 +460,13 @@ Regla principal: `Core` no debe referenciar ningún otro proyecto de la solució
 
 ### `PamAutomation.Browser`
 
-Biblioteca para `net10.0`. Referencia `PamAutomation.Core` e implementa la sesión restringida de Playwright, el login real, Favorites, formularios y Pending de las fases 7, 9, 10, 11, 12 y 13:
+Biblioteca para `net10.0-windows`. Referencia `PamAutomation.Core` e implementa la sesión restringida de Playwright, el login real, Favorites, formularios y Pending de las fases 7, 9, 10, 11, 12 y 13, además del adaptador accesible de Edge normal de fase 21.2:
 
 - `PamBrowserSessionFactory`: crea Edge visible mediante el canal `msedge` y administra la inicialización segura.
+- `PamInteractiveBrowserSessionFactory`: excepción exclusiva de fase 21; crea el adaptador sobre el Edge normal del usuario sin CDP, `userDataDir` ni perfil dedicado.
+- `WindowsEdgePamPage`: abre Edge como proceso externo, valida el origen en la barra de direcciones y automatiza solo el login mediante Windows UI Automation. Espera la confianza manual del certificado y nunca cierra el navegador.
+- `IPamCertificateTrustPrompt`: separa la detección del certificado en Browser de su explicación visual en WPF.
+- `PamInteractiveAccessService`: ejecuta únicamente la autenticación y libera las referencias de automatización sin cerrar el navegador externo.
 - `PamBrowserSession`: valida cada navegación y libera página, contexto, navegador y runtime en orden.
 - `PamOriginPolicy`: compara esquema, host y puerto efectivo y bloquea solicitudes HTTP(S) externas o malformadas.
 - `PlaywrightEngineFactory` y `BrowserAbstractions`: adaptadores internos que encapsulan Microsoft.Playwright y permiten pruebas sin abrir Edge.
@@ -562,6 +579,7 @@ Contenido actual:
 - `Infrastructure/Credentials/WindowsPamCredentialStoreTests.cs`: valida creación, actualización parcial, límites, corrupción, borrado y limpieza de buffers mediante una API de Windows falsa.
 - `Infrastructure/Time/PamHttpDateClockFactoryTests.cs`: valida calibración, avance monotónico y errores sin consultar el reloj local.
 - `Browser/PamBrowserSessionFactoryTests.cs`: valida Edge visible, contexto temporal, origen exacto, respuesta segura, cancelación y liberación con adaptadores falsos.
+- `Browser/PamInteractiveAccessServiceTests.cs`: valida que el acceso interactivo libere la automatización sin disponer los recursos del navegador entregado al usuario.
 - `Browser/PamAuthenticationPortalTests.cs`: valida el enlace de sesión, el mapeo del portal y la clasificación segura de anuncios sin abrir Edge.
 - `Browser/PamFavoritesPortalTests.cs`: valida el adaptador de Favorites y el formato del paginador con dobles.
 - `Browser/PamRealFavoritesTests.cs`: integración opt-in de solo lectura que confirma cuentas completas sin mostrar sus valores.
@@ -576,7 +594,7 @@ Contenido actual:
 - `Core/Favorites/PamFavoritesServiceTests.cs`: valida snapshot, identidades, duplicados, errores seguros y cierre de sesión.
 - `Core/Requests/PamRequestTestServiceTests.cs`: valida configuración previa, recorrido completo, detención segura, cierre de sesión y resultado invariablemente no enviado.
 - `Core/Requests/PamRequestSubmissionServiceTests.cs`: valida autorización por conteo y configuración, resultados, conflictos, fallos parciales, duración técnica y cierre de sesión.
-- `Core/Requests/PamPendingServiceTests.cs`: valida lectura, identidad, expiración, descripción, familias y sufijos de Application, múltiples aplicaciones bajo la misma cuenta, ambigüedad y consistencia eventual.
+- `Core/Requests/PamPendingServiceTests.cs`: valida lectura, identidad, expiración, descripción, familias y sufijos de Application, detección de repeticiones exactas, exclusión de Request ID preexistentes, múltiples aplicaciones bajo la misma cuenta, ambigüedad y consistencia eventual.
 - `Core/Authentication/PamAuthenticationServiceTests.cs`: valida el flujo simulado, RTT, ventana TOTP, reintento único, errores y cancelación.
 - `Outlook/OutlookClassicClientTests.cs`: valida cuenta exacta, mensajes temporales, redacción, STA, huellas, duplicados, adjuntos CID, liberación y estados de envío mediante COM falso.
 - `Outlook/OutlookHtmlComposerTests.cs`: valida allowlist XHTML, contenido activo, recursos externos, estilos, marcador, Request ID y errores redactados.

@@ -66,7 +66,9 @@ public static class FlowDocumentHtmlConverter
             new XAttribute("border", "1"),
             new XAttribute("cellpadding", "4"),
             new XAttribute("cellspacing", "0"),
-            new XAttribute("style", "border-collapse:collapse;width:100%"));
+            new XAttribute("width", "85%"),
+            new XAttribute("align", "center"),
+            new XAttribute("style", "border-collapse:collapse;width:85%;margin-left:auto;margin-right:auto"));
         if (table.Columns.Count > 0)
         {
             element.Add(new XElement(
@@ -87,6 +89,7 @@ public static class FlowDocumentHtmlConverter
         var element = ApplyTextStyle(
             cell,
             new XElement("td", cell.Blocks.Select(block => ConvertBlock(block, images))));
+        element.SetAttributeValue("valign", "top");
         if (cell.ColumnSpan > 1) element.SetAttributeValue("colspan", cell.ColumnSpan);
         if (cell.RowSpan > 1) element.SetAttributeValue("rowspan", cell.RowSpan);
 

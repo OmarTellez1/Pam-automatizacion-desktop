@@ -4,7 +4,7 @@ using PamAutomation.Core.Interfaces.Browser;
 namespace PamAutomation.Browser;
 
 /// <summary>Owns the page, context, browser, and Playwright runtime for one PAM session.</summary>
-public sealed class PamBrowserSession : IPamBrowserSession
+public sealed class PamBrowserSession : IPamBrowserSession, IDetachablePamBrowserSession
 {
     private readonly IPlaywrightEngine engine;
     private readonly IManagedBrowser browser;
@@ -12,6 +12,7 @@ public sealed class PamBrowserSession : IPamBrowserSession
     private readonly IManagedPage page;
     private readonly PamOriginPolicy originPolicy;
     private readonly TimeProvider timeProvider;
+    private Func<ValueTask>? prepareReleaseAsync;
     private bool disposed;
 
     /// <summary>Initializes a session with already-created browser resources.</summary>
@@ -26,7 +27,8 @@ public sealed class PamBrowserSession : IPamBrowserSession
         IManagedBrowserContext context,
         IManagedPage page,
         PamOriginPolicy originPolicy,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        Func<ValueTask>? prepareReleaseAsync = null)
     {
         this.engine = engine ?? throw new ArgumentNullException(nameof(engine));
         this.browser = browser ?? throw new ArgumentNullException(nameof(browser));
@@ -34,6 +36,7 @@ public sealed class PamBrowserSession : IPamBrowserSession
         this.page = page ?? throw new ArgumentNullException(nameof(page));
         this.originPolicy = originPolicy ?? throw new ArgumentNullException(nameof(originPolicy));
         this.timeProvider = timeProvider ?? TimeProvider.System;
+        this.prepareReleaseAsync = prepareReleaseAsync;
     }
 
     /// <summary>Gets the login-capable page owned by this session.</summary>
@@ -82,6 +85,7 @@ public sealed class PamBrowserSession : IPamBrowserSession
 
         disposed = true;
         Exception? firstFailure = null;
+        await PrepareReleaseAndCaptureAsync(exception => firstFailure ??= exception).ConfigureAwait(false);
         await DisposeAndCaptureAsync(page, exception => firstFailure ??= exception).ConfigureAwait(false);
         await DisposeAndCaptureAsync(context, exception => firstFailure ??= exception).ConfigureAwait(false);
         await DisposeAndCaptureAsync(browser, exception => firstFailure ??= exception).ConfigureAwait(false);
@@ -90,6 +94,36 @@ public sealed class PamBrowserSession : IPamBrowserSession
         if (firstFailure is not null)
         {
             throw new InvalidOperationException("No fue posible cerrar completamente la sesión PAM.", firstFailure);
+        }
+    }
+
+    async ValueTask IDetachablePamBrowserSession.DetachAsync()
+    {
+        if (disposed) return;
+
+        disposed = true;
+        Exception? firstFailure = null;
+        await PrepareReleaseAndCaptureAsync(exception => firstFailure ??= exception).ConfigureAwait(false);
+        await DisposeAndCaptureAsync(engine, exception => firstFailure ??= exception).ConfigureAwait(false);
+
+        if (firstFailure is not null)
+        {
+            throw new InvalidOperationException("No fue posible liberar completamente el control del navegador PAM.", firstFailure);
+        }
+    }
+
+    private async ValueTask PrepareReleaseAndCaptureAsync(Action<Exception> capture)
+    {
+        Func<ValueTask>? callback = Interlocked.Exchange(ref prepareReleaseAsync, null);
+        if (callback is null) return;
+
+        try
+        {
+            await callback().ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            capture(exception);
         }
     }
 
@@ -104,4 +138,9 @@ public sealed class PamBrowserSession : IPamBrowserSession
             capture(exception);
         }
     }
+}
+
+internal interface IDetachablePamBrowserSession : IPamBrowserSession
+{
+    ValueTask DetachAsync();
 }

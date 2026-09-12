@@ -50,6 +50,23 @@ public sealed class PamAuthenticationServiceTests
     }
 
     [TestMethod]
+    public async Task CreateAuthenticatedAsync_ExistingDashboardSession_DoesNotResubmitCredentialsOrTotp()
+    {
+        var harness = new AuthenticationHarness();
+        harness.Session.Response = harness.Session.Response with
+        {
+            Uri = new Uri(PamAuthenticationService.AuthorizedOrigin, "/webconsole/index.html")
+        };
+
+        IPamBrowserSession session = await harness.Service.CreateAuthenticatedAsync(CreateCredentials());
+
+        Assert.AreSame(harness.Session, session);
+        Assert.AreEqual(0, harness.Portal.CredentialCalls);
+        Assert.AreEqual(0, harness.Portal.TotpCalls);
+        Assert.AreEqual(1, harness.Portal.DashboardCalls);
+    }
+
+    [TestMethod]
     public async Task AuthenticateAsync_LessThanEightSecondsRemaining_WaitsForFreshSafeWindow()
     {
         // Arrange
@@ -289,7 +306,7 @@ public sealed class PamAuthenticationServiceTests
     private sealed class FakeBrowserSession : IPamBrowserSession
     {
         public PamNavigationResponse Response { get; set; } = new(
-            PamAuthenticationService.AuthorizedOrigin, 200, "Wed, 21 Oct 2015 07:28:00 GMT", TimeSpan.FromMilliseconds(240));
+            PamAuthenticationService.LoginUri, 200, "Wed, 21 Oct 2015 07:28:00 GMT", TimeSpan.FromMilliseconds(240));
         public Uri? NavigatedUri { get; private set; }
         public int DisposeCalls { get; private set; }
         public Task<PamNavigationResponse> NavigateAsync(Uri uri, CancellationToken cancellationToken = default)

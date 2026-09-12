@@ -63,7 +63,7 @@ HTML, CSS y JavaScript no forman parte de la interfaz propia. Playwright puede i
 - Construir por fases pequeñas y revisables.
 - No copiar la arquitectura del proyecto anterior.
 - No modificar C:\pam automatizacion.
-- No utilizar LaunchPersistentContext, userDataDir ni conexión CDP a un perfil existente.
+- No utilizar LaunchPersistentContext, userDataDir ni conexión CDP a un perfil existente. Solo los puedes usar para la automatización para del nuevo boton "Acceder al PAM", en cambio para la automatización para solicitar accesos si queda restringida. Para este boton de acceder al PAM puedes utilizar scripts shell si te ayuda a hacer el trabajo más rapido y eficiente, pero el usuario nunca debe ejecutar los shell manualmente, todo debe de ocurrir por detras.
 - Las pruebas de integración autorizadas pueden leer credenciales reales desde el almacén protegido; nunca imprimirlas, registrarlas, hardcodearlas ni almacenarlas en texto plano.
 - No crear solicitudes PAM ni enviar correos durante pruebas.
 - No usar credenciales reales en pruebas unitarias o simulaciones. Pueden utilizarse en pruebas de integración visibles y explícitamente autorizadas contra el entorno PAM permitido.

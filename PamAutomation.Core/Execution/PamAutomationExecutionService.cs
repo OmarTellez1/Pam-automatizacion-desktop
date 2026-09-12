@@ -59,8 +59,24 @@ public sealed class PamAutomationExecutionService : IPamAutomationExecutionServi
         IReadOnlyList<PamFavoriteAccount> accounts = await favoritesService
             .ReadAllAsync(credentials, cancellationToken)
             .ConfigureAwait(false);
-        logger.LogInformation("Real execution preparation completed. FavoriteCount={FavoriteCount}.", accounts.Count);
-        return new PamExecutionPreparation(accounts.Count, settings.Request, settings.FinalAction);
+        logger.LogInformation("Pending preflight read started before real submissions.");
+        IReadOnlyList<PamPendingRequest> pendingBeforeSubmission = await pendingService
+            .ReadAllAsync(credentials, cancellationToken)
+            .ConfigureAwait(false);
+        PamRequestFormData form = PamRequestFormData.FromSettings(settings.Request);
+        int duplicateCount = pendingService
+            .FindExactMatches(pendingBeforeSubmission, accounts, form)
+            .Count;
+        logger.LogInformation(
+            "Real execution preparation completed. FavoriteCount={FavoriteCount}, ExactPendingDuplicateCount={ExactPendingDuplicateCount}.",
+            accounts.Count,
+            duplicateCount);
+        return new PamExecutionPreparation(
+            accounts.Count,
+            settings.Request,
+            settings.FinalAction,
+            pendingBeforeSubmission.Select(static request => request.RequestId).ToArray(),
+            duplicateCount);
     }
 
     public async Task<PamExecutionResult> ExecuteRealAsync(
@@ -97,7 +113,8 @@ public sealed class PamAutomationExecutionService : IPamAutomationExecutionServi
                     credentials,
                     submittedAccounts,
                     PamRequestFormData.FromSettings(preparation.Request),
-                    cancellationToken: cancellationToken)
+                    cancellationToken: cancellationToken,
+                    excludedRequestIds: preparation.PendingRequestIdsBeforeSubmission)
                 .ConfigureAwait(false);
             if (!comparison.IsComplete)
             {

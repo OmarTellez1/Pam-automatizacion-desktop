@@ -140,6 +140,16 @@
                         IsEnabled="{Binding CanStartAutomation}"
                         Style="{StaticResource HeroButtonStyle}" />
 
+                <Button x:Name="AccessPamButton"
+                        MinWidth="230"
+                        Margin="0,12,0,0"
+                        HorizontalAlignment="Center"
+                        AutomationProperties.Name="Acceder a PAM"
+                        Command="{Binding AccessPamCommand}"
+                        Content="Acceder a PAM"
+                        Style="{StaticResource SecondaryButtonStyle}"
+                        ToolTip="Abre BeyondInsight e inicia sesión con las credenciales PAM configuradas." />
+
                 <Button Margin="0,14,0,0"
                         MinWidth="250"
                         HorizontalAlignment="Center"
@@ -165,7 +175,7 @@
                         <Style TargetType="ProgressBar" BasedOn="{StaticResource RunProgressBarStyle}">
                             <Setter Property="Visibility" Value="Collapsed" />
                             <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsRunning}" Value="True">
+                                <DataTrigger Binding="{Binding IsBusy}" Value="True">
                                     <Setter Property="Visibility" Value="Visible" />
                                 </DataTrigger>
                             </Style.Triggers>
@@ -209,17 +219,15 @@
                            TextAlignment="Center"
                            TextWrapping="Wrap" />
 
-                <Border Width="500"
-                        MaxHeight="160"
+                <Button x:Name="ShowAutomationResultButton"
+                        MinWidth="230"
                         Margin="0,14,0,0"
-                        Padding="16"
-                        Background="White"
-                        BorderBrush="{StaticResource BorderBrush}"
-                        BorderThickness="1"
-                        CornerRadius="14"
-                        AutomationProperties.Name="Resultado de la automatización">
-                    <Border.Style>
-                        <Style TargetType="Border">
+                        HorizontalAlignment="Center"
+                        AutomationProperties.Name="Ver resultado de la automatización"
+                        Command="{Binding ShowResultCommand}"
+                        Content="Ver resultado de la automatización">
+                    <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
                             <Setter Property="Visibility" Value="Collapsed" />
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding HasResult}" Value="True">
@@ -227,25 +235,8 @@
                                 </DataTrigger>
                             </Style.Triggers>
                         </Style>
-                    </Border.Style>
-                    <StackPanel>
-                        <TextBlock Foreground="{StaticResource TextPrimaryBrush}"
-                                   FontSize="15"
-                                   FontWeight="Bold"
-                                   Text="{Binding ResultTitle}" />
-                        <TextBlock Margin="0,7,0,0"
-                                   Foreground="{StaticResource TextSecondaryBrush}"
-                                   Text="{Binding ResultSummary}"
-                                   TextWrapping="Wrap" />
-                        <ScrollViewer MaxHeight="75"
-                                      Margin="0,8,0,0"
-                                      VerticalScrollBarVisibility="Auto">
-                            <TextBlock FontFamily="Consolas"
-                                       Foreground="{StaticResource TextPrimaryBrush}"
-                                       Text="{Binding RequestIdsText}" />
-                        </ScrollViewer>
-                    </StackPanel>
-                </Border>
+                    </Button.Style>
+                </Button>
             </StackPanel>
 
                 <UniformGrid Grid.Row="2"

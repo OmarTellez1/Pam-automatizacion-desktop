@@ -70,6 +70,13 @@ public sealed class PamAuthenticationService : IPamAuthenticatedSessionFactory
     {
         IPamAuthenticationPortal portal = InvokePortal(() => portalFactory.Create(session));
         var navigation = await InvokePortalAsync(() => session.NavigateAsync(LoginUri, cancellationToken)).ConfigureAwait(false);
+
+        if (!string.Equals(navigation.Uri.AbsolutePath, LoginUri.AbsolutePath, StringComparison.OrdinalIgnoreCase) &&
+            await InvokePortalAsync(() => portal.WaitForDashboardAsync(cancellationToken)).ConfigureAwait(false))
+        {
+            return;
+        }
+
         IClock clock = clockFactory.Create(navigation.HttpDateHeader, navigation.RoundTripTime);
 
         PamCredentialSubmissionResult credentialsResult = await InvokePortalAsync(() => portal.SubmitCredentialsAsync(credentials, cancellationToken)).ConfigureAwait(false);

@@ -7,6 +7,7 @@ using PamAutomation.Core.Authentication;
 using PamAutomation.Core.Execution;
 using PamAutomation.Core.Favorites;
 using PamAutomation.Core.Diagnostics;
+using PamAutomation.Core.Interfaces.Authentication;
 using PamAutomation.Core.Interfaces.Configuration;
 using PamAutomation.Core.Interfaces.Credentials;
 using PamAutomation.Core.Interfaces.Diagnostics;
@@ -36,6 +37,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     private readonly ILogger<MainWindowViewModel> logger;
     private readonly IDiagnosticExportService? diagnosticExportService;
     private readonly IApplicationUpdateService? updateService;
+    private readonly IPamInteractiveAccessService? interactiveAccessService;
     private readonly Version applicationVersion;
     private AppSettings settings = new();
     private MailSettings? mailSettings;
@@ -50,6 +52,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     [ObservableProperty] private bool sendEmailAtEnd;
     [ObservableProperty] private bool isRunning;
     [ObservableProperty] private bool isExportingDiagnostics;
+    [ObservableProperty] private bool isAccessingPam;
     [ObservableProperty] private bool hasResult;
     [ObservableProperty] private bool hasRequestIds;
     [ObservableProperty] private bool isUpdateAvailable;
@@ -78,7 +81,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
         ILogger<MainWindowViewModel>? logger = null,
         IDiagnosticExportService? diagnosticExportService = null,
         IApplicationUpdateService? updateService = null,
-        Version? applicationVersion = null)
+        Version? applicationVersion = null,
+        IPamInteractiveAccessService? interactiveAccessService = null)
     {
         this.executionService = executionService;
         this.settingsStore = settingsStore;
@@ -93,6 +97,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         this.logger = logger ?? NullLogger<MainWindowViewModel>.Instance;
         this.diagnosticExportService = diagnosticExportService;
         this.updateService = updateService;
+        this.interactiveAccessService = interactiveAccessService;
         this.applicationVersion = applicationVersion ??
             typeof(MainWindowViewModel).Assembly.GetName().Version ?? new Version(0, 0, 1, 0);
 
@@ -103,6 +108,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
         StartAutomationCommand = new AsyncRelayCommand(StartAutomationAsync, () => CanStartAutomation);
         ToggleFinalActionCommand = new AsyncRelayCommand(ToggleFinalActionAsync, () => AreControlsEnabled);
         ExportDiagnosticsCommand = new AsyncRelayCommand(ExportDiagnosticsAsync, () => CanExportDiagnostics);
+        AccessPamCommand = new AsyncRelayCommand(AccessPamAsync, () => CanAccessPam);
+        ShowResultCommand = new RelayCommand(ShowResult, () => CanShowResult);
         DismissUpdateCommand = new RelayCommand(() => IsUpdateAvailable = false);
     }
 
@@ -113,10 +120,16 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public IAsyncRelayCommand StartAutomationCommand { get; }
     public IAsyncRelayCommand ToggleFinalActionCommand { get; }
     public IAsyncRelayCommand ExportDiagnosticsCommand { get; }
+    public IAsyncRelayCommand AccessPamCommand { get; }
+    public IRelayCommand ShowResultCommand { get; }
     public IRelayCommand DismissUpdateCommand { get; }
     public string ApplicationDisplayName => $"PAM Automation V. {applicationVersion.ToString(3)}";
-    public bool AreControlsEnabled => !IsRunning && !IsExportingDiagnostics;
+    public bool AreControlsEnabled => !IsRunning && !IsExportingDiagnostics && !IsAccessingPam;
+    public bool IsBusy => IsRunning || IsAccessingPam;
     public bool CanExportDiagnostics => diagnosticExportService is not null && dialogs is not null && AreControlsEnabled;
+    public bool CanAccessPam => interactiveAccessService is not null && credentialStore is not null &&
+                                AreCredentialsConfigured && AreControlsEnabled;
+    public bool CanShowResult => dialogs is not null && HasResult && AreControlsEnabled;
     public bool IsConfigurationComplete => AreCredentialsConfigured && IsRequestConfigured && (!SendEmailAtEnd || IsMailConfigured);
     public bool CanStartAutomation => AreControlsEnabled && IsConfigurationComplete;
     public bool IsTestActionVisible => IsTestModeEnabled && IsConfigurationComplete;
@@ -213,6 +226,49 @@ public sealed partial class MainWindowViewModel : ObservableObject
     }
     partial void OnIsRunningChanged(bool value) => RefreshPresentationState();
     partial void OnIsExportingDiagnosticsChanged(bool value) => RefreshPresentationState();
+    partial void OnIsAccessingPamChanged(bool value) => RefreshPresentationState();
+    partial void OnHasResultChanged(bool value) => RefreshPresentationState();
+
+    private async Task AccessPamAsync()
+    {
+        if (!CanAccessPam) return;
+
+        PamCredentials? credentials;
+        try
+        {
+            credentials = credentialStore!.LoadForAuthentication();
+        }
+        catch (Exception exception)
+        {
+            PresentError(exception);
+            return;
+        }
+
+        if (credentials is null)
+        {
+            AreCredentialsConfigured = false;
+            StatusMessage = "No hay credenciales PAM configuradas.";
+            return;
+        }
+
+        IsAccessingPam = true;
+        StatusMessage = "Abriendo BeyondInsight e iniciando sesión…";
+        logger.LogInformation("Interactive PAM access started.");
+        try
+        {
+            await interactiveAccessService!.OpenAsync(credentials).ConfigureAwait(true);
+            StatusMessage = "BeyondInsight está abierto y la sesión PAM se inició correctamente.";
+            logger.LogInformation("Interactive PAM access completed successfully.");
+        }
+        catch (Exception exception)
+        {
+            PresentError(exception);
+        }
+        finally
+        {
+            IsAccessingPam = false;
+        }
+    }
 
     private async Task StartAutomationAsync()
     {
@@ -221,11 +277,21 @@ public sealed partial class MainWindowViewModel : ObservableObject
         IsRunning = true;
         logger.LogInformation("Real PAM execution started.");
         HasResult = false;
-        StatusMessage = "Leyendo Favorites para preparar la confirmación…";
+        StatusMessage = "Leyendo Favorites y Pending para preparar la confirmación…";
         try
         {
             PamExecutionPreparation preparation = await executionService!.PrepareRealAsync(
                 credentials!, settings, GetEcuadorNow());
+            if (preparation.HasExactPendingDuplicates &&
+                !dialogs!.ConfirmRepeatedPendingRequests(preparation))
+            {
+                logger.LogInformation(
+                    "Real PAM execution was cancelled because exact Pending duplicates were found. DuplicateCount={DuplicateCount}.",
+                    preparation.ExactPendingDuplicateCount);
+                StatusMessage = "Ejecución cancelada. Las solicitudes repetidas de Pending no se volvieron a crear.";
+                return;
+            }
+
             if (!dialogs!.ConfirmRealExecution(preparation, mailSettings))
             {
                 logger.LogInformation("Real PAM execution was cancelled before submission.");
@@ -447,7 +513,17 @@ public sealed partial class MainWindowViewModel : ObservableObject
         if (result.MailDelivery is not null) ResultSummary += " " + result.MailDelivery.Message;
         RequestIdsText = string.Join(Environment.NewLine, result.RequestIds);
         StatusMessage = ResultTitle;
-        dialogs!.ShowResult(ResultTitle, ResultSummary);
+    }
+
+    private void ShowResult()
+    {
+        if (!CanShowResult) return;
+
+        string message = HasRequestIds
+            ? ResultSummary + Environment.NewLine + Environment.NewLine + "Request ID:" +
+              Environment.NewLine + RequestIdsText
+            : ResultSummary;
+        dialogs!.ShowResult(ResultTitle, message);
     }
 
     private void PresentError(Exception exception)
@@ -615,7 +691,10 @@ public sealed partial class MainWindowViewModel : ObservableObject
     private void RefreshPresentationState()
     {
         OnPropertyChanged(nameof(AreControlsEnabled));
+        OnPropertyChanged(nameof(IsBusy));
         OnPropertyChanged(nameof(CanExportDiagnostics));
+        OnPropertyChanged(nameof(CanAccessPam));
+        OnPropertyChanged(nameof(CanShowResult));
         OnPropertyChanged(nameof(IsConfigurationComplete));
         OnPropertyChanged(nameof(CanStartAutomation));
         OnPropertyChanged(nameof(IsTestActionVisible));
@@ -633,5 +712,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
         StartAutomationCommand.NotifyCanExecuteChanged();
         ToggleFinalActionCommand.NotifyCanExecuteChanged();
         ExportDiagnosticsCommand.NotifyCanExecuteChanged();
+        AccessPamCommand.NotifyCanExecuteChanged();
+        ShowResultCommand.NotifyCanExecuteChanged();
     }
+
 }

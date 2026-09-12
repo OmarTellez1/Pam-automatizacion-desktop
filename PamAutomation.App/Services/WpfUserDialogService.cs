@@ -8,6 +8,25 @@ namespace PamAutomation.App.Services;
 
 public sealed class WpfUserDialogService : IUserDialogService
 {
+    public bool ConfirmRepeatedPendingRequests(PamExecutionPreparation preparation)
+    {
+        ArgumentNullException.ThrowIfNull(preparation);
+        string message = string.Join(
+            Environment.NewLine,
+            $"Pending ya contiene {preparation.ExactPendingDuplicateCount} solicitud(es) exactamente iguales.",
+            string.Empty,
+            "Coinciden Account, System, Application, Request Start Date, Expires y Description.",
+            "PAM permite volver a pedirlas, pero se crearán solicitudes repetidas.",
+            string.Empty,
+            "Selecciona Sí para volver a pedirlas o No para cancelar la automatización.");
+        return MessageBox.Show(
+            message,
+            "Solicitudes repetidas en Pending",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning,
+            MessageBoxResult.No) == MessageBoxResult.Yes;
+    }
+
     public bool ConfirmRealExecution(PamExecutionPreparation preparation, MailSettings? mailSettings)
     {
         ArgumentNullException.ThrowIfNull(preparation);

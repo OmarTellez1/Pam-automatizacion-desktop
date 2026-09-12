@@ -182,6 +182,56 @@ public sealed class PamBrowserSessionFactoryTests
             harness.DisposalOrder);
     }
 
+    [TestMethod]
+    public async Task DetachAsync_InteractiveSession_ReleasesAutomationWithoutClosingExternalBrowser()
+    {
+        var harness = new BrowserHarness();
+        var releasePreparationCalls = 0;
+        var session = new PamBrowserSession(
+            harness,
+            harness,
+            harness,
+            harness,
+            new PamOriginPolicy(),
+            prepareReleaseAsync: () =>
+            {
+                releasePreparationCalls++;
+                return ValueTask.CompletedTask;
+            });
+
+        await ((IDetachablePamBrowserSession)session).DetachAsync();
+        await session.DisposeAsync();
+
+        Assert.AreEqual(1, releasePreparationCalls);
+        CollectionAssert.AreEqual(new[] { "engine" }, harness.DisposalOrder);
+    }
+
+    [TestMethod]
+    public async Task DisposeAsync_InteractiveAuthenticationFailure_PreparesReleaseBeforeClosingResources()
+    {
+        var harness = new BrowserHarness();
+        var releaseEvents = new List<string>();
+        harness.DisposalObserved = releaseEvents.Add;
+        await harness.LaunchEdgeAsync(new EdgeLaunchOptions("msedge", Headless: false), CancellationToken.None);
+        var session = new PamBrowserSession(
+            harness,
+            harness,
+            harness,
+            harness,
+            new PamOriginPolicy(),
+            prepareReleaseAsync: () =>
+            {
+                releaseEvents.Add("prepare-release");
+                return ValueTask.CompletedTask;
+            });
+
+        await session.DisposeAsync();
+
+        Assert.AreEqual(
+            "prepare-release|page|context|browser|engine",
+            string.Join('|', releaseEvents));
+    }
+
     private sealed class BrowserHarness : IPlaywrightEngineFactory, IPlaywrightEngine, IManagedBrowser, IManagedBrowserContext, IManagedPage, IPamLoginPage
     {
         public List<string> DisposalOrder { get; } = [];
@@ -193,6 +243,7 @@ public sealed class PamBrowserSessionFactoryTests
         public bool FailEdgeLaunch { get; init; }
         public int PageNavigateCalls { get; private set; }
         public Action? DuringNavigation { get; set; }
+        public Action<string>? DisposalObserved { get; set; }
 
         public Task<IPlaywrightEngine> CreateAsync(CancellationToken cancellationToken) =>
             Task.FromResult<IPlaywrightEngine>(this);
@@ -271,6 +322,7 @@ public sealed class PamBrowserSessionFactoryTests
                 _ => "engine",
             };
 
+            DisposalObserved?.Invoke(resource);
             DisposalOrder.Add(resource);
             return ValueTask.CompletedTask;
         }

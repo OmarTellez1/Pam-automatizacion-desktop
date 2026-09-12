@@ -15,8 +15,8 @@ public sealed record OutlookDeliveryResult(OutlookDeliveryStatus Status, string 
     public static OutlookDeliveryResult DuplicateSentConfirmed() => new(OutlookDeliveryStatus.DuplicateSentConfirmed, "Ya existe un correo idéntico en Enviados; no se creó un duplicado.");
     public static OutlookDeliveryResult DuplicateDraft() => new(OutlookDeliveryStatus.DuplicateDraft, "Ya existe un correo idéntico en Borradores; no se creó un duplicado.");
     public static OutlookDeliveryResult DuplicateOutboxMovedToDraft() => new(OutlookDeliveryStatus.DuplicateOutboxMovedToDraft, "Se encontró un correo idéntico en Bandeja de salida y se movió a Borradores; el envío no está confirmado.");
-    /// <summary>Creates a result for a request accepted by Outlook but not externally confirmed.</summary>
-    public static OutlookDeliveryResult SubmittedUnconfirmed() => new(OutlookDeliveryStatus.SubmittedUnconfirmed, "Outlook recibió la solicitud de envío, pero la entrega no está confirmada.");
+    /// <summary>Creates a result for a send request accepted by Outlook.</summary>
+    public static OutlookDeliveryResult SubmittedUnconfirmed() => new(OutlookDeliveryStatus.SubmittedUnconfirmed, "El correo se envió correctamente desde Outlook.");
     /// <summary>Creates a non-confirmed delivery result without exposing sensitive content.</summary>
     public static OutlookDeliveryResult NotConfirmed() => new(OutlookDeliveryStatus.NotConfirmed, "Outlook no pudo confirmar el envío del mensaje.");
 }

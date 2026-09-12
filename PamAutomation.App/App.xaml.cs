@@ -63,6 +63,17 @@ namespace PamAutomation.App
                 new PamHttpDateClockFactory(TimeProvider.System),
                 new TotpGenerator(),
                 delay);
+            var interactiveAuthentication = new PamAuthenticationService(
+                new PamInteractiveBrowserSessionFactory(
+                    new WpfPamCertificateTrustPrompt(),
+                    loggerFactory.CreateLogger<PamInteractiveBrowserSessionFactory>()),
+                new PamAuthenticationPortalFactory(),
+                new PamHttpDateClockFactory(TimeProvider.System),
+                new TotpGenerator(),
+                delay);
+            var interactiveAccess = new PamInteractiveAccessService(
+                interactiveAuthentication,
+                loggerFactory.CreateLogger<PamInteractiveAccessService>());
             var credentialStore = new WindowsPamCredentialStore();
             var outlookClient = new OutlookClassicClient(
                 loggerFactory.CreateLogger<OutlookClassicClient>());
@@ -119,7 +130,8 @@ namespace PamAutomation.App
                 loggerFactory.CreateLogger<MainWindowViewModel>(),
                 diagnosticExportService,
                 updateService,
-                typeof(App).Assembly.GetName().Version);
+                typeof(App).Assembly.GetName().Version,
+                interactiveAccess);
             var window = new MainWindow { DataContext = viewModel };
             MainWindow = window;
             window.Show();

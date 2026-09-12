@@ -13,6 +13,7 @@ public static class OutlookHtmlComposer
     private const int MaximumTemplateLength = 8_000_000;
     private const int MaximumRequestIdLength = 32;
     private const int MaximumAttributeLength = 1_024;
+    private const string OutlookDefaultTypography = "font-family:Aptos,Calibri,'Segoe UI',sans-serif;font-size:11pt";
     private static readonly HashSet<string> AllowedElements = new(StringComparer.Ordinal)
     {
         "b", "blockquote", "br", "div", "em", "h1", "h2", "h3", "h4", "h5", "h6",
@@ -70,7 +71,11 @@ public static class OutlookHtmlComposer
         XElement root = ParseAndSanitize(htmlTemplate);
         XText markerText = EnsureSingleMarker(root);
         ReplaceMarker(markerText, validatedRequestIds);
-        return SerializeFragment(root);
+        var body = new XElement(
+            "div",
+            new XAttribute("style", OutlookDefaultTypography),
+            root.Nodes());
+        return body.ToString(SaveOptions.DisableFormatting);
     }
 
     /// <summary>Validates that a final body is sanitized and contains every expected identifier.</summary>

@@ -437,3 +437,46 @@ Cada cambio relevante debe registrar qué se decidió, por qué, qué se verific
 - La ventana principal incorporó un aviso ámbar separado que explica la primera causa pendiente y señala la sección que debe corregirse. Los casos de fecha y hora vencidas tienen textos específicos.
 - El aviso se actualiza al cargar o cambiar el estado de configuración y se oculta durante operaciones o cuando el inicio vuelve a estar habilitado.
 - La compilación `Release | x64` pasó y la suite terminó 309/309 sin contactar PAM, crear solicitudes ni enviar correo.
+
+## 11 de septiembre de 2026 — Fase 18.11: resultado y correo sin estados ambiguos
+
+- El resultado ya no abre un `MessageBox` dentro de `PresentResult`, antes de que el bloque `finally` terminara de restaurar `IsRunning`. Ahora se conserva en memoria y se consulta con el botón `Ver resultado de la automatización` cuando la interfaz ya está inactiva.
+- La tarjeta persistente con resumen e IDs se sustituyó por ese único botón para evitar duplicar el contenido de la ventana de detalle.
+- `SubmittedUnconfirmed` conserva su clasificación interna, pero muestra `El correo se envió correctamente desde Outlook.` cuando COM aceptó `Send()` sin error. Los estados de borrador, duplicado o fallo mantienen sus mensajes específicos.
+- El cuerpo final aplica Aptos 11 con respaldos compatibles y respeta estilos explícitos internos. Las tablas pasan de 100% a 85%, centradas y con contenido alineado arriba.
+- La compilación `Release | x64` pasó y la suite terminó 309/309 sin abrir Outlook, contactar PAM, crear solicitudes ni enviar correo.
+
+## 11 de septiembre de 2026 — Fase 21: acceso interactivo persistente
+
+- Se añadió `Acceder a PAM` como acción independiente de la automatización de solicitudes. Solo necesita credenciales PAM configuradas y reutiliza el login real con reloj HTTP y TOTP.
+- Tras aclarar que el navegador debía ser normal y sobrevivir al cierre de la aplicación, se descartó la primera implementación parcial basada en una sesión temporal propiedad del ViewModel.
+- La excepción nueva de `AGENTS.md` se aisló en `PamInteractiveBrowserSessionFactory`: perfil persistente dedicado, Edge iniciado como proceso externo y conexión CDP solamente en loopback durante la autenticación.
+- `PamInteractiveAccessService` separa Playwright después de confirmar el dashboard sin cerrar el navegador. El flujo productivo de solicitudes continúa usando `PamBrowserSessionFactory`, contexto temporal, bloqueo de orígenes externos y disposición completa.
+- Una sesión válida ya existente evita reenviar credenciales o TOTP. Los fallos de autenticación se presentan con los mensajes seguros existentes y nunca registran secretos.
+- La compilación `Release | x64` terminó con 0 errores y 0 advertencias; la suite pasó 315/315. No se realizó un login PAM real ni se ejecutaron solicitudes o correos.
+
+## 12 de septiembre de 2026 — Corrección de fase 21: certificado del perfil interactivo
+
+- El diagnóstico exportado después de dos intentos confirmó que el navegador y la conexión CDP estaban disponibles, pero el primer `GotoAsync` fallaba antes de entregar usuario, contraseña o TOTP.
+- Se contrastó en modo de solo lectura `C:\pam automatizacion\ABRIR_SESION_PAM.cmd` y su recorrido `scripts\open-manual-session.ps1`. La aplicación anterior usa el perfil habitual de Chrome, donde la confianza del certificado interno ya estaba resuelta; la nueva fase 21 partía de un perfil Edge dedicado limpio.
+- El flujo interactivo ahora crea una sesión CDP de seguridad para la página, ignora el certificado exclusivamente durante la autenticación PAM, restaura la validación normal y separa Playwright sin cerrar Edge. Ante un fallo también intenta restaurar la validación antes de liberar recursos.
+- Se añadieron logs de las etapas de conexión y excepción temporal sin registrar puerto, ruta, URL, credenciales ni TOTP. Una regresión verifica que la preparación segura ocurre antes de liberar o cerrar recursos.
+- La compilación `Release | x64` pasó con la advertencia heredada `MSTEST0032`; la suite terminó 316/316. No se contactó PAM durante esta corrección.
+
+## 12 de septiembre de 2026 — Fase 21.1: WebSocket CDP y preflight de Pending
+
+- Un segundo diagnóstico mostró tres fallos `TimeoutException` dentro de `ConnectOverCDPAsync`: Edge sí había iniciado, pero la conexión no superaba el endpoint HTTP de descubrimiento.
+- `PamInteractiveBrowserSessionFactory` ahora lee y valida puerto y ruta desde `DevToolsActivePort` y conecta al WebSocket exacto sobre `127.0.0.1`. Los timeouts transitorios participan en los reintentos controlados.
+- La integración real autorizada inició sesión, confirmó el dashboard y terminó dejando abierto el Edge dedicado. No creó solicitudes ni envió correo.
+- La ejecución real incorpora un preflight de `Pending`. Si existen filas exactamente iguales, muestra una decisión explícita para repetir o cancelar antes del primer envío.
+- Los Request ID preexistentes se conservan solo en memoria y se excluyen de la reconciliación posterior. Esto permite identificar las nuevas filas cuando PAM admite varias solicitudes Pending iguales, sin confundirlas con las anteriores.
+- La compilación `Release | x64` pasó y la suite ordinaria terminó 323/323; solo permanece `MSTEST0032`, heredada y ajena al cambio.
+
+## 12 de septiembre de 2026 — Fase 21.2: Edge normal y confianza manual
+
+- La comprobación del usuario aclaró que el Edge dedicado no debía considerarse un navegador normal: una descarga podía quedar asociada al entorno controlado y la conexión CDP seguía siendo un punto de fallo.
+- Se volvió a contrastar el recorrido de solo lectura de `C:\pam automatizacion\scripts\open-manual-session.ps1` y se trasladó su técnica de accesibilidad a C#; no se modificó la aplicación anterior ni se incorporó PowerShell a producción.
+- `Acceder a PAM` ahora abre el perfil habitual de Microsoft Edge sin `userDataDir`, CDP ni depuración remota. Windows UI Automation limita el control a ventanas `msedge`, al origen exacto de PAM y a los controles accesibles del login.
+- Si Edge presenta el certificado interno, la aplicación muestra instrucciones y espera que el usuario elija manualmente `Avanzado` y `Continuar`; la automatización se reanuda al aparecer `Username`. La petición auxiliar para el reloj permite el certificado exclusivamente en el origen autorizado y no altera la confianza del navegador.
+- El foco de ventana es una mejora opcional: una denegación de foco de Windows ya no aborta el flujo. Timeouts, cierre de ventana y controles ausentes producen errores controlados sin registrar secretos.
+- La compilación `Release | x64` pasó; la suite ordinaria terminó 321/321 y una integración real autorizada confirmó el dashboard dejando Edge abierto. No se crearon solicitudes ni se envió correo; permanece la advertencia heredada `MSTEST0032`.

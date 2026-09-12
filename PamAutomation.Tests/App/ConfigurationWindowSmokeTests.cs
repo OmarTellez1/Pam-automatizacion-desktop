@@ -33,10 +33,13 @@ public sealed class ConfigurationWindowSmokeTests
             Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
 
             Assert.IsNotNull(window.FindName("ExportDiagnosticsButton"));
+            Assert.IsNotNull(window.FindName("AccessPamButton"));
             var updateBanner = Assert.IsInstanceOfType<Border>(window.FindName("UpdateNotificationBanner"));
             var startWarning = Assert.IsInstanceOfType<Border>(window.FindName("StartAutomationWarningBanner"));
+            var resultButton = Assert.IsInstanceOfType<Button>(window.FindName("ShowAutomationResultButton"));
             Assert.AreEqual(Visibility.Visible, updateBanner.Visibility);
             Assert.AreEqual(Visibility.Visible, startWarning.Visibility);
+            Assert.AreEqual(Visibility.Collapsed, resultButton.Visibility);
             Assert.AreEqual("PAM Automation V. 0.0.1", window.Title);
             Assert.AreEqual(WindowState.Maximized, window.WindowState);
         }

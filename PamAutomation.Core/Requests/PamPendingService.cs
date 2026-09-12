@@ -81,23 +81,18 @@ public sealed class PamPendingService
     public PamPendingComparisonResult Compare(
         IReadOnlyList<PamPendingRequest> requests,
         IReadOnlyList<PamFavoriteAccount> expectedAccounts,
-        PamRequestFormData form)
+        PamRequestFormData form,
+        IReadOnlyCollection<string>? excludedRequestIds = null)
     {
         ArgumentNullException.ThrowIfNull(requests);
         ArgumentNullException.ThrowIfNull(expectedAccounts);
         ArgumentNullException.ThrowIfNull(form);
 
-        IReadOnlyList<PamPendingRequest> validatedRequests = Validate(requests);
-        if (expectedAccounts.Any(static account => account is null))
-        {
-            throw new PamPendingException(PamPendingErrorCode.AmbiguousIdentity);
-        }
-
-        string[] expectedKeys = expectedAccounts.Select(IdentityKey).ToArray();
-        if (expectedKeys.Distinct(StringComparer.Ordinal).Count() != expectedKeys.Length)
-        {
-            throw new PamPendingException(PamPendingErrorCode.AmbiguousIdentity);
-        }
+        HashSet<string> excluded = excludedRequestIds?.ToHashSet(StringComparer.Ordinal) ?? [];
+        IReadOnlyList<PamPendingRequest> validatedRequests = Validate(requests)
+            .Where(request => !excluded.Contains(request.RequestId))
+            .ToArray();
+        ValidateExpectedAccounts(expectedAccounts);
 
         ILookup<string, PamPendingRequest> candidates = validatedRequests
             .Where(request => request.StartDate == form.StartDate && request.StartTime == form.StartTime)
@@ -147,6 +142,37 @@ public sealed class PamPendingService
         return new PamPendingComparisonResult(matches, missing);
     }
 
+    /// <summary>Finds every existing Pending row that exactly repeats one expected request.</summary>
+    public IReadOnlyList<PamPendingRequest> FindExactMatches(
+        IReadOnlyList<PamPendingRequest> requests,
+        IReadOnlyList<PamFavoriteAccount> expectedAccounts,
+        PamRequestFormData form)
+    {
+        ArgumentNullException.ThrowIfNull(requests);
+        ArgumentNullException.ThrowIfNull(expectedAccounts);
+        ArgumentNullException.ThrowIfNull(form);
+
+        IReadOnlyList<PamPendingRequest> validatedRequests = Validate(requests);
+        ValidateExpectedAccounts(expectedAccounts);
+        DateTime expectedExpiration = form.StartDate
+            .ToDateTime(form.StartTime)
+            .AddMinutes(form.TotalMinutes);
+
+        return validatedRequests
+            .Where(request => request.StartDate == form.StartDate &&
+                request.StartTime == form.StartTime &&
+                request.ExpiresDate == DateOnly.FromDateTime(expectedExpiration) &&
+                request.ExpiresTime == TimeOnly.FromDateTime(expectedExpiration) &&
+                string.Equals(
+                    NormalizeDescription(request.Description),
+                    NormalizeDescription(form.Reason),
+                    StringComparison.Ordinal) &&
+                expectedAccounts.Any(account =>
+                    string.Equals(AccountKey(account), AccountKey(request), StringComparison.Ordinal) &&
+                    ApplicationMatches(account.ApplicationName, request.ApplicationName)))
+            .ToArray();
+    }
+
     /// <summary>Polls <c>Pending</c> for an eventually consistent complete comparison.</summary>
     public async Task<PamPendingComparisonResult> WaitForCompleteComparisonAsync(
         IPamBrowserSession session,
@@ -154,7 +180,8 @@ public sealed class PamPendingService
         PamRequestFormData form,
         int maximumAttempts = 6,
         TimeSpan? retryDelay = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        IReadOnlyCollection<string>? excludedRequestIds = null)
     {
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(expectedAccounts);
@@ -175,7 +202,7 @@ public sealed class PamPendingService
         {
             IReadOnlyList<PamPendingRequest> requests = await ReadAllAsync(session, cancellationToken)
                 .ConfigureAwait(false);
-            latest = Compare(requests, expectedAccounts, form);
+            latest = Compare(requests, expectedAccounts, form, excludedRequestIds);
             if (latest.IsComplete || attempt == maximumAttempts)
             {
                 return latest;
@@ -194,7 +221,8 @@ public sealed class PamPendingService
         PamRequestFormData form,
         int maximumAttempts = 6,
         TimeSpan? retryDelay = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        IReadOnlyCollection<string>? excludedRequestIds = null)
     {
         ArgumentNullException.ThrowIfNull(credentials);
         await using IPamBrowserSession session = await authenticatedSessionFactory
@@ -206,7 +234,8 @@ public sealed class PamPendingService
                 form,
                 maximumAttempts,
                 retryDelay,
-                cancellationToken)
+                cancellationToken,
+                excludedRequestIds)
             .ConfigureAwait(false);
     }
 
@@ -224,6 +253,20 @@ public sealed class PamPendingService
         }
 
         return requests.ToArray();
+    }
+
+    private static void ValidateExpectedAccounts(IReadOnlyList<PamFavoriteAccount> expectedAccounts)
+    {
+        if (expectedAccounts.Any(static account => account is null))
+        {
+            throw new PamPendingException(PamPendingErrorCode.AmbiguousIdentity);
+        }
+
+        string[] expectedKeys = expectedAccounts.Select(IdentityKey).ToArray();
+        if (expectedKeys.Distinct(StringComparer.Ordinal).Count() != expectedKeys.Length)
+        {
+            throw new PamPendingException(PamPendingErrorCode.AmbiguousIdentity);
+        }
     }
 
     private static string IdentityKey(PamFavoriteAccount account) =>

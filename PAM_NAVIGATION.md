@@ -86,6 +86,23 @@ Toda la navegación ocurre en un único contexto temporal de Microsoft Playwrigh
 16. Para leer resultados, navegar a `/webconsole/ps/portal?tab=requests`, exigir un único control `Status`, seleccionar la opción exacta `Pending` y comprobar que el control conserva ese valor.
 17. Recorrer el paginador desde la primera página, validar Request ID numéricos y únicos y comparar el contador dinámico cuando esté disponible. `0 items` es un resultado válido.
 18. Asociar primero por `Request Start Date + System + Account`; validar después `Application`, `Expires` y `Description`. Nunca asociar por Request ID supuesto, orden o texto truncado visible.
+19. Antes de enviar solicitudes reales, leer todo `Pending` y guardar en memoria sus Request ID como línea base. Si existen filas con `System`, `Account`, familia de `Application`, `Request Start Date`, `Expires` y `Description` iguales, informar la cantidad y exigir que el usuario elija volver a pedirlas o cancelar.
+20. Si el usuario acepta repetirlas, enviar normalmente y excluir la línea base de la reconciliación posterior. Las filas nuevas deben seguir siendo únicas por cada `Favorites` row; una duplicación surgida después del preflight continúa siendo ambigua y bloqueante.
+
+## Acceso interactivo persistente a PAM
+
+El botón `Acceder a PAM` es una excepción deliberada al contexto temporal anterior. Su único objetivo automatizado es abrir BeyondInsight e iniciar sesión; después entrega al usuario una ventana normal de Microsoft Edge, sin restricciones de navegación y capaz de permanecer abierta cuando se cierre PAM Automation.
+
+1. Abrir `msedge.exe --new-window` sin `userDataDir`, depuración remota ni un perfil dedicado. Edge utiliza el perfil normal del usuario, incluidos sus manejadores de descarga y asociaciones de archivos.
+2. Localizar únicamente ventanas del proceso `msedge` mediante Windows UI Automation y validar que la barra de direcciones pertenezca exactamente al origen `https://10.30.17.117`.
+3. Si Edge muestra `Su conexión no es privada`, no omitir el certificado por código. Mostrar instrucciones y esperar hasta tres minutos para que el usuario pulse manualmente `Avanzado` y `Continuar a 10.30.17.117 (no seguro)`; continuar solo cuando aparezca `Username` o una sesión PAM autenticada.
+4. Si el perfil normal conserva una sesión válida y la barra de direcciones ya está fuera de `/login`, confirmarla sin volver a enviar usuario, contraseña ni TOTP.
+5. Si se muestra el login, automatizar solo los controles accesibles observados: `Username`, `Password`, `Log In`, `Enter Response` y `Submit`.
+6. Obtener el `Date` HTTP mediante una petición auxiliar cuya excepción HTTPS acepta exclusivamente el origen PAM; esta petición no altera la seguridad del navegador y solo calibra TOTP.
+7. Confirmar por la barra de direcciones que Edge salió de `/login` y liberar la referencia de accesibilidad sin cerrar la ventana ni el proceso.
+8. No navegar automáticamente a `Favorites`, formularios de solicitud, `Pending` ni correo. Desde ese momento toda navegación es manual y no está limitada al origen PAM.
+
+La decisión de confiar en el certificado pertenece al usuario y queda persistida por el navegador normal según sus propias políticas. La contraseña, la semilla y los códigos TOTP no se escriben en el perfil ni en logs. Esta excepción de uso del perfil normal se limita a `Acceder a PAM`; la automatización de solicitudes continúa usando Playwright con un contexto temporal, aislado y restringido al origen autorizado.
 
 ## Invariantes que deben conservarse
 
