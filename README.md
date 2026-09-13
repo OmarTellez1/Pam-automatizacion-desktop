@@ -130,7 +130,7 @@ dotnet restore PamAutomation.slnx -p:Platform=x64
 dotnet build PamAutomation.slnx -c Release -p:Platform=x64 --no-restore
 dotnet run --project PamAutomation.Tests\PamAutomation.Tests.csproj -c Release -p:Platform=x64 --no-build
 dotnet run --project PamAutomation.App\PamAutomation.App.csproj -c Release -p:Platform=x64 --no-build
-dotnet publish PamAutomation.App\PamAutomation.App.csproj -c Release -p:Platform=x64 -p:PublishProfile=Portable-x64 -o artifacts\publish\final\PAM-Automation-1.0.0
+dotnet publish PamAutomation.App\PamAutomation.App.csproj -c Release -p:Platform=x64 -p:PublishProfile=Portable-x64 -o artifacts\publish\final\PAM-Automation-1.0.1
 ```
 
 `PamAutomation.Tests` usa el runner integrado de Microsoft Testing Platform. Mientras la solución no defina el runner MTP mediante `global.json`, las pruebas se ejecutan con `dotnet run` sobre el proyecto de pruebas y no con `dotnet test`.
@@ -147,11 +147,11 @@ No se requieren .NET MAUI, WinUI, C++, ASP.NET, Azure, Node.js, Python, Java, ru
 
 El entregable será `PAM Automation.exe`, un ejecutable portable Windows x64 autocontenido que el usuario guardará donde prefiera y reemplazará manualmente cuando descargue una nueva versión. Incluirá la lógica de la aplicación, WPF, Playwright .NET, TOTP, configuración, validaciones, resultados en memoria e integración con Outlook. No exigirá instalar .NET, Node.js, Python ni PowerShell en el equipo final.
 
-La versión estable configurada es `1.0.0` y aparece en el título de WPF y en las propiedades nativas del archivo. Al iniciar, la aplicación intenta leer durante un máximo de ocho segundos el `latest.json` público de GitHub mediante su URL `raw`; si contiene una versión superior y la dirección exacta del repositorio esperado, muestra un aviso descartable. No descarga ni elimina archivos.
+La versión estable configurada es `1.0.1` y aparece en el título de WPF y en las propiedades nativas del archivo. El ejecutable incorpora el icono oficial circular `PA`; la portada conserva su insignia azul redondeada original y muestra el monograma textual `PA`. Todas las ventanas usan una barra de título gris oscuro con texto y controles de alto contraste cuando Windows admite los atributos DWM modernos. Al iniciar, la aplicación intenta leer durante un máximo de ocho segundos el `latest.json` público de GitHub mediante su URL `raw`; si contiene una versión superior y la dirección exacta del repositorio esperado, muestra un aviso descartable. No descarga ni elimina archivos.
 
 ### Publicar una nueva versión portable
 
-1. Actualizar `Version`, `AssemblyVersion`, `FileVersion` e `InformationalVersion` en `PamAutomation.App/PamAutomation.App.csproj`. Para `1.0.0`, las versiones de ensamblado y archivo son `1.0.0.0`.
+1. Actualizar `Version`, `AssemblyVersion`, `FileVersion` e `InformationalVersion` en `PamAutomation.App/PamAutomation.App.csproj`. Para `1.0.1`, las versiones de ensamblado y archivo son `1.0.1.0`.
 2. Desde la raíz, ejecutar el automatizador local excluido de Git. Este restaura, compila, ejecuta la suite ordinaria, publica y verifica los metadatos y el SHA-256:
 
    ```powershell

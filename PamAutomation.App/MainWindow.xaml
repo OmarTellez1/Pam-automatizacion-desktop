@@ -29,17 +29,20 @@
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Orientation="Horizontal">
-                    <Border Width="48"
+                    <Border x:Name="BrandMonogramBadge"
+                            Width="48"
                             Height="48"
                             Background="{StaticResource NavyBrush}"
                             CornerRadius="16"
                             Effect="{StaticResource SoftShadowEffect}">
-                        <TextBlock HorizontalAlignment="Center"
+                        <TextBlock x:Name="BrandMonogram"
+                                   HorizontalAlignment="Center"
                                    VerticalAlignment="Center"
+                                   AutomationProperties.Name="Monograma PA de PAM Automation"
                                    Foreground="White"
                                    FontSize="19"
                                    FontWeight="Bold"
-                                   Text="P" />
+                                   Text="PA" />
                     </Border>
                     <StackPanel Margin="14,0,0,0" VerticalAlignment="Center">
                         <TextBlock Foreground="{StaticResource TextPrimaryBrush}"

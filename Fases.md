@@ -308,6 +308,12 @@ Al inicializar la aplicación, una fecha y hora guardadas que ya estén en el pa
 
 La compilación `Release | x64` y las 369 pruebas ordinarias pasaron. No se contactó PAM, no se crearon solicitudes y no se envió correo. **Ajuste completado.**
 
+## Ajuste posterior a la fase 20 — Identidad visual y versión 1.0.1
+
+El monograma circular `PA` con transparencia exterior es el icono oficial de Windows. Un `.ico` con tamaños de 16 a 256 píxeles queda incrustado en el ejecutable para Explorer, barra de tareas y ventanas. La portada conserva por separado la insignia azul redondeada original y cambia únicamente su texto de `P` a `PA`. La política DWM común configura las barras de título en gris oscuro con texto claro en Windows compatible, sin sustituir los controles nativos ni alterar su comportamiento.
+
+La metadata de producto, archivo, ensamblado e información avanzó de forma coherente a `1.0.1`; `Publish-Portable.ps1` queda listo para producir `artifacts\publish\final\PAM-Automation-1.0.1\PAM Automation.exe`. La compilación `Release | x64` y las 369 pruebas ordinarias pasaron, y se comprobó que Windows extrae un icono del binario y reporta `ProductVersion 1.0.1` y `FileVersion 1.0.1.0`. **Ajuste completado.**
+
 ## Fases pendientes
 
 La clasificación siguiente se refiere únicamente a dependencias entre fases pendientes:

@@ -44,6 +44,11 @@ namespace PamAutomation.App
         {
             base.OnStartup(e);
 
+            EventManager.RegisterClassHandler(
+                typeof(Window),
+                FrameworkElement.LoadedEvent,
+                new RoutedEventHandler(ApplyWindowTitleBarAppearance));
+
             runtimeLoggerFactory = RuntimeDiagnosticLoggerFactory.CreateForCurrentProcess();
             loggerFactory = runtimeLoggerFactory;
             diagnosticExportService = new DiagnosticExportService(runtimeLoggerFactory);
@@ -149,6 +154,14 @@ namespace PamAutomation.App
             await viewModel.InitializeAsync(applicationLifetime.Token);
             await viewModel.CheckForUpdateAsync(applicationLifetime.Token);
             logger.LogInformation("Pam Automation application startup completed.");
+        }
+
+        private static void ApplyWindowTitleBarAppearance(object sender, RoutedEventArgs e)
+        {
+            if (sender is Window window)
+            {
+                WindowTitleBarAppearance.TryApply(window);
+            }
         }
 
         protected override void OnExit(ExitEventArgs e)

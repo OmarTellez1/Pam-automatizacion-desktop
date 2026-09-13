@@ -38,6 +38,8 @@ public sealed class ConfigurationWindowSmokeTests
             Assert.IsNotNull(window.FindName("AccessPamButton"));
             Assert.IsNotNull(window.FindName("CollectionsButton"));
             Assert.IsNull(window.FindName("UseCollectionsToggle"));
+            var brandBadge = Assert.IsInstanceOfType<Border>(window.FindName("BrandMonogramBadge"));
+            var brandMonogram = Assert.IsInstanceOfType<TextBlock>(window.FindName("BrandMonogram"));
             var updateBanner = Assert.IsInstanceOfType<Border>(window.FindName("UpdateNotificationBanner"));
             var startWarning = Assert.IsInstanceOfType<Border>(window.FindName("StartAutomationWarningBanner"));
             var resultButton = Assert.IsInstanceOfType<Button>(window.FindName("ShowAutomationResultButton"));
@@ -48,6 +50,9 @@ public sealed class ConfigurationWindowSmokeTests
             Assert.AreEqual($"PAM Automation V. {expectedVersion}", window.Title);
             Assert.AreEqual(WindowState.Maximized, window.WindowState);
             Assert.AreEqual(TimeSpan.FromMinutes(1), MainWindow.RequestTimeRefreshInterval);
+            Assert.AreEqual(48d, brandBadge.Width);
+            Assert.AreEqual(48d, brandBadge.Height);
+            Assert.AreEqual("PA", brandMonogram.Text);
         }
         finally
         {

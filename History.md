@@ -585,3 +585,11 @@ Cada cambio relevante debe registrar qué se decidió, por qué, qué se verific
 - Solo en ese caso calcula y persiste la primera hora válida: hora actual más el margen obligatorio de 6 minutos, redondeada hacia arriba al minuto completo.
 - Una hora futura permanece intacta. Después del arranque, el temporizador continúa deshabilitando y explicando configuraciones demasiado cercanas sin modificar la elección del usuario.
 - La compilación `Release | x64` y las 369 pruebas ordinarias pasaron. No se contactó PAM, no se crearon solicitudes y no se envió correo.
+
+## 13 de septiembre de 2026 — Icono oficial, barra de título y versión 1.0.1
+
+- El monograma circular `PA` generado para la aplicación se guardó como PNG transparente y se convirtió a un `.ico` con nueve resoluciones entre 16 y 256 píxeles.
+- El `.ico` quedó configurado como `ApplicationIcon`; Windows pudo extraerlo del ejecutable compilado. Tras aclarar la separación visual, la portada conservó su insignia azul redondeada original y cambió únicamente el texto de `P` a `PA`; no renderiza allí el gráfico circular.
+- `WindowTitleBarAppearance` aplica centralmente a todas las ventanas el modo oscuro y, en Windows 11 o superior, fondo gris oscuro, borde coherente y texto claro mediante DWM. Un sistema sin esos atributos conserva el comportamiento nativo sin interrumpir la aplicación.
+- Las cuatro versiones del proyecto avanzaron a `1.0.1`/`1.0.1.0`. El publicador local queda preparado para generar la carpeta canónica `PAM-Automation-1.0.1`.
+- La compilación `Release | x64` y las 369 pruebas ordinarias pasaron. El ejecutable de desarrollo reportó `ProductVersion 1.0.1`, `FileVersion 1.0.1.0` y un icono Win32 extraíble.

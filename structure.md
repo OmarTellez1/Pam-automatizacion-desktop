@@ -114,6 +114,7 @@ PamAutomation\
 │   │   ├── FlowDocumentTableInserter.cs
 │   │   ├── WpfConfigurationDialogService.cs
 │   │   ├── WpfPamCertificateTrustPrompt.cs
+│   │   ├── WindowTitleBarAppearance.cs
 │   │   └── WpfUserDialogService.cs
 │   ├── Views\
 │   │   ├── CredentialsWindow.xaml
@@ -126,6 +127,8 @@ PamAutomation\
 │   │   └── RequestSettingsWindow.xaml.cs
 │   ├── Resources\
 │   │   ├── Colors.xaml
+│   │   ├── pam-automation-icon.ico
+│   │   ├── pam-automation-icon.png
 │   │   └── Styles.xaml
 │   └── ViewModels\
 │       ├── FavoritesCatalogViewModel.cs
