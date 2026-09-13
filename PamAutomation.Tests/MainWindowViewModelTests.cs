@@ -35,7 +35,8 @@ public sealed class MainWindowViewModelTests
         Assert.IsFalse(viewModel.IsTestActionVisible);
         Assert.IsFalse(viewModel.SendEmailAtEnd);
         Assert.AreEqual("Configuración pendiente", viewModel.ConfigurationSummaryText);
-        Assert.AreEqual("PAM Automation V. 0.0.1", viewModel.ApplicationDisplayName);
+        string expectedVersion = typeof(MainWindowViewModel).Assembly.GetName().Version!.ToString(3);
+        Assert.AreEqual($"PAM Automation V. {expectedVersion}", viewModel.ApplicationDisplayName);
     }
 
     [TestMethod]

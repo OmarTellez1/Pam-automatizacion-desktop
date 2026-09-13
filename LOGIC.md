@@ -143,7 +143,7 @@ Estas carpetas estarán excluidas de Git y no se incluirán en la publicación p
 
 ## Versión y aviso de actualización
 
-`PAM Automation.exe` incorpora la versión numérica `0.0.1` en los metadatos nativos de Windows y la presenta como `PAM Automation V. 0.0.1`. Al iniciar, la configuración local se carga primero y una consulta HTTP asíncrona intenta leer un manifiesto JSON público de tamaño máximo 16 KiB. El manifiesto debe contener una versión válida y la dirección exacta del repositorio esperado. Solo una versión numéricamente superior hace visible el banner; las fechas no participan en la decisión.
+`PAM Automation.exe` incorpora la versión numérica estable `1.0.0` en los metadatos nativos de Windows y la presenta como `PAM Automation V. 1.0.0`. Al iniciar, la configuración local se carga primero y una consulta HTTP asíncrona intenta leer un manifiesto JSON público de tamaño máximo 16 KiB. El manifiesto debe contener una versión válida y la dirección exacta del repositorio esperado. Solo una versión numéricamente superior hace visible el banner; las fechas no participan en la decisión.
 
 El banner únicamente informa y puede descartarse. La aplicación no abre automáticamente el repositorio, no descarga, no reemplaza y no elimina ejecutables. El usuario descarga una nueva versión y elimina manualmente la anterior. Cualquier timeout, error HTTP, TLS, JSON inválido, tamaño excesivo o repositorio inesperado se registra de forma segura y no altera la operación PAM ni muestra detalles técnicos. Nunca se desactiva la validación TLS.
 

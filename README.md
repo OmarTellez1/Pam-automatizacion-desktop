@@ -130,7 +130,7 @@ dotnet restore PamAutomation.slnx -p:Platform=x64
 dotnet build PamAutomation.slnx -c Release -p:Platform=x64 --no-restore
 dotnet run --project PamAutomation.Tests\PamAutomation.Tests.csproj -c Release -p:Platform=x64 --no-build
 dotnet run --project PamAutomation.App\PamAutomation.App.csproj -c Release -p:Platform=x64 --no-build
-dotnet publish PamAutomation.App\PamAutomation.App.csproj -c Release -p:Platform=x64 -p:PublishProfile=Portable-x64 -o artifacts\publish\final\PAM-Automation-0.0.1
+dotnet publish PamAutomation.App\PamAutomation.App.csproj -c Release -p:Platform=x64 -p:PublishProfile=Portable-x64 -o artifacts\publish\final\PAM-Automation-1.0.0
 ```
 
 `PamAutomation.Tests` usa el runner integrado de Microsoft Testing Platform. Mientras la solución no defina el runner MTP mediante `global.json`, las pruebas se ejecutan con `dotnet run` sobre el proyecto de pruebas y no con `dotnet test`.
@@ -147,26 +147,25 @@ No se requieren .NET MAUI, WinUI, C++, ASP.NET, Azure, Node.js, Python, Java, ru
 
 El entregable será `PAM Automation.exe`, un ejecutable portable Windows x64 autocontenido que el usuario guardará donde prefiera y reemplazará manualmente cuando descargue una nueva versión. Incluirá la lógica de la aplicación, WPF, Playwright .NET, TOTP, configuración, validaciones, resultados en memoria e integración con Outlook. No exigirá instalar .NET, Node.js, Python ni PowerShell en el equipo final.
 
-La versión actual es `0.0.1` y aparece en el título de WPF y en las propiedades nativas del archivo. Al iniciar, la aplicación intenta leer durante un máximo de ocho segundos el `latest.json` público de GitHub mediante su URL `raw`; si contiene una versión superior y la dirección exacta del repositorio esperado, muestra un aviso descartable. No descarga ni elimina archivos.
+La versión estable configurada es `1.0.0` y aparece en el título de WPF y en las propiedades nativas del archivo. Al iniciar, la aplicación intenta leer durante un máximo de ocho segundos el `latest.json` público de GitHub mediante su URL `raw`; si contiene una versión superior y la dirección exacta del repositorio esperado, muestra un aviso descartable. No descarga ni elimina archivos.
 
 ### Publicar una nueva versión portable
 
-1. Actualizar `Version`, `AssemblyVersion`, `FileVersion` e `InformationalVersion` en `PamAutomation.App/PamAutomation.App.csproj`. Para `0.0.2`, las versiones de ensamblado y archivo serán `0.0.2.0`.
-2. Restaurar, compilar y validar desde la raíz:
+1. Actualizar `Version`, `AssemblyVersion`, `FileVersion` e `InformationalVersion` en `PamAutomation.App/PamAutomation.App.csproj`. Para `1.0.0`, las versiones de ensamblado y archivo son `1.0.0.0`.
+2. Desde la raíz, ejecutar el automatizador local excluido de Git. Este restaura, compila, ejecuta la suite ordinaria, publica y verifica los metadatos y el SHA-256:
 
    ```powershell
-   dotnet restore PamAutomation.slnx -r win-x64 -p:Platform=x64
-   dotnet build PamAutomation.slnx -c Release -p:Platform=x64 --no-restore
-   dotnet run --project PamAutomation.Tests\PamAutomation.Tests.csproj -c Release -p:Platform=x64 --no-build
+   .\Publish-Portable.ps1
    ```
 
-3. Generar el ejecutable, sustituyendo `0.0.2` por la versión nueva:
+   Si la salida de esa misma versión ya existe y se desea regenerarla deliberadamente:
 
    ```powershell
-   dotnet publish PamAutomation.App\PamAutomation.App.csproj -c Release -p:Platform=x64 -p:PublishProfile=Portable-x64 --no-restore -o artifacts\publish\final\PAM-Automation-0.0.2
+   .\Publish-Portable.ps1 -ReplaceExisting
    ```
 
-4. En GitHub, crear el tag y release `v0.0.2`, adjuntar `artifacts\publish\final\PAM-Automation-0.0.2\PAM Automation.exe` como asset y publicar el release. El ejecutable autocontenido excede el límite de un archivo normal del repositorio, por lo que no debe añadirse al commit.
+3. Recoger el único entregable desde `artifacts\publish\final\PAM-Automation-<versión>\PAM Automation.exe`.
+4. En GitHub, crear el tag y release `v<versión>`, adjuntar ese ejecutable como asset y publicar el release. El ejecutable autocontenido excede el límite de un archivo normal del repositorio, por lo que no debe añadirse al commit.
 5. Solo después de publicar el asset, actualizar `latest.json` en `main` con la versión nueva, la fecha ISO y `repositoryUrl` igual a `https://github.com/OmarTellez1/Pam-automation-installer`. Este orden evita anunciar una versión que todavía no se puede descargar.
 
 La aplicación seguirá requiriendo deliberadamente Windows, Microsoft Edge instalado, conectividad al portal PAM y Outlook clásico instalado cuando se active el correo. Edge y Outlook no se incluirán dentro del ejecutable porque deben utilizar las instalaciones corporativas existentes.

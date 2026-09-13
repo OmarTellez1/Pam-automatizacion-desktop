@@ -544,3 +544,10 @@ Cada cambio relevante debe registrar qué se decidió, por qué, qué se verific
 - La revisión de cada minuto deshabilita el botón cuando el margen deja de cumplirse y muestra una explicación accionable. Las validaciones alrededor de la confirmación y las defensas de Core aplican la misma regla.
 - El clasificador de respuestas comprueba que la raíz JSON sea un objeto antes de consultar `ErrorDetails`. Las demás formas JSON se convierten en `RequestRejected`, sin filtrar el contenido ni lanzar `InvalidOperationException`.
 - La compilación `Release | x64`, 51 pruebas relacionadas y las 337 pruebas ordinarias pasaron. No se contactó PAM ni Outlook.
+
+## 12 de septiembre de 2026 — Preparación de la versión estable 1.0.0
+
+- La versión del proyecto se elevó a `1.0.0`, con `AssemblyVersion` y `FileVersion` en `1.0.0.0`, para preparar el primer ejecutable destinado a otros equipos.
+- Dos pruebas de presentación que esperaban literalmente `0.0.1` se cambiaron para obtener la versión real del ensamblado. Así continúan comprobando el título sin romperse en cada publicación posterior.
+- La compilación `Release | x64` terminó sin errores y la suite ordinaria pasó con 337 de 337 pruebas.
+- Se aclaró que `artifacts/publish/PAM-Automation-0.0.1` y `artifacts/publish/win-x64` son publicaciones históricas con símbolos, ignoradas por Git y prescindibles. La salida distribuible canónica se genera bajo `artifacts/publish/final/PAM-Automation-<versión>`.

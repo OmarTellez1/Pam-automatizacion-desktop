@@ -802,7 +802,7 @@ Durante desarrollo podrán existir `results`, `logs`, `artifacts` y `temp` en la
 - `PamAutomation.Core/Updates/ApplicationUpdateResult.cs`: resultado reducido a versión validada y disponibilidad.
 - `PamAutomation.Infrastructure/Updates/PublicManifestApplicationUpdateService.cs`: lectura HTTPS independiente del proveedor, limitada a 16 KiB, con JSON estricto, versión numérica y repositorio esperado.
 - `PamAutomation.App/Properties/PublishProfiles/Portable-x64.pubxml`: perfil `Release`, `win-x64`, autocontenido, archivo único, sin trimming, AOT, PDB ni archivos auxiliares; permite que Playwright extraiga su driver interno en `%TEMP%`.
-- `artifacts/publish/final/PAM-Automation-0.0.1/PAM Automation.exe`: salida generada e ignorada por Git; contiene .NET y el driver Windows de Playwright, pero no incluye Edge.
+- `artifacts/publish/final/PAM-Automation-<versión>/PAM Automation.exe`: salida portable canónica generada e ignorada por Git; contiene .NET y el driver Windows de Playwright, pero no incluye Edge. Las carpetas históricas directamente bajo `artifacts/publish`, como `PAM-Automation-0.0.1` y `win-x64`, son salidas anteriores con símbolos y pueden eliminarse sin afectar el código ni la configuración.
 
 El servicio de actualización depende solo de su interfaz de Core. El ViewModel muestra un banner descartable y desconoce HTTP o GitHub. La aplicación consulta la URL `raw` del manifiesto y exige que este apunte al repositorio GitHub configurado, sin relajar TLS.
 
