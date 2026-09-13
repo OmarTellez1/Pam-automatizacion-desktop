@@ -8,6 +8,6 @@ results/
 logs/
 artifacts/
 temp/
-
+img
 .env
 .env.*
