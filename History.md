@@ -578,3 +578,10 @@ Cada cambio relevante debe registrar qué se decidió, por qué, qué se verific
 - Las colecciones dejaron de guardar fecha, hora y duración. `Editar solicitud` conserva exclusivamente esos tres valores y la razón efectiva se toma de la colección activa al validar, confirmar y ejecutar.
 - `favorite-collections.dat` avanzó a `schemaVersion = 2`; la carga admite el esquema 1 y migra nombre, razón, selección y colección activa sin exponer el documento protegido.
 - La compilación `Release | x64` y las 368 pruebas ordinarias pasaron. No se contactó PAM, no se crearon solicitudes y no se envió correo.
+
+## 13 de septiembre de 2026 — Ajuste de inicio para configuración temporal vencida
+
+- Al cargar la aplicación, `MainWindowViewModel` detecta si la fecha y hora guardadas ya pasaron en Ecuador.
+- Solo en ese caso calcula y persiste la primera hora válida: hora actual más el margen obligatorio de 6 minutos, redondeada hacia arriba al minuto completo.
+- Una hora futura permanece intacta. Después del arranque, el temporizador continúa deshabilitando y explicando configuraciones demasiado cercanas sin modificar la elección del usuario.
+- La compilación `Release | x64` y las 369 pruebas ordinarias pasaron. No se contactó PAM, no se crearon solicitudes y no se envió correo.

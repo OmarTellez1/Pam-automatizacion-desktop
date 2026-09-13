@@ -60,6 +60,7 @@ Las fases construidas hasta ahora son:
 - Fase 20.2: creación y edición de colecciones con selección exclusiva y razón propia.
 - Fase 20.3: autorización de ejecución restringida a las claves exactas de la colección activa.
 - Fase 20.4: `All favorites` sincronizada, colección activa obligatoria y configuración temporal separada.
+- Ajuste posterior a fase 20: normalización y persistencia de una hora vencida únicamente durante la inicialización de `MainWindowViewModel`.
 - Fase 21: acceso interactivo persistente separado del flujo de solicitudes.
 - Fase 21.1: preflight de Pending con repetición o cancelación explícitas; el intento WebSocket/CDP quedó sustituido en fase 21.2.
 - Fase 21.2: Edge normal mediante Windows UI Automation, confianza manual del certificado y liberación sin cerrar el navegador.

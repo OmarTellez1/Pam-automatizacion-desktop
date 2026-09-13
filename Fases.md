@@ -302,6 +302,12 @@ Se eliminó el modo alternativo y el toggle global de la portada: toda automatiz
 
 `Editar solicitud` dejó de editar la razón y ahora solo configura fecha, hora y duración. En el límite de ejecución esos valores se combinan con el motivo de la colección activa; el envío continúa limitado por autorización de un uso a sus claves exactas. `favorite-collections.dat` usa `schemaVersion = 2` y migra el esquema anterior conservando nombres, motivos, selecciones y colección activa. La compilación `Release | x64` y las 368 pruebas ordinarias pasaron; no se contactó PAM, no se crearon solicitudes y no se envió correo. **Fase completada.**
 
+## Ajuste posterior a la fase 20 — Normalización temporal al iniciar
+
+Al inicializar la aplicación, una fecha y hora guardadas que ya estén en el pasado se reemplazan una sola vez por la primera hora válida de Ecuador: hora actual más 6 minutos, redondeada hacia arriba al minuto completo. El valor corregido se persiste para que `Editar solicitud` y la confirmación muestren la misma configuración. Las horas futuras no se reescriben y el refresco periódico posterior conserva su responsabilidad de deshabilitar y explicar, no de cambiar automáticamente la selección del usuario.
+
+La compilación `Release | x64` y las 369 pruebas ordinarias pasaron. No se contactó PAM, no se crearon solicitudes y no se envió correo. **Ajuste completado.**
+
 ## Fases pendientes
 
 La clasificación siguiente se refiere únicamente a dependencias entre fases pendientes:

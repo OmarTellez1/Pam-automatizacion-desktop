@@ -168,6 +168,16 @@ public sealed partial class MainWindowViewModel : ObservableObject
         try
         {
             settings = await settingsStore.LoadAsync(cancellationToken);
+            bool requestStartAdjusted = TryMoveExpiredRequestStartToCurrentMinimum(
+                settings,
+                GetEcuadorNow(),
+                out AppSettings adjustedSettings);
+            if (requestStartAdjusted)
+            {
+                settings = adjustedSettings;
+                await SaveSettingsAsync(settings);
+                logger.LogInformation("Expired request start was advanced during application initialization.");
+            }
             AreCredentialsConfigured = credentialStore.HasCredentials();
             IsTestModeEnabled = settings.TestModeEnabled;
             SendEmailAtEnd = settings.FinalAction == FinalAction.SendEmail;
@@ -190,9 +200,11 @@ public sealed partial class MainWindowViewModel : ObservableObject
                     mailSettings with { SmtpAddress = outlookSmtpAddress });
             }
             IsMailConfigured = mailSettings is not null;
-            StatusMessage = IsConfigurationComplete
-                ? "La configuración está lista para ejecutar."
-                : "Completa o actualiza la configuración para habilitar la automatización.";
+            StatusMessage = requestStartAdjusted
+                ? "La fecha y hora vencidas se actualizaron automáticamente a la primera hora válida."
+                : IsConfigurationComplete
+                    ? "La configuración está lista para ejecutar."
+                    : "Completa o actualiza la configuración para habilitar la automatización.";
             RefreshPresentationState();
             logger.LogInformation("Main window configuration initialization completed. Complete={IsComplete}.", IsConfigurationComplete);
         }
@@ -826,6 +838,40 @@ public sealed partial class MainWindowViewModel : ObservableObject
                 Request = settings.Request with { RequestReason = collection.RequestReason }
             }
             : settings;
+
+    private static bool TryMoveExpiredRequestStartToCurrentMinimum(
+        AppSettings current,
+        DateTimeOffset ecuadorNow,
+        out AppSettings adjusted)
+    {
+        DateTime configuredStart = current.Request.StartDate.ToDateTime(current.Request.StartTime);
+        if (configuredStart >= ecuadorNow.DateTime)
+        {
+            adjusted = current;
+            return false;
+        }
+
+        DateTime earliestValid = ecuadorNow.DateTime.Add(RequestSettingsValidator.MinimumLeadTime);
+        DateTime roundedToMinute = new(
+            earliestValid.Year,
+            earliestValid.Month,
+            earliestValid.Day,
+            earliestValid.Hour,
+            earliestValid.Minute,
+            0,
+            earliestValid.Kind);
+        if (earliestValid > roundedToMinute) roundedToMinute = roundedToMinute.AddMinutes(1);
+
+        adjusted = current with
+        {
+            Request = current.Request with
+            {
+                StartDate = DateOnly.FromDateTime(roundedToMinute),
+                StartTime = TimeOnly.FromDateTime(roundedToMinute)
+            }
+        };
+        return true;
+    }
 
     private async Task SaveSettingsAsync(AppSettings value)
     {

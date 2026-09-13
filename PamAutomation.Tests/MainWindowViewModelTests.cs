@@ -41,9 +41,9 @@ public sealed class MainWindowViewModelTests
     }
 
     [TestMethod]
-    public async Task InitializeAsync_RequestStartTimeInPast_ExplainsWhyAutomationIsDisabled()
+    public async Task InitializeAsync_RequestStartTimeInPast_AdvancesAndPersistsFirstValidMinute()
     {
-        var now = new DateTimeOffset(2026, 9, 11, 17, 30, 0, TimeSpan.FromHours(-5));
+        var now = new DateTimeOffset(2026, 9, 11, 17, 30, 45, TimeSpan.FromHours(-5));
         var settings = new AppSettings
         {
             Request = new RequestSettings
@@ -54,9 +54,10 @@ public sealed class MainWindowViewModelTests
                 RequestReason = "Prueba de aviso"
             }
         };
+        var settingsStore = new FakeSettingsStore(settings);
         var viewModel = new MainWindowViewModel(
             new FakeExecutionService(now),
-            new FakeSettingsStore(settings),
+            settingsStore,
             new FakeCredentialStore(),
             new FakeDialogs(confirm: true),
             new AppSettingsValidator(new RequestSettingsValidator()),
@@ -65,11 +66,37 @@ public sealed class MainWindowViewModelTests
 
         await viewModel.InitializeAsync();
 
-        Assert.IsFalse(viewModel.CanStartAutomation);
+        Assert.IsTrue(viewModel.CanStartAutomation);
         Assert.IsFalse(viewModel.CanAccessPam);
-        Assert.IsTrue(viewModel.IsStartAutomationWarningVisible);
-        Assert.Contains("hora de inicio configurada ya pasó", viewModel.StartAutomationWarningMessage);
-        Assert.Contains("Editar solicitud", viewModel.StartAutomationWarningMessage);
+        Assert.IsFalse(viewModel.IsStartAutomationWarningVisible);
+        Assert.AreEqual(new DateOnly(2026, 9, 11), settingsStore.LastSaved?.Request.StartDate);
+        Assert.AreEqual(new TimeOnly(17, 37), settingsStore.LastSaved?.Request.StartTime);
+        Assert.Contains("se actualizaron automáticamente", viewModel.StatusMessage);
+    }
+
+    [TestMethod]
+    public async Task InitializeAsync_FutureRequestStart_DoesNotRewriteSettings()
+    {
+        var now = new DateTimeOffset(2026, 9, 11, 17, 30, 0, TimeSpan.FromHours(-5));
+        AppSettings settings = CreateSettingsForCollectionTest("Soporte", new TimeOnly(18, 0));
+        settings = settings with
+        {
+            Request = settings.Request with { StartDate = new DateOnly(2026, 9, 11) }
+        };
+        var settingsStore = new FakeSettingsStore(settings);
+        var viewModel = new MainWindowViewModel(
+            new FakeExecutionService(now),
+            settingsStore,
+            new FakeCredentialStore(),
+            new FakeDialogs(confirm: true),
+            new AppSettingsValidator(new RequestSettingsValidator()),
+            new FixedTimeProvider(now.ToUniversalTime()),
+            favoriteCollectionService: CreateActiveCollectionService(settings));
+
+        await viewModel.InitializeAsync();
+
+        Assert.IsNull(settingsStore.LastSaved);
+        Assert.IsTrue(viewModel.CanStartAutomation);
     }
 
     [TestMethod]
