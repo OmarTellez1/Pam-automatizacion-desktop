@@ -65,6 +65,7 @@ Las fases construidas hasta ahora son:
 - Fase 21.6: confirmación con hora `AM/PM`, destinatarios `Para`/`CC` explícitos y configuración de solicitud sin selector visible de modo de prueba.
 - Fase 21.7: cuadros importantes centralizados como avisos task-modal, topmost y solicitantes de primer plano.
 - Fase 21.8: progreso de solicitudes tipado por `Application` y acceso interactivo disponible durante el flujo oculto.
+- Fase 21.9: refresco temporal WPF cada minuto y doble validación local alrededor de la confirmación real.
 
 Los directorios `.git`, `.vs`, `bin` y `obj` contienen metadatos o salidas generadas y se omiten en el árbol.
 
@@ -399,7 +400,7 @@ Contenido actual:
 
 - `App.xaml` y `App.xaml.cs`: inicio de la aplicación y carga de recursos WPF.
 - `MainWindow.xaml`: portada nativa de la aplicación.
-- `MainWindow.xaml.cs`: inicialización mínima de la ventana; no contiene lógica de negocio.
+- `MainWindow.xaml.cs`: inicialización y ciclo de vida del temporizador de presentación que solicita al ViewModel una revalidación local cada minuto; no contiene reglas de negocio.
 - `ViewModels/MainWindowViewModel.cs`: estado de presentación y comandos de la portada mediante `CommunityToolkit.Mvvm`.
 - `Views`: diálogos nativos para credenciales PAM y Outlook, solicitud y plantilla de correo, con estados y validación visibles; la solicitud solo expone fecha, hora, duración y razón.
 - `Services`: confirmaciones —incluida la presentación `AM/PM`, `Para` y `CC`— y avisos urgentes centralizados, adaptación de diálogos, coordinación no destructiva de credenciales, clasificación segura del resultado de correo de prueba, importación acotada de firmas HTML y conversión bidireccional entre `FlowDocument` y XHTML/CID.

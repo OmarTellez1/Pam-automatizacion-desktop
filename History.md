@@ -528,3 +528,11 @@ Cada cambio relevante debe registrar qué se decidió, por qué, qué se verific
 - `Acceder a PAM` ahora puede ejecutarse mientras continúa la automatización oculta; sigue evitando aperturas interactivas duplicadas y exportaciones simultáneas.
 - El acceso concurrente conserva el mensaje de progreso de la automatización incluso si su propio login termina o falla; el fallo se presenta mediante un aviso urgente separado.
 - La compilación `Release | x64` y 39 pruebas específicas pasaron; no se contactó PAM ni Outlook.
+
+## 12 de septiembre de 2026 — Fase 21.9: actualización temporal automática
+
+- `MainWindow` inicia un `DispatcherTimer` de un minuto al cargarse y lo detiene al cerrarse.
+- Cada tick solo revalida en memoria la fecha y hora de Ecuador; no abre navegador, no consulta PAM y no ejecuta Outlook.
+- Cuando la hora vence, el botón real se deshabilita y el aviso visible explica que debe actualizarse `Configurar solicitud`.
+- `StartAutomationAsync` incorpora una validación fresca antes de la confirmación y otra después de responder `Sí`. Si el vencimiento ocurre con el diálogo abierto, cancela antes de cualquier interacción con PAM.
+- La compilación `Release | x64` y 32 pruebas específicas pasaron; no se contactó PAM ni Outlook.

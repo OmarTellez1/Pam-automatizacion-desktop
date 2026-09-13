@@ -301,6 +301,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     private async Task StartAutomationAsync()
     {
+        if (!ValidateRequestAtExecutionBoundary(confirmationWasShown: false)) return;
         if (!TryGetExecutionDependencies(out PamCredentials? credentials)) return;
 
         if (!dialogs!.ConfirmAutomationStart(settings, mailSettings))
@@ -309,6 +310,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
             StatusMessage = "Ejecución cancelada. No se inició ninguna validación ni se creó ninguna solicitud.";
             return;
         }
+
+        if (!ValidateRequestAtExecutionBoundary(confirmationWasShown: true)) return;
 
         IsRunning = true;
         logger.LogInformation("Real PAM execution started.");
@@ -524,6 +527,43 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
         AreCredentialsConfigured = false;
         StatusMessage = "No hay credenciales PAM configuradas.";
+        return false;
+    }
+
+    internal void RefreshTimeSensitiveState()
+    {
+        bool wasRequestConfigured = IsRequestConfigured;
+        IsRequestConfigured = settingsValidator.Validate(settings, GetEcuadorNow()).IsValid;
+        RefreshPresentationState();
+
+        if (wasRequestConfigured && !IsRequestConfigured && !IsRunning)
+        {
+            StatusMessage = "La fecha u hora de inicio configurada ya pasó. Abre Configurar solicitud para actualizarla.";
+            logger.LogInformation("The configured request start time expired while the application remained open.");
+        }
+    }
+
+    private bool ValidateRequestAtExecutionBoundary(bool confirmationWasShown)
+    {
+        ConfigurationValidationResult validation = settingsValidator.Validate(settings, GetEcuadorNow());
+        IsRequestConfigured = validation.IsValid;
+        RefreshPresentationState();
+        if (validation.IsValid) return true;
+
+        ConfigurationValidationFailure? timeFailure = validation.Failures.FirstOrDefault(failure =>
+            failure.Code is ConfigurationValidationErrorCode.StartDateInPast or
+                ConfigurationValidationErrorCode.StartTimeInPast);
+        string message = timeFailure is not null && confirmationWasShown
+            ? "La hora de inicio venció mientras la confirmación estaba abierta. La automatización se canceló antes de contactar PAM o crear solicitudes. Abre Configurar solicitud y elige una nueva hora."
+            : timeFailure is not null
+                ? "La fecha u hora de inicio configurada ya pasó. La automatización no comenzó. Abre Configurar solicitud y elige una nueva hora."
+                : validation.Failures[0].Message;
+        StatusMessage = message;
+        dialogs?.ShowError(message);
+        logger.LogInformation(
+            "Real PAM execution was blocked by a fresh local settings validation. ConfirmationWasShown={ConfirmationWasShown}, FailureCode={FailureCode}.",
+            confirmationWasShown,
+            validation.Failures[0].Code);
         return false;
     }
 

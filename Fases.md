@@ -264,6 +264,12 @@ La confirmación inicial, las solicitudes repetidas de `Pending`, la intervenci�
 
 `Acceder a PAM` permanece habilitado durante una automatización real porque abre el Edge normal del usuario, separado del contexto temporal y oculto de solicitudes. Continúa bloqueado si ya hay otra apertura interactiva o se está exportando un diagnóstico. Cuando ambos flujos coinciden, el acceso interactivo no reemplaza el progreso ni el resultado de la automatización, y sus fallos se notifican de forma urgente e independiente. La compilación `Release | x64` y 39 pruebas específicas pasaron; no se contactó PAM ni Outlook. **Fase completada.**
 
+## Fase 21.9 — Vencimiento automático de la hora configurada
+
+La ventana principal ejecuta una comprobación local cada minuto mediante `DispatcherTimer`. Si la fecha u hora configurada pasa al pasado mientras la aplicación permanece abierta, actualiza `IsRequestConfigured`, deshabilita `Iniciar automatización` y muestra el aviso que dirige a `Configurar solicitud`. El temporizador se detiene al cerrar la ventana y nunca contacta PAM ni Outlook.
+
+El comando valida nuevamente la configuración justo antes de mostrar la confirmación. También repite esa validación al responder `Sí`, de modo que un cuadro abierto durante el vencimiento se cancela con un mensaje claro antes de autenticar, leer `Favorites` o crear solicitudes. La compilación `Release | x64` y 32 pruebas específicas pasaron; no se contactó PAM ni Outlook. **Fase completada.**
+
 ## Fases pendientes
 
 La clasificación siguiente se refiere únicamente a dependencias entre fases pendientes:
@@ -282,7 +288,7 @@ La clasificación siguiente se refiere únicamente a dependencias entre fases pe
 ```text
 Fases 6 a 18 completadas ──► Fase 19
 
-Fases 21–21.8 completadas de forma independiente
+Fases 21–21.9 completadas de forma independiente
 
 Fase 19 ──► Fase 20 (ampliación posterior a la migración)
 ```

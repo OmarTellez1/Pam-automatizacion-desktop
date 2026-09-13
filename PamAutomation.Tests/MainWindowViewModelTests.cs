@@ -82,6 +82,62 @@ public sealed class MainWindowViewModelTests
     }
 
     [TestMethod]
+    public async Task RefreshTimeSensitiveState_WhenStartTimeExpires_DisablesAutomationAndShowsReason()
+    {
+        var localNow = new DateTimeOffset(2026, 9, 12, 20, 25, 0, TimeSpan.FromHours(-5));
+        var timeProvider = new MutableTimeProvider(localNow.ToUniversalTime());
+        TestContext context = CreateTimeSensitiveViewModel(timeProvider, localNow.Date, new TimeOnly(20, 30));
+        await context.ViewModel.InitializeAsync();
+        Assert.IsTrue(context.ViewModel.CanStartAutomation);
+
+        timeProvider.UtcNow = new DateTimeOffset(2026, 9, 13, 1, 31, 0, TimeSpan.Zero);
+        context.ViewModel.RefreshTimeSensitiveState();
+
+        Assert.IsFalse(context.ViewModel.CanStartAutomation);
+        Assert.IsTrue(context.ViewModel.IsStartAutomationWarningVisible);
+        Assert.Contains("hora de inicio configurada ya pasó", context.ViewModel.StartAutomationWarningMessage);
+        Assert.Contains("ya pasó", context.ViewModel.StatusMessage);
+    }
+
+    [TestMethod]
+    public async Task StartAutomation_WhenTimeExpiredBeforeConfirmation_BlocksWithoutPreparingPam()
+    {
+        var localNow = new DateTimeOffset(2026, 9, 12, 20, 25, 0, TimeSpan.FromHours(-5));
+        var timeProvider = new MutableTimeProvider(localNow.ToUniversalTime());
+        TestContext context = CreateTimeSensitiveViewModel(timeProvider, localNow.Date, new TimeOnly(20, 30));
+        await context.ViewModel.InitializeAsync();
+        timeProvider.UtcNow = new DateTimeOffset(2026, 9, 13, 1, 31, 0, TimeSpan.Zero);
+
+        await context.ViewModel.StartAutomationCommand.ExecuteAsync(null);
+
+        Assert.AreEqual(0, context.Dialogs.AutomationStartConfirmationCount);
+        Assert.AreEqual(0, context.Execution.PreparationCount);
+        string? error = context.Dialogs.LastError;
+        Assert.IsNotNull(error);
+        Assert.Contains("no comenzó", error!);
+    }
+
+    [TestMethod]
+    public async Task StartAutomation_WhenTimeExpiresInsideConfirmation_CancelsBeforePam()
+    {
+        var localNow = new DateTimeOffset(2026, 9, 12, 20, 25, 0, TimeSpan.FromHours(-5));
+        var timeProvider = new MutableTimeProvider(localNow.ToUniversalTime());
+        TestContext context = CreateTimeSensitiveViewModel(timeProvider, localNow.Date, new TimeOnly(20, 30));
+        context.Dialogs.AutomationStartConfirmationAction = () =>
+            timeProvider.UtcNow = new DateTimeOffset(2026, 9, 13, 1, 31, 0, TimeSpan.Zero);
+        await context.ViewModel.InitializeAsync();
+
+        await context.ViewModel.StartAutomationCommand.ExecuteAsync(null);
+
+        Assert.AreEqual(1, context.Dialogs.AutomationStartConfirmationCount);
+        Assert.AreEqual(0, context.Execution.PreparationCount);
+        string? error = context.Dialogs.LastError;
+        Assert.IsNotNull(error);
+        Assert.Contains("confirmación estaba abierta", error!);
+        Assert.Contains("antes de contactar PAM", error!);
+    }
+
+    [TestMethod]
     public async Task CheckForUpdateAsync_NewerVersion_ShowsDismissibleNotice()
     {
         var updateService = new FakeUpdateService(
@@ -534,6 +590,36 @@ public sealed class MainWindowViewModelTests
         return new TestContext(viewModel, execution, settingsStore, dialogs, diagnostics);
     }
 
+    private static TestContext CreateTimeSensitiveViewModel(
+        TimeProvider timeProvider,
+        DateTime startDate,
+        TimeOnly startTime)
+    {
+        var now = timeProvider.GetUtcNow().ToOffset(TimeSpan.FromHours(-5));
+        var settings = new AppSettings
+        {
+            Request = new RequestSettings
+            {
+                StartDate = DateOnly.FromDateTime(startDate),
+                StartTime = startTime,
+                SessionHours = 1,
+                RequestReason = "Prueba de vencimiento"
+            }
+        };
+        var execution = new FakeExecutionService(now);
+        var settingsStore = new FakeSettingsStore(settings);
+        var dialogs = new FakeDialogs(confirm: true);
+        var diagnostics = new FakeDiagnosticExportService();
+        var viewModel = new MainWindowViewModel(
+            execution,
+            settingsStore,
+            new FakeCredentialStore(),
+            dialogs,
+            new AppSettingsValidator(new RequestSettingsValidator()),
+            timeProvider);
+        return new TestContext(viewModel, execution, settingsStore, dialogs, diagnostics);
+    }
+
     private sealed record TestContext(
         MainWindowViewModel ViewModel,
         FakeExecutionService Execution,
@@ -544,6 +630,12 @@ public sealed class MainWindowViewModelTests
     private sealed class FixedTimeProvider(DateTimeOffset utcNow) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => utcNow;
+    }
+
+    private sealed class MutableTimeProvider(DateTimeOffset utcNow) : TimeProvider
+    {
+        public DateTimeOffset UtcNow { get; set; } = utcNow;
+        public override DateTimeOffset GetUtcNow() => UtcNow;
     }
 
     private sealed class FakeSettingsStore(AppSettings settings) : IAppSettingsStore
@@ -615,6 +707,7 @@ public sealed class MainWindowViewModelTests
         public int ResultDisplayCount { get; private set; }
         public string LastResultMessage { get; private set; } = string.Empty;
         public bool ConfirmRepeatedRequests { get; set; }
+        public Action? AutomationStartConfirmationAction { get; set; }
         public int AutomationStartConfirmationCount { get; private set; }
         public int RepeatedPendingConfirmationCount { get; private set; }
         public bool ConfirmRepeatedPendingRequests(PamExecutionPreparation preparation)
@@ -625,6 +718,7 @@ public sealed class MainWindowViewModelTests
         public bool ConfirmAutomationStart(AppSettings settings, MailSettings? mailSettings)
         {
             AutomationStartConfirmationCount++;
+            AutomationStartConfirmationAction?.Invoke();
             return confirm;
         }
         public bool ConfirmTestEmail(string recipient) => confirm;

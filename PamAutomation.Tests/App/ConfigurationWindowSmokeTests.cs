@@ -42,6 +42,7 @@ public sealed class ConfigurationWindowSmokeTests
             Assert.AreEqual(Visibility.Collapsed, resultButton.Visibility);
             Assert.AreEqual("PAM Automation V. 0.0.1", window.Title);
             Assert.AreEqual(WindowState.Maximized, window.WindowState);
+            Assert.AreEqual(TimeSpan.FromMinutes(1), MainWindow.RequestTimeRefreshInterval);
         }
         finally
         {
