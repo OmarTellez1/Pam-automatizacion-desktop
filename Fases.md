@@ -258,6 +258,12 @@ Se creó `UrgentMessageBox` como único punto de presentación para los cuadros 
 
 La confirmación inicial, las solicitudes repetidas de `Pending`, la intervención manual por certificado, las confirmaciones de correo, los errores, los resultados solicitados y los avisos internos de configuración utilizan este mecanismo. Los banners no bloqueantes, como actualizaciones disponibles, permanecen sin interrupciones. La compilación `Release | x64` y 7 pruebas específicas pasaron; no se contactó PAM ni Outlook. **Fase completada.**
 
+## Fase 21.8 — Progreso por Application y acceso PAM concurrente
+
+`PamRequestSubmissionService` informa un `PamRequestSubmissionProgress` después de cada resultado conocido. La ventana conserva `Validando Favorites y Pending en segundo plano…` hasta que PAM acepta la primera solicitud; a partir de ahí muestra `Se solicitó {Application}.` con el valor exacto de la columna `Application`. Los solapamientos con accesos aprobados no se presentan como solicitudes creadas.
+
+`Acceder a PAM` permanece habilitado durante una automatización real porque abre el Edge normal del usuario, separado del contexto temporal y oculto de solicitudes. Continúa bloqueado si ya hay otra apertura interactiva o se está exportando un diagnóstico. Cuando ambos flujos coinciden, el acceso interactivo no reemplaza el progreso ni el resultado de la automatización, y sus fallos se notifican de forma urgente e independiente. La compilación `Release | x64` y 39 pruebas específicas pasaron; no se contactó PAM ni Outlook. **Fase completada.**
+
 ## Fases pendientes
 
 La clasificación siguiente se refiere únicamente a dependencias entre fases pendientes:
@@ -276,7 +282,7 @@ La clasificación siguiente se refiere únicamente a dependencias entre fases pe
 ```text
 Fases 6 a 18 completadas ──► Fase 19
 
-Fases 21–21.7 completadas de forma independiente
+Fases 21–21.8 completadas de forma independiente
 
 Fase 19 ──► Fase 20 (ampliación posterior a la migración)
 ```

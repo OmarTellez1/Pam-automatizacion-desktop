@@ -128,7 +128,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public bool IsBusy => IsRunning || IsAccessingPam;
     public bool CanExportDiagnostics => diagnosticExportService is not null && dialogs is not null && AreControlsEnabled;
     public bool CanAccessPam => interactiveAccessService is not null && credentialStore is not null &&
-                                AreCredentialsConfigured && AreControlsEnabled;
+                                AreCredentialsConfigured && !IsAccessingPam && !IsExportingDiagnostics;
     public bool CanShowResult => dialogs is not null && HasResult && AreControlsEnabled;
     public bool IsConfigurationComplete => AreCredentialsConfigured && IsRequestConfigured && (!SendEmailAtEnd || IsMailConfigured);
     public bool CanStartAutomation => AreControlsEnabled && IsConfigurationComplete;
@@ -232,6 +232,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     private async Task AccessPamAsync()
     {
         if (!CanAccessPam) return;
+        bool preserveAutomationStatus = IsRunning;
 
         PamCredentials? credentials;
         try
@@ -240,29 +241,57 @@ public sealed partial class MainWindowViewModel : ObservableObject
         }
         catch (Exception exception)
         {
-            PresentError(exception);
+            if (preserveAutomationStatus)
+            {
+                PresentConcurrentAccessError(exception);
+            }
+            else
+            {
+                PresentError(exception);
+            }
             return;
         }
 
         if (credentials is null)
         {
             AreCredentialsConfigured = false;
-            StatusMessage = "No hay credenciales PAM configuradas.";
+            const string message = "No hay credenciales PAM configuradas.";
+            if (preserveAutomationStatus)
+            {
+                dialogs?.ShowError(message);
+            }
+            else
+            {
+                StatusMessage = message;
+            }
             return;
         }
 
         IsAccessingPam = true;
-        StatusMessage = "Abriendo BeyondInsight e iniciando sesión…";
+        if (!preserveAutomationStatus)
+        {
+            StatusMessage = "Abriendo BeyondInsight e iniciando sesión…";
+        }
         logger.LogInformation("Interactive PAM access started.");
         try
         {
             await interactiveAccessService!.OpenAsync(credentials).ConfigureAwait(true);
-            StatusMessage = "BeyondInsight está abierto y la sesión PAM se inició correctamente.";
+            if (!preserveAutomationStatus)
+            {
+                StatusMessage = "BeyondInsight está abierto y la sesión PAM se inició correctamente.";
+            }
             logger.LogInformation("Interactive PAM access completed successfully.");
         }
         catch (Exception exception)
         {
-            PresentError(exception);
+            if (preserveAutomationStatus)
+            {
+                PresentConcurrentAccessError(exception);
+            }
+            else
+            {
+                PresentError(exception);
+            }
         }
         finally
         {
@@ -299,9 +328,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
                 return;
             }
 
-            StatusMessage = "Creando solicitudes y reconciliando Pending…";
+            var progress = new Progress<PamRequestSubmissionProgress>(PresentSubmissionProgress);
             PamExecutionResult result = await executionService.ExecuteRealAsync(
-                credentials!, preparation, GetEcuadorNow(), mailSettings);
+                credentials!, preparation, GetEcuadorNow(), mailSettings, progress: progress);
             PresentResult(result);
         }
         catch (Exception exception)
@@ -529,14 +558,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     private void PresentError(Exception exception)
     {
         logger.LogError(exception, "Application operation failed.");
-        string message = exception switch
-        {
-            PamAuthenticationException or PamFavoritesException or PamRequestSubmissionException or
-                PamPendingException or PamRequestTestException or OutlookValidationException or
-                OutlookOperationException or OutlookAccountResolutionException => exception.Message,
-            OperationCanceledException => "La operación fue cancelada.",
-            _ => "Ocurrió un error no esperado. No se muestran detalles que puedan contener información sensible.",
-        };
+        string message = GetSafeErrorMessage(exception);
         if (exception is PamRequestSubmissionException { ProcessedCount: > 0 } partial)
         {
             HasResult = true;
@@ -554,6 +576,38 @@ public sealed partial class MainWindowViewModel : ObservableObject
             : message + " Si el problema continúa, usa Exportar diagnóstico y envía el archivo a soporte.";
         dialogs?.ShowError(StatusMessage);
     }
+
+    private void PresentConcurrentAccessError(Exception exception)
+    {
+        logger.LogError(exception, "Concurrent interactive PAM access failed without altering the running execution state.");
+        string message = GetSafeErrorMessage(exception);
+        if (diagnosticExportService is not null)
+        {
+            message += " Si el problema continúa, usa Exportar diagnóstico y envía el archivo a soporte.";
+        }
+        dialogs?.ShowError(message);
+    }
+
+    internal void PresentSubmissionProgress(PamRequestSubmissionProgress progress)
+    {
+        ArgumentNullException.ThrowIfNull(progress);
+        if (progress.Status != PamRequestSubmissionStatus.Submitted) return;
+
+        string applicationName = progress.Account.ApplicationName
+            .Replace('\r', ' ')
+            .Replace('\n', ' ')
+            .Trim();
+        StatusMessage = $"Se solicitó {applicationName}.";
+    }
+
+    private static string GetSafeErrorMessage(Exception exception) => exception switch
+    {
+        PamAuthenticationException or PamFavoritesException or PamRequestSubmissionException or
+            PamPendingException or PamRequestTestException or OutlookValidationException or
+            OutlookOperationException or OutlookAccountResolutionException => exception.Message,
+        OperationCanceledException => "La operación fue cancelada.",
+        _ => "Ocurrió un error no esperado. No se muestran detalles que puedan contener información sensible."
+    };
 
     private async Task ExportDiagnosticsAsync()
     {

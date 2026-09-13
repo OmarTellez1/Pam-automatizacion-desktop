@@ -84,7 +84,8 @@ public sealed class PamAutomationExecutionService : IPamAutomationExecutionServi
         PamExecutionPreparation preparation,
         DateTimeOffset ecuadorNow,
         MailSettings? mailSettings = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        IProgress<PamRequestSubmissionProgress>? progress = null)
     {
         ArgumentNullException.ThrowIfNull(credentials);
         ArgumentNullException.ThrowIfNull(preparation);
@@ -98,7 +99,8 @@ public sealed class PamAutomationExecutionService : IPamAutomationExecutionServi
             preparation.Request,
             ecuadorNow,
             authorization,
-            cancellationToken).ConfigureAwait(false);
+            cancellationToken,
+            progress).ConfigureAwait(false);
 
         PamFavoriteAccount[] submittedAccounts = run.Accounts
             .Where(static result => result.Status == PamRequestSubmissionStatus.Submitted)

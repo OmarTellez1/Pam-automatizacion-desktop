@@ -2,6 +2,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PamAutomation.App.Services;
 using PamAutomation.App.ViewModels;
 using PamAutomation.Core.Execution;
+using PamAutomation.Core.Favorites;
 using PamAutomation.Core.Diagnostics;
 using PamAutomation.Core.Authentication;
 using PamAutomation.Core.Interfaces.Authentication;
@@ -184,6 +185,81 @@ public sealed class MainWindowViewModelTests
         Assert.IsTrue(viewModel.AreControlsEnabled);
         Assert.Contains("rechazó las credenciales", viewModel.StatusMessage);
         Assert.AreEqual(viewModel.StatusMessage, dialogs.LastError);
+    }
+
+    [TestMethod]
+    public async Task AccessPamAsync_WhileRequestAutomationRuns_RemainsAvailableAndPreservesProgressStatus()
+    {
+        var interactiveAccess = new FakeInteractiveAccessService();
+        var viewModel = new MainWindowViewModel(
+            null,
+            null,
+            new FakeCredentialStore(),
+            new FakeDialogs(confirm: true),
+            new AppSettingsValidator(new RequestSettingsValidator()),
+            TimeProvider.System,
+            interactiveAccessService: interactiveAccess)
+        {
+            AreCredentialsConfigured = true,
+            IsRequestConfigured = true,
+            IsRunning = true,
+            StatusMessage = "Se solicitó NOSQLBOOSTER."
+        };
+
+        Assert.IsTrue(viewModel.AccessPamCommand.CanExecute(null));
+
+        await viewModel.AccessPamCommand.ExecuteAsync(null);
+
+        Assert.AreEqual(1, interactiveAccess.OpenCount);
+        Assert.IsTrue(viewModel.IsRunning);
+        Assert.AreEqual("Se solicitó NOSQLBOOSTER.", viewModel.StatusMessage);
+    }
+
+    [TestMethod]
+    public async Task AccessPamAsync_ConcurrentFailure_NotifiesWithoutReplacingAutomationProgress()
+    {
+        var interactiveAccess = new FakeInteractiveAccessService
+        {
+            Failure = new PamAuthenticationException(PamAuthenticationErrorCode.ConnectionOrCertificateFailure)
+        };
+        var dialogs = new FakeDialogs(confirm: true);
+        var viewModel = new MainWindowViewModel(
+            null,
+            null,
+            new FakeCredentialStore(),
+            dialogs,
+            new AppSettingsValidator(new RequestSettingsValidator()),
+            TimeProvider.System,
+            interactiveAccessService: interactiveAccess)
+        {
+            AreCredentialsConfigured = true,
+            IsRequestConfigured = true,
+            IsRunning = true,
+            StatusMessage = "Se solicitó NOSQLBOOSTER."
+        };
+
+        await viewModel.AccessPamCommand.ExecuteAsync(null);
+
+        Assert.IsNotNull(dialogs.LastError);
+        Assert.AreEqual("Se solicitó NOSQLBOOSTER.", viewModel.StatusMessage);
+        Assert.IsTrue(viewModel.IsRunning);
+    }
+
+    [TestMethod]
+    public void PresentSubmissionProgress_SubmittedApplication_ShowsApplicationColumnName()
+    {
+        var viewModel = new MainWindowViewModel();
+
+        viewModel.PresentSubmissionProgress(new PamRequestSubmissionProgress(
+            new PamFavoriteAccount(
+                "system-a",
+                "PLSQL - Nodo1",
+                "account-a"),
+            PamRequestSubmissionStatus.Submitted,
+            1,
+            5));
+
+        Assert.AreEqual("Se solicitó PLSQL - Nodo1.", viewModel.StatusMessage);
     }
 
     [TestMethod]
@@ -637,7 +713,8 @@ public sealed class MainWindowViewModelTests
         public Task<PamExecutionResult> ExecuteRealAsync(PamCredentials credentials,
             PamExecutionPreparation preparation, DateTimeOffset ecuadorNow,
             MailSettings? mailSettings = null,
-            CancellationToken cancellationToken = default)
+            CancellationToken cancellationToken = default,
+            IProgress<PamRequestSubmissionProgress>? progress = null)
         {
             RealExecutionCount++;
             if (Failure is not null) return Task.FromException<PamExecutionResult>(Failure);

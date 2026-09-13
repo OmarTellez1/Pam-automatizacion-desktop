@@ -36,13 +36,15 @@ public sealed class PamRequestSubmissionService
     /// <param name="ecuadorNow">Current Ecuador time supplied by the caller.</param>
     /// <param name="authorization">Exact count and settings explicitly confirmed by the user.</param>
     /// <param name="cancellationToken">Cancels before the next irreversible submission.</param>
+    /// <param name="progress">Optional observer notified after PAM returns a known outcome for one row.</param>
     /// <returns>In-memory submission and conflict outcomes.</returns>
     public async Task<PamRequestRunResult> ExecuteAsync(
         PamCredentials credentials,
         RequestSettings settings,
         DateTimeOffset ecuadorNow,
         PamRequestRunAuthorization authorization,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        IProgress<PamRequestSubmissionProgress>? progress = null)
     {
         ArgumentNullException.ThrowIfNull(credentials);
         ArgumentNullException.ThrowIfNull(settings);
@@ -80,6 +82,11 @@ public sealed class PamRequestSubmissionService
                     .SubmitAsync(account, form, cancellationToken)
                     .ConfigureAwait(false);
                 results.Add(new PamRequestAccountResult(account, outcome.Status, outcome.ConflictCode));
+                progress?.Report(new PamRequestSubmissionProgress(
+                    account,
+                    outcome.Status,
+                    results.Count,
+                    accounts.Count));
             }
 
             return new PamRequestRunResult(results);

@@ -2,6 +2,7 @@ using PamAutomation.Core.Execution;
 using PamAutomation.Core.Models.Configuration;
 using PamAutomation.Core.Models.Credentials;
 using PamAutomation.Core.Outlook;
+using PamAutomation.Core.Requests;
 
 namespace PamAutomation.Core.Interfaces.Execution;
 
@@ -19,7 +20,8 @@ public interface IPamAutomationExecutionService
         PamExecutionPreparation preparation,
         DateTimeOffset ecuadorNow,
         MailSettings? mailSettings = null,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        IProgress<PamRequestSubmissionProgress>? progress = null);
 
     Task<PamExecutionResult> ExecuteTestAsync(
         PamCredentials credentials,

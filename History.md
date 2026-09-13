@@ -519,3 +519,12 @@ Cada cambio relevante debe registrar qué se decidió, por qué, qué se verific
 - Si la ventana WPF propietaria está minimizada, se restaura antes de presentar el aviso. Se prefiere la ventana secundaria activa para conservar correctamente la modalidad durante la configuración.
 - Se migraron confirmación inicial, duplicados en `Pending`, certificado, correo, errores, resultados y validaciones de la plantilla. Los avisos no bloqueantes continúan dentro de la interfaz.
 - La compilación `Release | x64` y 7 pruebas específicas pasaron; no se contactó PAM ni Outlook.
+
+## 12 de septiembre de 2026 — Fase 21.8: progreso por Application y acceso concurrente
+
+- Se agregó `PamRequestSubmissionProgress` para comunicar un resultado conocido después de procesar cada `Favorites` row, sin trasladar secretos ni detalles de autenticación.
+- La portada conserva el mensaje de validación inicial hasta el primer `Submitted` y después muestra `Se solicitó {Application}.` con el nombre observado en la columna `Application`.
+- Los resultados `ApprovedAccessOverlap` no se describen como solicitudes creadas.
+- `Acceder a PAM` ahora puede ejecutarse mientras continúa la automatización oculta; sigue evitando aperturas interactivas duplicadas y exportaciones simultáneas.
+- El acceso concurrente conserva el mensaje de progreso de la automatización incluso si su propio login termina o falla; el fallo se presenta mediante un aviso urgente separado.
+- La compilación `Release | x64` y 39 pruebas específicas pasaron; no se contactó PAM ni Outlook.

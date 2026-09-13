@@ -64,6 +64,7 @@ Las fases construidas hasta ahora son:
 - Fase 21.5: confirmación general inmediata antes de preparar y diálogos posteriores reservados a decisiones imprescindibles.
 - Fase 21.6: confirmación con hora `AM/PM`, destinatarios `Para`/`CC` explícitos y configuración de solicitud sin selector visible de modo de prueba.
 - Fase 21.7: cuadros importantes centralizados como avisos task-modal, topmost y solicitantes de primer plano.
+- Fase 21.8: progreso de solicitudes tipado por `Application` y acceso interactivo disponible durante el flujo oculto.
 
 Los directorios `.git`, `.vs`, `bin` y `obj` contienen metadatos o salidas generadas y se omiten en el árbol.
 
@@ -228,6 +229,7 @@ PamAutomation\
 │   │   ├── PamRequestRunResult.cs
 │   │   ├── PamRequestSubmissionErrorCode.cs
 │   │   ├── PamRequestSubmissionException.cs
+│   │   ├── PamRequestSubmissionProgress.cs
 │   │   ├── PamRequestSubmissionService.cs
 │   │   ├── PamRequestSubmissionStatus.cs
 │   │   ├── PamRequestTestErrorCode.cs

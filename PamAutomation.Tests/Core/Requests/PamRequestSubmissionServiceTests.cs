@@ -43,6 +43,31 @@ public sealed class PamRequestSubmissionServiceTests
     }
 
     [TestMethod]
+    public async Task ExecuteAsync_KnownOutcomes_ReportsApplicationProgressInOrder()
+    {
+        var harness = new SubmissionHarness(
+        [
+            PamRequestPortalOutcome.Submitted(),
+            PamRequestPortalOutcome.ApprovedAccessOverlap(),
+        ]);
+        var progress = new ProgressCollector<PamRequestSubmissionProgress>();
+
+        await harness.Service.ExecuteAsync(
+            CreateCredentials(),
+            CreateSettings(),
+            EcuadorNow,
+            PamRequestRunAuthorization.Confirm(2, CreateSettings()),
+            progress: progress);
+
+        Assert.HasCount(2, progress.Values);
+        Assert.AreEqual("application-a", progress.Values[0].Account.ApplicationName);
+        Assert.AreEqual(PamRequestSubmissionStatus.Submitted, progress.Values[0].Status);
+        Assert.AreEqual(1, progress.Values[0].ProcessedCount);
+        Assert.AreEqual(2, progress.Values[1].ProcessedCount);
+        Assert.AreEqual(2, progress.Values[1].TotalCount);
+    }
+
+    [TestMethod]
     public async Task ExecuteAsync_ObservedCountDiffersFromAuthorization_SubmitsNothing()
     {
         var harness = new SubmissionHarness([]);
@@ -306,5 +331,12 @@ public sealed class PamRequestSubmissionServiceTests
             DisposeCalls++;
             return ValueTask.CompletedTask;
         }
+    }
+
+    private sealed class ProgressCollector<T> : IProgress<T>
+    {
+        public List<T> Values { get; } = [];
+
+        public void Report(T value) => Values.Add(value);
     }
 }
