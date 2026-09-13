@@ -11,7 +11,7 @@ public sealed class WpfPamCertificateTrustPrompt : IPamCertificateTrustPrompt
     public async Task ShowAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        static void ShowMessage() => MessageBox.Show(
+        static void ShowMessage() => UrgentMessageBox.Show(
                 "Microsoft Edge abrió el sitio de PAM, pero requiere que tú confirmes el certificado.\n\n" +
                 "1. Ve a la ventana de Edge.\n" +
                 "2. Pulsa «Avanzado».\n" +

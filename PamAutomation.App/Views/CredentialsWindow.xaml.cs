@@ -117,7 +117,7 @@ public partial class CredentialsWindow : Window
             return;
         }
 
-        MessageBoxResult confirmation = MessageBox.Show(
+        MessageBoxResult confirmation = UrgentMessageBox.Show(
             $"Se enviará un correo de prueba desde y hacia {smtpAddress}. ¿Deseas continuar?",
             "Confirmar correo de prueba",
             MessageBoxButton.YesNo,

@@ -511,3 +511,11 @@ Cada cambio relevante debe registrar qué se decidió, por qué, qué se verific
 - Se retiró visualmente `Habilitar modo de prueba` de `Configurar solicitud`. El valor interno existente se conserva sin cambios al guardar para no alterar silenciosamente configuraciones compatibles.
 - Se añadieron regresiones de formato y una comprobación de que el control eliminado ya no forma parte del árbol WPF.
 - La compilación `Release | x64` pasó y las 6 pruebas específicas terminaron correctamente; no se contactó PAM ni Outlook.
+
+## 12 de septiembre de 2026 — Fase 21.7: avisos urgentes
+
+- Se centralizaron todos los cuadros importantes de la aplicación en `UrgentMessageBox`.
+- Windows recibe las opciones nativas `MB_TASKMODAL`, `MB_TOPMOST` y `MB_SETFOREGROUND`; el diálogo queda por encima de las ventanas normales y bloquea el flujo hasta obtener respuesta.
+- Si la ventana WPF propietaria está minimizada, se restaura antes de presentar el aviso. Se prefiere la ventana secundaria activa para conservar correctamente la modalidad durante la configuración.
+- Se migraron confirmación inicial, duplicados en `Pending`, certificado, correo, errores, resultados y validaciones de la plantilla. Los avisos no bloqueantes continúan dentro de la interfaz.
+- La compilación `Release | x64` y 7 pruebas específicas pasaron; no se contactó PAM ni Outlook.

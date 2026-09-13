@@ -51,7 +51,7 @@ public partial class MailSettingsWindow : Window
         {
             if (!FlowDocumentTableInserter.TryInsertTwoByTwo(BodyEditor, RequestIdsMarker))
             {
-                MessageBox.Show(
+                UrgentMessageBox.Show(
                     "Ubica el cursor en una línea normal fuera de otra tabla y vuelve a intentarlo.",
                     "No se puede insertar la tabla aquí",
                     MessageBoxButton.OK,
@@ -65,7 +65,7 @@ public partial class MailSettingsWindow : Window
         catch (InvalidOperationException exception)
         {
             logger.LogError(exception, "Manual mail table insertion failed safely.");
-            MessageBox.Show(
+            UrgentMessageBox.Show(
                 "No fue posible insertar la tabla en esa posición. Ubica el cursor en una línea normal y vuelve a intentarlo.",
                 "No se pudo insertar la tabla",
                 MessageBoxButton.OK,
@@ -127,7 +127,7 @@ public partial class MailSettingsWindow : Window
         {
             e.CancelCommand();
             logger.LogError(exception, "Rich clipboard paste failed safely.");
-            MessageBox.Show(
+            UrgentMessageBox.Show(
                 "No fue posible pegar ese contenido enriquecido. Intenta copiar nuevamente la firma completa.",
                 "Firma no compatible",
                 MessageBoxButton.OK,
@@ -139,7 +139,7 @@ public partial class MailSettingsWindow : Window
     {
         if (CountMarkers() != 1)
         {
-            MessageBox.Show($"Incluye {RequestIdsMarker} exactamente una vez.", "Marcador obligatorio",
+            UrgentMessageBox.Show($"Incluye {RequestIdsMarker} exactamente una vez.", "Marcador obligatorio",
                 MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
@@ -160,7 +160,7 @@ public partial class MailSettingsWindow : Window
         }
         catch (Exception exception) when (exception is NotSupportedException or OutlookHtmlCompositionException)
         {
-            MessageBox.Show(exception.Message, "Contenido no compatible",
+            UrgentMessageBox.Show(exception.Message, "Contenido no compatible",
                 MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }

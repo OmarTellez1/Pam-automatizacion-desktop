@@ -252,6 +252,12 @@ La confirmación inicial presenta la hora configurada en el mismo formato de 12 
 
 `Configurar solicitud` dejó de mostrar el apartado `Habilitar modo de prueba`. El valor interno se conserva al editar para mantener compatibilidad con configuraciones de desarrollo existentes, pero la pantalla queda enfocada exclusivamente en fecha, hora, duración y razón. La compilación `Release | x64` pasó y 6 pruebas específicas de presentación y formato cubrieron la ausencia del control, ambas variantes horarias y los destinatarios. **Fase completada.**
 
+## Fase 21.7 — Avisos urgentes en primer plano
+
+Se creó `UrgentMessageBox` como único punto de presentación para los cuadros importantes. Utiliza el propietario WPF activo y las opciones nativas de Windows `task-modal`, `topmost` y `set-foreground`; además restaura la ventana propietaria cuando estaba minimizada. De esta forma una confirmación necesaria aparece sobre las aplicaciones normales del escritorio y detiene el flujo hasta que el usuario responda.
+
+La confirmación inicial, las solicitudes repetidas de `Pending`, la intervención manual por certificado, las confirmaciones de correo, los errores, los resultados solicitados y los avisos internos de configuración utilizan este mecanismo. Los banners no bloqueantes, como actualizaciones disponibles, permanecen sin interrupciones. La compilación `Release | x64` y 7 pruebas específicas pasaron; no se contactó PAM ni Outlook. **Fase completada.**
+
 ## Fases pendientes
 
 La clasificación siguiente se refiere únicamente a dependencias entre fases pendientes:
@@ -270,7 +276,7 @@ La clasificación siguiente se refiere únicamente a dependencias entre fases pe
 ```text
 Fases 6 a 18 completadas ──► Fase 19
 
-Fases 21–21.6 completadas de forma independiente
+Fases 21–21.7 completadas de forma independiente
 
 Fase 19 ──► Fase 20 (ampliación posterior a la migración)
 ```

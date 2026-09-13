@@ -166,7 +166,7 @@ namespace PamAutomation.App
             handlingFatalDispatcherException = true;
             try
             {
-                MessageBoxResult exportChoice = MessageBox.Show(
+                MessageBoxResult exportChoice = UrgentMessageBox.Show(
                     "Ocurrió un problema inesperado en la interfaz. La aplicación se cerrará de forma segura. " +
                     "¿Deseas exportar un diagnóstico seguro antes de cerrar?",
                     "Pam Automation",
@@ -182,7 +182,7 @@ namespace PamAutomation.App
                         DiagnosticExportContext context = (MainWindow?.DataContext as MainWindowViewModel)?.CaptureDiagnosticContext()
                             ?? new DiagnosticExportContext(false, false, false, null);
                         await diagnosticExportService.ExportAsync(destinationPath, context).ConfigureAwait(true);
-                        MessageBox.Show(
+                        UrgentMessageBox.Show(
                             "El diagnóstico se exportó correctamente. Puedes enviarlo a soporte.",
                             "Diagnóstico exportado",
                             MessageBoxButton.OK,

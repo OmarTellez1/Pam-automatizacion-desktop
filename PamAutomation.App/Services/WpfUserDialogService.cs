@@ -19,7 +19,7 @@ public sealed class WpfUserDialogService : IUserDialogService
             "PAM permite volver a pedirlas, pero se crearán solicitudes repetidas.",
             string.Empty,
             "Selecciona Sí para volver a pedirlas o No para cancelar la automatización.");
-        return MessageBox.Show(
+        return UrgentMessageBox.Show(
             message,
             "Solicitudes repetidas en Pending",
             MessageBoxButton.YesNo,
@@ -31,7 +31,7 @@ public sealed class WpfUserDialogService : IUserDialogService
     {
         ArgumentNullException.ThrowIfNull(settings);
         string message = FormatAutomationStartMessage(settings, mailSettings);
-        return MessageBox.Show(message, "Iniciar automatización PAM", MessageBoxButton.YesNo,
+        return UrgentMessageBox.Show(message, "Iniciar automatización PAM", MessageBoxButton.YesNo,
             MessageBoxImage.Warning, MessageBoxResult.No) == MessageBoxResult.Yes;
     }
 
@@ -68,14 +68,14 @@ public sealed class WpfUserDialogService : IUserDialogService
             "Solo se solicitará otra decisión si existen solicitudes idénticas en Pending.");
     }
 
-    public bool ConfirmTestEmail(string recipient) => MessageBox.Show(
+    public bool ConfirmTestEmail(string recipient) => UrgentMessageBox.Show(
         $"La validación PAM terminó. ¿Enviar ahora el resultado de prueba únicamente a {recipient}, sin CC?",
         "Confirmar correo de prueba",
         MessageBoxButton.YesNo,
         MessageBoxImage.Warning,
         MessageBoxResult.No) == MessageBoxResult.Yes;
 
-    public bool ConfirmOutlookTestEmail(string recipient) => MessageBox.Show(
+    public bool ConfirmOutlookTestEmail(string recipient) => UrgentMessageBox.Show(
         $"¿Enviar ahora un correo de comprobación desde y hacia {recipient}, sin CC?",
         "Confirmar prueba de Outlook",
         MessageBoxButton.YesNo,
@@ -83,10 +83,10 @@ public sealed class WpfUserDialogService : IUserDialogService
         MessageBoxResult.No) == MessageBoxResult.Yes;
 
     public void ShowResult(string title, string message) =>
-        MessageBox.Show(message, title, MessageBoxButton.OK, MessageBoxImage.Information);
+        UrgentMessageBox.Show(message, title, MessageBoxButton.OK, MessageBoxImage.Information);
 
     public void ShowError(string message) =>
-        MessageBox.Show(message, "No se completó la automatización", MessageBoxButton.OK, MessageBoxImage.Error);
+        UrgentMessageBox.Show(message, "No se completó la automatización", MessageBoxButton.OK, MessageBoxImage.Error);
 
     public string? SelectDiagnosticExportPath(string suggestedFileName)
     {

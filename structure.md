@@ -63,6 +63,7 @@ Las fases construidas hasta ahora son:
 - Fase 21.4: contexto temporal `headless` para ocultar la navegación de creación de solicitudes; acceso interactivo visible sin cambios.
 - Fase 21.5: confirmación general inmediata antes de preparar y diálogos posteriores reservados a decisiones imprescindibles.
 - Fase 21.6: confirmación con hora `AM/PM`, destinatarios `Para`/`CC` explícitos y configuración de solicitud sin selector visible de modo de prueba.
+- Fase 21.7: cuadros importantes centralizados como avisos task-modal, topmost y solicitantes de primer plano.
 
 Los directorios `.git`, `.vs`, `bin` y `obj` contienen metadatos o salidas generadas y se omiten en el árbol.
 
@@ -101,6 +102,7 @@ PamAutomation\
 │   │   ├── RequestConfigurationEdit.cs
 │   │   ├── RequestStartTimeInput.cs
 │   │   ├── RichClipboardHtmlImporter.cs
+│   │   ├── UrgentMessageBox.cs
 │   │   ├── FlowDocumentTableInserter.cs
 │   │   ├── WpfConfigurationDialogService.cs
 │   │   ├── WpfPamCertificateTrustPrompt.cs
@@ -398,7 +400,7 @@ Contenido actual:
 - `MainWindow.xaml.cs`: inicialización mínima de la ventana; no contiene lógica de negocio.
 - `ViewModels/MainWindowViewModel.cs`: estado de presentación y comandos de la portada mediante `CommunityToolkit.Mvvm`.
 - `Views`: diálogos nativos para credenciales PAM y Outlook, solicitud y plantilla de correo, con estados y validación visibles; la solicitud solo expone fecha, hora, duración y razón.
-- `Services`: confirmaciones —incluida la presentación `AM/PM`, `Para` y `CC`—, adaptación de diálogos, coordinación no destructiva de credenciales, clasificación segura del resultado de correo de prueba, importación acotada de firmas HTML y conversión bidireccional entre `FlowDocument` y XHTML/CID.
+- `Services`: confirmaciones —incluida la presentación `AM/PM`, `Para` y `CC`— y avisos urgentes centralizados, adaptación de diálogos, coordinación no destructiva de credenciales, clasificación segura del resultado de correo de prueba, importación acotada de firmas HTML y conversión bidireccional entre `FlowDocument` y XHTML/CID.
 - `Resources/Styles.xaml`: estilos compartidos, incluida la apariencia estática del indicador circular cuya animación controla la ventana únicamente durante operaciones activas.
 - `Resources/Colors.xaml`: colores y pinceles compartidos.
 - `Resources/Styles.xaml`: estilos y plantillas de controles WPF.
