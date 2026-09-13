@@ -95,6 +95,11 @@ namespace PamAutomation.App
                 outlookClient,
                 loggerFactory.CreateLogger<CredentialConfigurationWorkflow>());
             var favorites = new PamFavoritesService(authentication, new PamFavoritesPortalFactory());
+            var favoriteCatalog = new FavoriteCatalogService(
+                favorites,
+                credentialStore,
+                new DpapiFavoriteCatalogStore(),
+                TimeProvider.System);
             var execution = new PamAutomationExecutionService(
                 favorites,
                 new PamRequestSubmissionService(
@@ -123,7 +128,9 @@ namespace PamAutomation.App
                 new WpfConfigurationDialogService(
                     credentialWorkflow,
                     loggerFactory.CreateLogger<CredentialsWindow>(),
-                    loggerFactory.CreateLogger<MailSettingsWindow>()),
+                    loggerFactory.CreateLogger<MailSettingsWindow>(),
+                    favoriteCatalog,
+                    loggerFactory.CreateLogger<FavoritesCatalogViewModel>()),
                 mailSettingsStore,
                 new MailSettingsValidator(),
                 outlookAccountStore,

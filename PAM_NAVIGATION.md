@@ -121,6 +121,10 @@ La decisión de confiar en el certificado pertenece al usuario y queda persistid
 
 Una colección será una selección local, editable y nombrada de `Favorites` rows. Su objetivo es permitir, por ejemplo, escoger 8 filas de las 20 mostradas en `Favorites` y ejecutar solo ese subconjunto bajo un nombre reconocible como `Accesos con el Tic Peter`.
 
+La fase 20.1 crea una ventana propia `Colecciones`. Su primer estado está vacío y ofrece `Obtener solicitudes favoritas`; después de una lectura completa y exitosa el botón cambia permanentemente a `Actualizar solicitudes favoritas`. La lista visible se reduce deliberadamente a `Application - IP Address`, aunque el snapshot protegido conserva la identidad completa `System + Application + Account` necesaria para las fases siguientes.
+
+El encabezado visible `IP Address` utiliza en el DOM real `data-column-id="SystemIP"`. La primera validación de fase 20.1 demostró que suponer literalmente `IPAddress` impide completar las filas aunque `Favorites` haya cargado. Debe mantenerse la separación entre el nombre visible documentado en inglés y el identificador técnico confirmado del grid.
+
 La pantalla de edición deberá:
 
 - Mostrar el snapshot completo y actualizado de Favorites con selección individual.
@@ -146,15 +150,17 @@ La combinación `System + Application + Account` es la mejor clave confirmada ha
 `Favorites` seguirá siendo la fuente de verdad sobre disponibilidad. Al abrir o ejecutar una colección, la aplicación deberá volver a leer todas las páginas y reconciliar cada clave guardada:
 
 - **`Available`:** existe exactamente una coincidencia y su `Account Status` es `Available`; puede mantenerse seleccionada.
-- **`Missing`:** la clave guardada ya no aparece en `Favorites`; debe mostrarse al usuario y quedar bloqueada para ejecución.
+- **`Missing`:** la clave guardada ya no aparece en `Favorites`; durante una actualización se retirará automáticamente de las colecciones que la contengan y se notificará cuántas selecciones fueron eliminadas.
 - **`Ambiguous`:** aparece más de una coincidencia exacta; toda la colección debe bloquearse hasta resolver la inconsistencia.
 - **`New in Favorites`:** la fila aparece en el snapshot vivo pero no en la colección; se ofrece para añadir, pero nunca se incorpora automáticamente.
 
-No se sustituirá una `Favorites` row eliminada por otra con `Account`, `System` o `Application` parecido ni se actualizará una identidad silenciosamente. Los cambios de selección o configuración deberán guardarse solo mediante una acción explícita del usuario.
+No se sustituirá una `Favorites` row eliminada por otra con `Account`, `System` o `Application` parecido ni se actualizará una identidad silenciosamente. Las eliminaciones automáticas se limitarán a claves exactas ausentes del snapshot vivo y se comunicarán al usuario; agregar filas nuevas y los demás cambios de selección o configuración requerirán una acción explícita.
 
 ## Persistencia y seguridad previstas
 
 Las colecciones contendrán identidades de `Favorites` rows y razones de negocio, por lo que se tratarán como configuración privada. Se guardarán bajo `%LOCALAPPDATA%\PamAutomation\config`, con `schemaVersion`, escritura atómica y protección DPAPI `CurrentUser`. No se almacenarán credenciales, TOTP, cookies, estados de sesión ni resultados de ejecución dentro de una colección.
+
+El catálogo previo de fase 20.1 se guarda aparte como `favorite-catalog.dat`, también versionado, atómico y protegido con DPAPI `CurrentUser`. Al abrirse puede mostrar la última copia local, pero solo una actualización PAM exitosa podrá autorizar cambios posteriores de selección o ejecución.
 
 `Directory`, `Description`, `Account Status`, `IP Address` y `Platform` se consideran metadata viva para presentación y reconciliación. No deben duplicarse de forma permanente dentro de la colección salvo que una necesidad funcional futura lo justifique; en particular, `IP Address` no forma parte de la clave actual.
 

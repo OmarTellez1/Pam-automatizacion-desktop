@@ -56,6 +56,7 @@ Las fases construidas hasta ahora son:
 - Fase 18.9: reconciliación de las familias reales de `Application` entre Favorites y Pending.
 - Fase 18.10: aviso accionable en la ventana principal para explicar cada bloqueo de `Iniciar automatización`.
 - Fase 18.11: resultado consultable bajo demanda, semántica de envío clara y composición Outlook con tipografía y tabla compactas.
+- Fase 20.1: catálogo protegido de Favorites con presentación `Application - IP Address` y actualización dinámica.
 - Fase 21: acceso interactivo persistente separado del flujo de solicitudes.
 - Fase 21.1: preflight de Pending con repetición o cancelación explícitas; el intento WebSocket/CDP quedó sustituido en fase 21.2.
 - Fase 21.2: Edge normal mediante Windows UI Automation, confianza manual del certificado y liberación sin cerrar el navegador.
@@ -113,6 +114,8 @@ PamAutomation\
 │   ├── Views\
 │   │   ├── CredentialsWindow.xaml
 │   │   ├── CredentialsWindow.xaml.cs
+│   │   ├── FavoritesCatalogWindow.xaml
+│   │   ├── FavoritesCatalogWindow.xaml.cs
 │   │   ├── MailSettingsWindow.xaml
 │   │   ├── MailSettingsWindow.xaml.cs
 │   │   ├── RequestSettingsWindow.xaml
@@ -121,6 +124,7 @@ PamAutomation\
 │   │   ├── Colors.xaml
 │   │   └── Styles.xaml
 │   └── ViewModels\
+│       ├── FavoritesCatalogViewModel.cs
 │       └── MainWindowViewModel.cs
 │
 ├── PamAutomation.Core\
@@ -149,6 +153,9 @@ PamAutomation\
 │   │   │   ├── IDiagnosticEventSource.cs
 │   │   │   └── IDiagnosticExportService.cs
 │   │   ├── Favorites\
+│   │   │   ├── IFavoriteCatalogService.cs
+│   │   │   ├── IFavoriteCatalogStore.cs
+│   │   │   ├── IPamFavoritesReader.cs
 │   │   │   ├── IPamFavoritesPortal.cs
 │   │   │   └── IPamFavoritesPortalFactory.cs
 │   │   ├── Execution\
@@ -180,6 +187,11 @@ PamAutomation\
 │   │   ├── DiagnosticExportContext.cs
 │   │   └── DiagnosticLogEvent.cs
 │   ├── Favorites\
+│   │   ├── FavoriteCatalogEntry.cs
+│   │   ├── FavoriteCatalogException.cs
+│   │   ├── FavoriteCatalogRefreshResult.cs
+│   │   ├── FavoriteCatalogService.cs
+│   │   ├── FavoriteCatalogSnapshot.cs
 │   │   ├── PamFavoriteAccount.cs
 │   │   ├── PamFavoritesErrorCode.cs
 │   │   ├── PamFavoritesException.cs
@@ -289,6 +301,7 @@ PamAutomation\
 │   │   ├── AppSettingsDocument.cs
 │   │   ├── AppSettingsPersistenceErrorCode.cs
 │   │   ├── AppSettingsPersistenceException.cs
+│   │   ├── DpapiFavoriteCatalogStore.cs
 │   │   ├── DpapiMailSettingsStore.cs
 │   │   ├── DpapiOutlookAccountSettingsStore.cs
 │   │   └── JsonAppSettingsStore.cs
@@ -318,6 +331,7 @@ PamAutomation\
 │
 └── PamAutomation.Tests\
     ├── PamAutomation.Tests.csproj
+    ├── FavoritesCatalogViewModelTests.cs
     ├── TestExplorerSmokeTests.cs
     ├── MainWindowViewModelTests.cs
     ├── App\
@@ -325,6 +339,8 @@ PamAutomation\
     │   ├── CredentialConfigurationWorkflowTests.cs
     │   └── FlowDocumentHtmlConverterTests.cs
     ├── Infrastructure\
+    │   ├── Configuration\
+    │   │   └── DpapiFavoriteCatalogStoreTests.cs
     │   └── Diagnostics\
     │       ├── DevelopmentFileLoggerFactoryTests.cs
     │       ├── DiagnosticExportServiceTests.cs
@@ -339,6 +355,7 @@ PamAutomation\
     │   ├── Credentials\
     │   │   └── PamCredentialsTests.cs
     │   ├── Favorites\
+    │   │   ├── FavoriteCatalogServiceTests.cs
     │   │   └── PamFavoritesServiceTests.cs
     │   ├── Requests\
     │   │   ├── PamPendingServiceTests.cs
@@ -450,7 +467,7 @@ Biblioteca para `net10.0`, sin dependencia de WPF o Windows. Actualmente contien
 - `Interfaces/Authentication/IPamInteractiveAccessService`: contrato del acceso manual que entrega al usuario un Edge autenticado sin ejecutar operaciones PAM posteriores.
 - `Browser`: respuesta de navegación reducida a URI, estado y HTTP `Date`, junto con errores controlados de inicialización y navegación.
 - `Authentication`: servicio de autenticación simulado, espera asincrónica, errores estables y contratos del puerto ligado a una sesión.
-- `Interfaces/Favorites` y `Favorites`: lectura y validación de identidades únicas dentro de una sesión autenticada reutilizable.
+- `Interfaces/Favorites` y `Favorites`: lectura y validación de identidades únicas dentro de una sesión autenticada reutilizable, más el catálogo protegido y su diferencia de altas y bajas para colecciones.
 - `Interfaces/Requests` y `Requests`: contratos separados para prueba, envío y lectura; coordinación de solicitudes, preflight de coincidencias exactas, línea base de Request ID en memoria y reconciliación estricta de las filas nuevas de Pending.
 - `Interfaces/Outlook` y `Outlook`: contrato del cliente clásico, modelos redactados, validaciones, resultados y errores seguros; `OutlookHtmlComposer` sanea XHTML, valida el marcador y compone Request ID por línea.
 - `Interfaces/Execution` y `Execution`: preparación confirmable, coordinación completa y resultado exclusivamente en memoria.
@@ -512,7 +529,7 @@ No debe administrar configuración local, Outlook ni elementos WPF.
 
 ### `PamAutomation.Infrastructure`
 
-Biblioteca para `net10.0-windows`. Referencia `PamAutomation.Core` e implementa la persistencia no sensible, correo protegido, credenciales y reloj HTTP confiable:
+Biblioteca para `net10.0-windows`. Referencia `PamAutomation.Core` e implementa la persistencia no sensible, correo protegido, catálogo protegido de Favorites, credenciales y reloj HTTP confiable:
 
 - `Configuration/AppSettingsDocument.cs`: representación JSON plana y conversión explícita hacia y desde el modelo de Core.
 - `Configuration/JsonAppSettingsStore.cs`: carga desde la ruta privada del usuario y escritura atómica mediante un temporal en la misma carpeta.
@@ -784,12 +801,14 @@ La aplicación instalada solo podrá mantener esta configuración privada por us
     ├── app-settings.json
     ├── mail-settings.dat
     ├── outlook-account.dat
-    └── collections.dat                   futuro, fase 20
+    ├── favorite-catalog.dat
+    └── collections.dat                   futuro, fase 20.2
 ```
 
 - `app-settings.json`: configuración no secreta, con `schemaVersion` y escritura atómica.
 - `mail-settings.dat`: configuración de correo protegida con DPAPI `CurrentUser`.
 - `outlook-account.dat`: cuenta SMTP exacta de Outlook clásico, versionada y protegida con DPAPI `CurrentUser`.
+- `favorite-catalog.dat`: último snapshot completo de `Favorites`, versionado, atómico y protegido con DPAPI `CurrentUser`; sostiene el estado Obtener/Actualizar y la reconciliación futura.
 - `collections.dat`: colecciones post-migración con identidades y razones, versionadas y protegidas con DPAPI `CurrentUser`.
 - Usuario, contraseña y semilla TOTP: Windows Credential Manager.
 - Resultados, Request ID, conflictos y estado: únicamente en memoria.

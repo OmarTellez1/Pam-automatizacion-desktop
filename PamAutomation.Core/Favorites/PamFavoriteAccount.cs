@@ -11,10 +11,25 @@ public sealed record PamFavoriteAccount
     /// <param name="applicationName">PAM application name.</param>
     /// <param name="accountName">PAM account name.</param>
     public PamFavoriteAccount(string systemName, string applicationName, string accountName)
+        : this(systemName, applicationName, accountName, null)
+    {
+    }
+
+    /// <summary>Initializes a complete favorite account identity with live presentation metadata.</summary>
+    /// <param name="systemName">PAM system name.</param>
+    /// <param name="applicationName">PAM application name.</param>
+    /// <param name="accountName">PAM account name.</param>
+    /// <param name="ipAddress">Live IP Address value when it was read from Favorites.</param>
+    public PamFavoriteAccount(
+        string systemName,
+        string applicationName,
+        string accountName,
+        string? ipAddress)
     {
         SystemName = RequireValue(systemName, nameof(systemName));
         ApplicationName = RequireValue(applicationName, nameof(applicationName));
         AccountName = RequireValue(accountName, nameof(accountName));
+        IpAddress = string.IsNullOrWhiteSpace(ipAddress) ? null : ipAddress.Trim();
     }
 
     /// <summary>Gets the PAM system name.</summary>
@@ -25,6 +40,19 @@ public sealed record PamFavoriteAccount
 
     /// <summary>Gets the PAM account name.</summary>
     public string AccountName { get; }
+
+    /// <summary>Gets the live IP Address metadata when requested by the caller.</summary>
+    public string? IpAddress { get; }
+
+    /// <summary>Compares the stable Favorites identity; live presentation metadata is deliberately excluded.</summary>
+    public bool Equals(PamFavoriteAccount? other) =>
+        other is not null &&
+        string.Equals(SystemName, other.SystemName, StringComparison.Ordinal) &&
+        string.Equals(ApplicationName, other.ApplicationName, StringComparison.Ordinal) &&
+        string.Equals(AccountName, other.AccountName, StringComparison.Ordinal);
+
+    /// <inheritdoc />
+    public override int GetHashCode() => HashCode.Combine(SystemName, ApplicationName, AccountName);
 
     /// <inheritdoc />
     public override string ToString() => "PAM favorite account (redacted)";

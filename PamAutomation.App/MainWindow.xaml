@@ -242,7 +242,7 @@
                              MaxWidth="920"
                              Margin="0,20,0,0"
                              HorizontalAlignment="Stretch"
-                             Columns="3">
+                             Columns="4">
                 <Button Margin="0,0,10,0"
                         AutomationProperties.Name="Configurar credenciales PAM"
                         Command="{Binding ConfigureCredentialsCommand}"
@@ -295,6 +295,27 @@
                         <TextBlock VerticalAlignment="Center"
                                    FontWeight="SemiBold"
                                    Text="{Binding MailActionText}" />
+                        <TextBlock Grid.Column="1"
+                                   Margin="14,0,0,0"
+                                   VerticalAlignment="Center"
+                                   FontSize="18"
+                                   Text="→" />
+                    </Grid>
+                </Button>
+
+                <Button x:Name="CollectionsButton"
+                        Margin="10,0,0,0"
+                        AutomationProperties.Name="Abrir colecciones"
+                        Command="{Binding OpenCollectionsCommand}"
+                        Style="{StaticResource NavigationCardButtonStyle}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock VerticalAlignment="Center"
+                                   FontWeight="SemiBold"
+                                   Text="Colecciones" />
                         <TextBlock Grid.Column="1"
                                    Margin="14,0,0,0"
                                    VerticalAlignment="Center"

@@ -276,6 +276,14 @@ El comando valida nuevamente la configuración justo antes de mostrar la confirm
 
 El diagnóstico `pam-automation-diagnostic-20260913-015429` mostró además que PAM devolvió una respuesta HTTP no exitosa cuyo JSON no tenía un objeto en la raíz. `PamSubmissionResponseClassifier` ahora rechaza de forma controlada objetos, arreglos, texto, números o `null` no reconocidos, sin permitir que `TryGetProperty` produzca una excepción técnica. La compilación `Release | x64`, las 51 pruebas específicas y la suite ordinaria completa de 337 pruebas pasaron; no se contactó PAM ni Outlook. **Fase completada.**
 
+## Fase 20.1 — Catálogo dinámico de solicitudes favoritas
+
+La portada incorpora un botón propio `Colecciones` que abre una ventana WPF inicialmente vacía. La primera acción se llama `Obtener solicitudes favoritas`; utiliza las credenciales protegidas, autentica mediante el contexto temporal oculto y reutiliza el lector paginado para obtener todas las `Favorites` rows. Cada elemento se presenta únicamente como `Application - IP Address`, mientras Core conserva la identidad exacta `System + Application + Account` para las colecciones posteriores.
+
+El snapshot se guarda en `%LOCALAPPDATA%\PamAutomation\config\favorite-catalog.dat` con `schemaVersion = 1`, cifrado DPAPI `CurrentUser` y reemplazo atómico. Al existir un snapshot, incluso después de reiniciar, la acción cambia a `Actualizar solicitudes favoritas`. Cada actualización reemplaza el catálogo completo y calcula cuántas identidades aparecieron o desaparecieron; este contrato permitirá que la fase siguiente retire de las colecciones las claves exactas que ya no pertenezcan a `Favorites`, sin incorporar automáticamente filas nuevas.
+
+La lectura continúa siendo no destructiva: no abre formularios, no consulta `Pending`, no crea solicitudes y no ejecuta Outlook. La primera validación desde la interfaz alcanzó `Favorites`, pero agotó el tiempo de estabilización porque el selector nuevo supuso `IPAddress`; una inspección real limitada a los nombres técnicos de columna confirmó que el portal representa el encabezado visible `IP Address` como `data-column-id="SystemIP"`. El lector usa ahora ese contrato real y conserva como causa interna el nombre seguro de cualquier columna ausente. Tras la corrección pasaron la compilación `Release | x64`, las 350 pruebas ordinarias y una prueba real explícita de solo lectura que exigió valores no vacíos para `System`, `Application`, `Account` e `IP Address`. **Fase completada y validada.**
+
 ## Fases pendientes
 
 La clasificación siguiente se refiere únicamente a dependencias entre fases pendientes:
@@ -287,7 +295,8 @@ La clasificación siguiente se refiere únicamente a dependencias entre fases pe
 | Fase | Clasificación | Dependencias pendientes | Alcance y posibilidad de paralelismo |
 |---|---|---|---|
 | 19 — Pruebas finales administradas | **Independiente** | Ninguna fase pendiente. | Es la validación final del producto publicado en el entorno Windows objetivo. |
-| 20 — Colecciones personalizadas post-migración | **Dependiente** | Migración inicial y fase 19 completadas. | Permitirá seleccionar subconjuntos editables de `Favorites` rows, guardar configuración general y posibles sobrescrituras por fila. Es alcance nuevo y no debe mezclarse con las fases 12 a 19. |
+| 20.2 — Crear y editar colecciones | **Dependiente** | Fase 20.1 completada. | Permitirá seleccionar subconjuntos editables del catálogo, nombrarlos y persistirlos; las claves retiradas de `Favorites` se eliminarán automáticamente y las nuevas no se incorporarán sin decisión del usuario. |
+| 20.3+ — Ejecutar colecciones | **Dependiente** | Fases 19 y 20.2 completadas. | Volverá a leer `Favorites` antes de enviar, procesará solo el subconjunto autorizado y reconciliará los resultados en `Pending` después del envío. |
 
 ## Mapa recomendado de trabajo paralelo
 
@@ -296,12 +305,14 @@ Fases 6 a 18 completadas ──► Fase 19
 
 Fases 21–21.10 completadas de forma independiente
 
-Fase 19 ──► Fase 20 (ampliación posterior a la migración)
+Fase 20.1 completada ──► Fase 20.2
+
+Fase 19 + Fase 20.2 ──► Fase 20.3+ (ejecución de colecciones)
 ```
 
 La fase 18 quedó completada tras validar el manifiesto GitHub real. El coordinador solo podrá paralelizar una parte futura si vuelve a demostrar independencia, contratos congelados y ausencia de archivos compartidos.
 
-La fase 20 registra una ampliación solicitada para después de terminar la migración: colecciones locales nombradas y editables que seleccionan cualquier subconjunto de Favorites. Su diseño preliminar, navegación, reconciliación y seguridad se detallan en `PAM_NAVIGATION.md`; no modifica el alcance ni la autorización de la fase 12.
+La fase 20 registra una ampliación solicitada para después de terminar la migración. La fase 20.1 ya implementa el catálogo local protegido; las colecciones nombradas, su edición y su ejecución permanecen separadas en 20.2 y 20.3+. Su diseño, navegación, reconciliación y seguridad se detallan en `PAM_NAVIGATION.md`; ninguna de estas fases hereda autorización para crear solicitudes reales.
 
 Esta clasificación es una guía de planificación, no una autorización automática para crear subagentes. Antes de cada oleada, el coordinador debe inspeccionar el diff y la estructura real; si el trabajo resultó pequeño o apareció solapamiento, debe conservarlo en el agente principal o ejecutarlo secuencialmente.
 

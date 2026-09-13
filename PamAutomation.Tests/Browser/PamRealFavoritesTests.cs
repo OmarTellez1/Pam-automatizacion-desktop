@@ -52,6 +52,7 @@ public sealed class PamRealFavoritesTests
         Assert.IsTrue(accounts.All(account =>
             !string.IsNullOrWhiteSpace(account.SystemName) &&
             !string.IsNullOrWhiteSpace(account.ApplicationName) &&
-            !string.IsNullOrWhiteSpace(account.AccountName)));
+            !string.IsNullOrWhiteSpace(account.AccountName) &&
+            !string.IsNullOrWhiteSpace(account.IpAddress)));
     }
 }

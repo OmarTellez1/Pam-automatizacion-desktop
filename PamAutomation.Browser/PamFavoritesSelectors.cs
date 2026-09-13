@@ -14,6 +14,7 @@ internal static partial class PamFavoritesSelectors
     public const string SystemCell = "td[data-column-id=\"SystemName\"]";
     public const string ApplicationCell = "td[data-column-id=\"ApplicationName\"]";
     public const string AccountCell = "td[data-column-id=\"AccountName\"]";
+    public const string IpAddressCell = "td[data-column-id=\"SystemIP\"]";
 
     [GeneratedRegex("^Browse by Category$", RegexOptions.IgnoreCase)]
     public static partial Regex BrowseByCategoryExpression();

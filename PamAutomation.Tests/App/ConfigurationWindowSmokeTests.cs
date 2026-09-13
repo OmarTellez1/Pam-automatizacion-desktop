@@ -9,6 +9,8 @@ using PamAutomation.App.Views;
 using PamAutomation.App.ViewModels;
 using PamAutomation.Core.Models.Configuration;
 using PamAutomation.Core.Models.Credentials;
+using PamAutomation.Core.Favorites;
+using PamAutomation.Core.Interfaces.Favorites;
 
 namespace PamAutomation.Tests.App;
 
@@ -34,6 +36,7 @@ public sealed class ConfigurationWindowSmokeTests
 
             Assert.IsNotNull(window.FindName("ExportDiagnosticsButton"));
             Assert.IsNotNull(window.FindName("AccessPamButton"));
+            Assert.IsNotNull(window.FindName("CollectionsButton"));
             var updateBanner = Assert.IsInstanceOfType<Border>(window.FindName("UpdateNotificationBanner"));
             var startWarning = Assert.IsInstanceOfType<Border>(window.FindName("StartAutomationWarningBanner"));
             var resultButton = Assert.IsInstanceOfType<Button>(window.FindName("ShowAutomationResultButton"));
@@ -108,6 +111,31 @@ public sealed class ConfigurationWindowSmokeTests
             credentialsWindow.Close();
             requestWindow.Close();
             mailWindow.Close();
+        }
+    }
+
+    [STATestMethod]
+    public void FavoritesCatalogWindow_FirstUse_RendersEmptyStateAndObtainAction()
+    {
+        EnsureApplicationResources();
+        var viewModel = new FavoritesCatalogViewModel(new EmptyFavoriteCatalogService());
+        var window = new FavoritesCatalogWindow(viewModel);
+
+        try
+        {
+            window.Show();
+            Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+
+            var emptyState = Assert.IsInstanceOfType<Border>(window.FindName("EmptyFavoritesState"));
+            var list = Assert.IsInstanceOfType<ListBox>(window.FindName("FavoritesList"));
+            var refresh = Assert.IsInstanceOfType<Button>(window.FindName("RefreshFavoritesButton"));
+            Assert.AreEqual(Visibility.Visible, emptyState.Visibility);
+            Assert.AreEqual(Visibility.Collapsed, list.Visibility);
+            Assert.AreEqual("Obtener solicitudes favoritas", refresh.Content);
+        }
+        finally
+        {
+            window.Close();
         }
     }
 
@@ -231,6 +259,15 @@ public sealed class ConfigurationWindowSmokeTests
             string smtpAddress,
             CancellationToken cancellationToken = default) =>
             Task.FromResult(ConfigurationOperationResult.Success("ok"));
+    }
+
+    private sealed class EmptyFavoriteCatalogService : IFavoriteCatalogService
+    {
+        public Task<FavoriteCatalogSnapshot?> LoadAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<FavoriteCatalogSnapshot?>(null);
+
+        public Task<FavoriteCatalogRefreshResult> RefreshAsync(CancellationToken cancellationToken = default) =>
+            throw new NotSupportedException();
     }
 
     private sealed class PendingCredentialWorkflow : ICredentialConfigurationWorkflow

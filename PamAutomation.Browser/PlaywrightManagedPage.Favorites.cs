@@ -131,6 +131,7 @@ internal sealed partial class PlaywrightManagedPage
         CancellationToken cancellationToken)
     {
         IReadOnlyList<PamFavoriteAccount>? previous = null;
+        ArgumentException? lastIncompleteRowException = null;
         long startedAt = Environment.TickCount64;
         while (Environment.TickCount64 - startedAt < PortalTimeout.TotalMilliseconds)
         {
@@ -145,16 +146,20 @@ internal sealed partial class PlaywrightManagedPage
                 }
 
                 previous = current;
+                lastIncompleteRowException = null;
             }
-            catch (ArgumentException)
+            catch (ArgumentException exception)
             {
                 previous = null;
+                lastIncompleteRowException = exception;
             }
 
             await Task.Delay(ObservationInterval, cancellationToken).ConfigureAwait(false);
         }
 
-        throw new PamFavoritesException(PamFavoritesErrorCode.InvalidAccount);
+        throw new PamFavoritesException(
+            PamFavoritesErrorCode.InvalidAccount,
+            lastIncompleteRowException);
     }
 
     private static async Task<IReadOnlyList<PamFavoriteAccount>> ReadCurrentPageAsync(
@@ -166,13 +171,31 @@ internal sealed partial class PlaywrightManagedPage
         for (int index = 0; index < count; index++)
         {
             ILocator row = rows.Nth(index);
-            string system = await ReadCellAsync(row, PamFavoritesSelectors.SystemCell, cancellationToken)
+            string system = await ReadCellAsync(
+                row,
+                PamFavoritesSelectors.SystemCell,
+                "System",
+                cancellationToken)
                 .ConfigureAwait(false);
-            string application = await ReadCellAsync(row, PamFavoritesSelectors.ApplicationCell, cancellationToken)
+            string application = await ReadCellAsync(
+                row,
+                PamFavoritesSelectors.ApplicationCell,
+                "Application",
+                cancellationToken)
                 .ConfigureAwait(false);
-            string account = await ReadCellAsync(row, PamFavoritesSelectors.AccountCell, cancellationToken)
+            string account = await ReadCellAsync(
+                row,
+                PamFavoritesSelectors.AccountCell,
+                "Account",
+                cancellationToken)
                 .ConfigureAwait(false);
-            accounts.Add(new PamFavoriteAccount(system, application, account));
+            string ipAddress = await ReadCellAsync(
+                row,
+                PamFavoritesSelectors.IpAddressCell,
+                "IP Address",
+                cancellationToken)
+                .ConfigureAwait(false);
+            accounts.Add(new PamFavoriteAccount(system, application, account, ipAddress));
         }
 
         return accounts;
@@ -181,15 +204,41 @@ internal sealed partial class PlaywrightManagedPage
     private static async Task<string> ReadCellAsync(
         ILocator row,
         string selector,
+        string columnName,
         CancellationToken cancellationToken)
     {
         ILocator cell = row.Locator(selector);
         int count = await cell.CountAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
         if (count != 1)
         {
-            throw new ArgumentException("La fila de Favorites no contiene una identidad única y completa.");
+            string availableColumns = await ReadAvailableColumnIdsAsync(row, cancellationToken)
+                .ConfigureAwait(false);
+            throw new ArgumentException(
+                $"La fila de Favorites no contiene exactamente una celda para la columna {columnName}. " +
+                $"Columnas técnicas disponibles: {availableColumns}.");
         }
 
         return (await cell.InnerTextAsync().WaitAsync(cancellationToken).ConfigureAwait(false)).Trim();
+    }
+
+    private static async Task<string> ReadAvailableColumnIdsAsync(
+        ILocator row,
+        CancellationToken cancellationToken)
+    {
+        ILocator cells = row.Locator("td[data-column-id]");
+        int count = await cells.CountAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
+        var columnIds = new SortedSet<string>(StringComparer.Ordinal);
+        for (int index = 0; index < count; index++)
+        {
+            string? columnId = await cells.Nth(index).GetAttributeAsync("data-column-id")
+                .WaitAsync(cancellationToken)
+                .ConfigureAwait(false);
+            if (!string.IsNullOrWhiteSpace(columnId))
+            {
+                columnIds.Add(columnId.Trim());
+            }
+        }
+
+        return columnIds.Count == 0 ? "ninguna" : string.Join(", ", columnIds);
     }
 }

@@ -6,7 +6,7 @@ using PamAutomation.Core.Models.Credentials;
 namespace PamAutomation.Core.Favorites;
 
 /// <summary>Coordinates authenticated, read-only discovery of every PAM favorite account.</summary>
-public sealed class PamFavoritesService
+public sealed class PamFavoritesService : IPamFavoritesReader
 {
     private readonly IPamAuthenticatedSessionFactory authenticatedSessionFactory;
     private readonly IPamFavoritesPortalFactory portalFactory;

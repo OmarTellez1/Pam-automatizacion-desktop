@@ -102,6 +102,16 @@ public sealed class PamFavoritesServiceTests
         Assert.AreEqual("PAM favorite account (redacted)", account.ToString());
     }
 
+    [TestMethod]
+    public void FavoriteAccount_LiveIpChanges_PreservesStableIdentityEquality()
+    {
+        var previous = new PamFavoriteAccount("system", "application", "account", "10.0.0.1");
+        var current = new PamFavoriteAccount("system", "application", "account", "10.0.0.2");
+
+        Assert.AreEqual(previous, current);
+        Assert.AreEqual(previous.GetHashCode(), current.GetHashCode());
+    }
+
     private static PamCredentials CreateCredentials() =>
         new("fixture-user", "fixture-password", "JBSWY3DPEHPK3PXP");
 

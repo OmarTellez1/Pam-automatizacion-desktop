@@ -144,9 +144,21 @@ internal sealed partial class PlaywrightManagedPage
         {
             ILocator row = rows.Nth(index);
             var observed = new PamFavoriteAccount(
-                await ReadCellAsync(row, PamFavoritesSelectors.SystemCell, cancellationToken).ConfigureAwait(false),
-                await ReadCellAsync(row, PamFavoritesSelectors.ApplicationCell, cancellationToken).ConfigureAwait(false),
-                await ReadCellAsync(row, PamFavoritesSelectors.AccountCell, cancellationToken).ConfigureAwait(false));
+                await ReadCellAsync(
+                    row,
+                    PamFavoritesSelectors.SystemCell,
+                    "System",
+                    cancellationToken).ConfigureAwait(false),
+                await ReadCellAsync(
+                    row,
+                    PamFavoritesSelectors.ApplicationCell,
+                    "Application",
+                    cancellationToken).ConfigureAwait(false),
+                await ReadCellAsync(
+                    row,
+                    PamFavoritesSelectors.AccountCell,
+                    "Account",
+                    cancellationToken).ConfigureAwait(false));
             if (observed != expected)
             {
                 continue;

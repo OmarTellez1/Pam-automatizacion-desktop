@@ -104,6 +104,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         ConfigureCredentialsCommand = new AsyncRelayCommand(ConfigureCredentialsAsync, () => AreControlsEnabled);
         ConfigureRequestCommand = new AsyncRelayCommand(ConfigureRequestAsync, () => AreControlsEnabled);
         ConfigureMailCommand = new AsyncRelayCommand(ConfigureMailAsync, () => AreControlsEnabled);
+        OpenCollectionsCommand = new RelayCommand(OpenCollections, () => AreControlsEnabled && configurationDialogs is not null);
         StartTestCommand = new AsyncRelayCommand(StartTestAsync, () => IsTestActionEnabled);
         StartAutomationCommand = new AsyncRelayCommand(StartAutomationAsync, () => CanStartAutomation);
         ToggleFinalActionCommand = new AsyncRelayCommand(ToggleFinalActionAsync, () => AreControlsEnabled);
@@ -116,6 +117,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public IAsyncRelayCommand ConfigureCredentialsCommand { get; }
     public IRelayCommand ConfigureRequestCommand { get; }
     public IRelayCommand ConfigureMailCommand { get; }
+    public IRelayCommand OpenCollectionsCommand { get; }
     public IAsyncRelayCommand StartTestCommand { get; }
     public IAsyncRelayCommand StartAutomationCommand { get; }
     public IAsyncRelayCommand ToggleFinalActionCommand { get; }
@@ -421,6 +423,26 @@ public sealed partial class MainWindowViewModel : ObservableObject
             IsTestModeEnabled = proposed.TestModeEnabled;
             StatusMessage = "Configuración de solicitud guardada.";
             logger.LogInformation("Request configuration was stored successfully.");
+        }
+        catch (Exception exception)
+        {
+            PresentError(exception);
+        }
+    }
+
+    private void OpenCollections()
+    {
+        if (configurationDialogs is null)
+        {
+            ShowPendingFeature("La sección de colecciones no está disponible en este contexto.");
+            return;
+        }
+
+        try
+        {
+            logger.LogInformation("Collections dialog opened.");
+            configurationDialogs.OpenFavoriteCollections();
+            logger.LogInformation("Collections dialog closed.");
         }
         catch (Exception exception)
         {
@@ -814,6 +836,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         ConfigureCredentialsCommand.NotifyCanExecuteChanged();
         ConfigureRequestCommand.NotifyCanExecuteChanged();
         ConfigureMailCommand.NotifyCanExecuteChanged();
+        OpenCollectionsCommand.NotifyCanExecuteChanged();
         StartTestCommand.NotifyCanExecuteChanged();
         StartAutomationCommand.NotifyCanExecuteChanged();
         ToggleFinalActionCommand.NotifyCanExecuteChanged();

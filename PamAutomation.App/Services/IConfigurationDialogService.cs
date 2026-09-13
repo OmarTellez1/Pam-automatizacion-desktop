@@ -10,4 +10,5 @@ public interface IConfigurationDialogService
         CancellationToken cancellationToken = default);
     RequestConfigurationEdit? EditRequest(RequestSettings current, bool testModeEnabled, DateOnly ecuadorToday);
     MailConfigurationEdit? EditMail(MailSettings? current, string smtpAddress);
+    void OpenFavoriteCollections();
 }
