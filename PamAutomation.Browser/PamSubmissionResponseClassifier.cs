@@ -36,6 +36,11 @@ internal static class PamSubmissionResponseClassifier
         try
         {
             using JsonDocument document = JsonDocument.Parse(payload);
+            if (document.RootElement.ValueKind != JsonValueKind.Object)
+            {
+                return null;
+            }
+
             if (document.RootElement.TryGetProperty("ErrorDetails", out JsonElement details) &&
                 details.ValueKind == JsonValueKind.Object &&
                 details.TryGetProperty("ErrorCode", out JsonElement errorCode) &&

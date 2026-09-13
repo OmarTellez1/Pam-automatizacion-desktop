@@ -26,6 +26,9 @@ public enum ConfigurationValidationErrorCode
     /// <summary>The configured start time has already passed in Ecuador.</summary>
     StartTimeInPast,
 
+    /// <summary>The configured start time does not leave the required preparation margin.</summary>
+    StartTimeTooClose,
+
     /// <summary>The session duration is outside the supported range.</summary>
     SessionHoursOutOfRange,
 

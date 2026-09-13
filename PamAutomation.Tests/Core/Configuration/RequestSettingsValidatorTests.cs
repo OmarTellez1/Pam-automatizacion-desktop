@@ -80,6 +80,46 @@ public sealed class RequestSettingsValidatorTests
     }
 
     [TestMethod]
+    public void Validate_StartFiveMinutesAhead_ReturnsTooCloseFailure()
+    {
+        RequestSettings settings = CreateValidSettings() with { StartTime = new TimeOnly(10, 5) };
+
+        ConfigurationValidationResult result = validator.Validate(settings, EcuadorNow);
+
+        Assert.Contains(
+            ConfigurationValidationErrorCode.StartTimeTooClose,
+            result.Failures.Select(failure => failure.Code));
+        Assert.Contains("al menos 6 minutos", result.Failures[0].Message);
+    }
+
+    [TestMethod]
+    public void Validate_StartExactlySixMinutesAhead_ReturnsSuccess()
+    {
+        RequestSettings settings = CreateValidSettings() with { StartTime = new TimeOnly(10, 6) };
+
+        ConfigurationValidationResult result = validator.Validate(settings, EcuadorNow);
+
+        Assert.IsTrue(result.IsValid);
+    }
+
+    [TestMethod]
+    public void Validate_StartAcrossMidnightButOnlyFiveMinutesAhead_ReturnsTooCloseFailure()
+    {
+        var now = new DateTimeOffset(2026, 9, 9, 23, 58, 0, TimeSpan.FromHours(-5));
+        RequestSettings settings = CreateValidSettings() with
+        {
+            StartDate = new DateOnly(2026, 9, 10),
+            StartTime = new TimeOnly(0, 3)
+        };
+
+        ConfigurationValidationResult result = validator.Validate(settings, now);
+
+        Assert.Contains(
+            ConfigurationValidationErrorCode.StartTimeTooClose,
+            result.Failures.Select(failure => failure.Code));
+    }
+
+    [TestMethod]
     [DataRow(0)]
     [DataRow(9)]
     public void Validate_DurationOutsideOneToEightHours_ReturnsDurationFailure(int sessionHours)

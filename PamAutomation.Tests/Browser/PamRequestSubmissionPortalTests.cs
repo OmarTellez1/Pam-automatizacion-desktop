@@ -83,6 +83,9 @@ public sealed class PamRequestSubmissionPortalTests
 
     [TestMethod]
     [DataRow(400, "not-json")]
+    [DataRow(400, "[]")]
+    [DataRow(400, "null")]
+    [DataRow(400, "\"error\"")]
     [DataRow(401, "{}")]
     [DataRow(500, null)]
     public void Classify_UnknownResponse_ThrowsSafeFailure(int status, string? payload)

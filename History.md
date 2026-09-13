@@ -536,3 +536,11 @@ Cada cambio relevante debe registrar qué se decidió, por qué, qué se verific
 - Cuando la hora vence, el botón real se deshabilita y el aviso visible explica que debe actualizarse `Configurar solicitud`.
 - `StartAutomationAsync` incorpora una validación fresca antes de la confirmación y otra después de responder `Sí`. Si el vencimiento ocurre con el diálogo abierto, cancela antes de cualquier interacción con PAM.
 - La compilación `Release | x64` y 32 pruebas específicas pasaron; no se contactó PAM ni Outlook.
+
+## 12 de septiembre de 2026 — Fase 21.10: margen mínimo y respuesta PAM defensiva
+
+- Se confirmó como causa operativa probable del diagnóstico que el primer formulario alcanzó `Submit Request` cuando su hora de inicio ya era demasiado cercana o había vencido.
+- `RequestSettingsValidator` incorpora `StartTimeTooClose` y exige un margen mínimo de 6 minutos respecto de la hora actual de Ecuador, también al cruzar medianoche.
+- La revisión de cada minuto deshabilita el botón cuando el margen deja de cumplirse y muestra una explicación accionable. Las validaciones alrededor de la confirmación y las defensas de Core aplican la misma regla.
+- El clasificador de respuestas comprueba que la raíz JSON sea un objeto antes de consultar `ErrorDetails`. Las demás formas JSON se convierten en `RequestRejected`, sin filtrar el contenido ni lanzar `InvalidOperationException`.
+- La compilación `Release | x64`, 51 pruebas relacionadas y las 337 pruebas ordinarias pasaron. No se contactó PAM ni Outlook.

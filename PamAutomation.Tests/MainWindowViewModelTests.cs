@@ -82,21 +82,21 @@ public sealed class MainWindowViewModelTests
     }
 
     [TestMethod]
-    public async Task RefreshTimeSensitiveState_WhenStartTimeExpires_DisablesAutomationAndShowsReason()
+    public async Task RefreshTimeSensitiveState_WhenLeadTimeFallsBelowMinimum_DisablesAutomationAndShowsReason()
     {
         var localNow = new DateTimeOffset(2026, 9, 12, 20, 25, 0, TimeSpan.FromHours(-5));
         var timeProvider = new MutableTimeProvider(localNow.ToUniversalTime());
-        TestContext context = CreateTimeSensitiveViewModel(timeProvider, localNow.Date, new TimeOnly(20, 30));
+        TestContext context = CreateTimeSensitiveViewModel(timeProvider, localNow.Date, new TimeOnly(20, 32));
         await context.ViewModel.InitializeAsync();
         Assert.IsTrue(context.ViewModel.CanStartAutomation);
 
-        timeProvider.UtcNow = new DateTimeOffset(2026, 9, 13, 1, 31, 0, TimeSpan.Zero);
+        timeProvider.UtcNow = new DateTimeOffset(2026, 9, 13, 1, 27, 0, TimeSpan.Zero);
         context.ViewModel.RefreshTimeSensitiveState();
 
         Assert.IsFalse(context.ViewModel.CanStartAutomation);
         Assert.IsTrue(context.ViewModel.IsStartAutomationWarningVisible);
-        Assert.Contains("hora de inicio configurada ya pasó", context.ViewModel.StartAutomationWarningMessage);
-        Assert.Contains("ya pasó", context.ViewModel.StatusMessage);
+        Assert.Contains("al menos 6 minutos", context.ViewModel.StartAutomationWarningMessage);
+        Assert.Contains("6 minutos de anticipación", context.ViewModel.StatusMessage);
     }
 
     [TestMethod]
@@ -104,9 +104,9 @@ public sealed class MainWindowViewModelTests
     {
         var localNow = new DateTimeOffset(2026, 9, 12, 20, 25, 0, TimeSpan.FromHours(-5));
         var timeProvider = new MutableTimeProvider(localNow.ToUniversalTime());
-        TestContext context = CreateTimeSensitiveViewModel(timeProvider, localNow.Date, new TimeOnly(20, 30));
+        TestContext context = CreateTimeSensitiveViewModel(timeProvider, localNow.Date, new TimeOnly(20, 32));
         await context.ViewModel.InitializeAsync();
-        timeProvider.UtcNow = new DateTimeOffset(2026, 9, 13, 1, 31, 0, TimeSpan.Zero);
+        timeProvider.UtcNow = new DateTimeOffset(2026, 9, 13, 1, 27, 0, TimeSpan.Zero);
 
         await context.ViewModel.StartAutomationCommand.ExecuteAsync(null);
 
@@ -114,7 +114,7 @@ public sealed class MainWindowViewModelTests
         Assert.AreEqual(0, context.Execution.PreparationCount);
         string? error = context.Dialogs.LastError;
         Assert.IsNotNull(error);
-        Assert.Contains("no comenzó", error!);
+        Assert.Contains("al menos 6 minutos", error!);
     }
 
     [TestMethod]
@@ -122,9 +122,9 @@ public sealed class MainWindowViewModelTests
     {
         var localNow = new DateTimeOffset(2026, 9, 12, 20, 25, 0, TimeSpan.FromHours(-5));
         var timeProvider = new MutableTimeProvider(localNow.ToUniversalTime());
-        TestContext context = CreateTimeSensitiveViewModel(timeProvider, localNow.Date, new TimeOnly(20, 30));
+        TestContext context = CreateTimeSensitiveViewModel(timeProvider, localNow.Date, new TimeOnly(20, 32));
         context.Dialogs.AutomationStartConfirmationAction = () =>
-            timeProvider.UtcNow = new DateTimeOffset(2026, 9, 13, 1, 31, 0, TimeSpan.Zero);
+            timeProvider.UtcNow = new DateTimeOffset(2026, 9, 13, 1, 27, 0, TimeSpan.Zero);
         await context.ViewModel.InitializeAsync();
 
         await context.ViewModel.StartAutomationCommand.ExecuteAsync(null);
@@ -133,7 +133,7 @@ public sealed class MainWindowViewModelTests
         Assert.AreEqual(0, context.Execution.PreparationCount);
         string? error = context.Dialogs.LastError;
         Assert.IsNotNull(error);
-        Assert.Contains("confirmación estaba abierta", error!);
+        Assert.Contains("menos de 6 minutos", error!);
         Assert.Contains("antes de contactar PAM", error!);
     }
 

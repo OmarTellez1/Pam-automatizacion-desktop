@@ -7,6 +7,9 @@ namespace PamAutomation.Core.Validation;
 /// </summary>
 public sealed class RequestSettingsValidator
 {
+    /// <summary>Gets the minimum interval required between the current Ecuador time and request start.</summary>
+    public static TimeSpan MinimumLeadTime { get; } = TimeSpan.FromMinutes(6);
+
     /// <summary>
     /// Validates request settings against the current date and time in Ecuador.
     /// </summary>
@@ -30,6 +33,8 @@ public sealed class RequestSettingsValidator
 
         var failures = new List<ConfigurationValidationFailure>();
         var currentDate = DateOnly.FromDateTime(ecuadorNow.DateTime);
+        DateTime requestedStart = settings.StartDate.ToDateTime(settings.StartTime);
+        DateTime minimumAllowedStart = ecuadorNow.DateTime.Add(MinimumLeadTime);
 
         if (settings.StartDate < currentDate)
         {
@@ -45,6 +50,13 @@ public sealed class RequestSettingsValidator
                 ConfigurationValidationErrorCode.StartTimeInPast,
                 nameof(RequestSettings.StartTime),
                 "La hora de inicio no puede estar en el pasado."));
+        }
+        else if (requestedStart < minimumAllowedStart)
+        {
+            failures.Add(new(
+                ConfigurationValidationErrorCode.StartTimeTooClose,
+                nameof(RequestSettings.StartTime),
+                "La hora de inicio debe estar al menos 6 minutos después de la hora actual de Ecuador."));
         }
 
         if (settings.SessionHours is < 1 or > 8)

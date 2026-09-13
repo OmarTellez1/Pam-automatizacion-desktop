@@ -533,13 +533,17 @@ public sealed partial class MainWindowViewModel : ObservableObject
     internal void RefreshTimeSensitiveState()
     {
         bool wasRequestConfigured = IsRequestConfigured;
-        IsRequestConfigured = settingsValidator.Validate(settings, GetEcuadorNow()).IsValid;
+        ConfigurationValidationResult validation = settingsValidator.Validate(settings, GetEcuadorNow());
+        IsRequestConfigured = validation.IsValid;
         RefreshPresentationState();
 
         if (wasRequestConfigured && !IsRequestConfigured && !IsRunning)
         {
-            StatusMessage = "La fecha u hora de inicio configurada ya pasó. Abre Configurar solicitud para actualizarla.";
-            logger.LogInformation("The configured request start time expired while the application remained open.");
+            StatusMessage = validation.Failures.Any(failure =>
+                failure.Code == ConfigurationValidationErrorCode.StartTimeTooClose)
+                ? "La solicitud quedó demasiado cerca de la hora actual. Configura un inicio con al menos 6 minutos de anticipación."
+                : "La fecha u hora de inicio configurada ya pasó. Abre Configurar solicitud para actualizarla.";
+            logger.LogInformation("The configured request start time no longer satisfies the required lead time while the application remained open.");
         }
     }
 
@@ -552,8 +556,14 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
         ConfigurationValidationFailure? timeFailure = validation.Failures.FirstOrDefault(failure =>
             failure.Code is ConfigurationValidationErrorCode.StartDateInPast or
-                ConfigurationValidationErrorCode.StartTimeInPast);
-        string message = timeFailure is not null && confirmationWasShown
+                ConfigurationValidationErrorCode.StartTimeInPast or
+                ConfigurationValidationErrorCode.StartTimeTooClose);
+        bool isTooClose = timeFailure?.Code == ConfigurationValidationErrorCode.StartTimeTooClose;
+        string message = isTooClose && confirmationWasShown
+            ? "La hora de inicio quedó a menos de 6 minutos mientras la confirmación estaba abierta. La automatización se canceló antes de contactar PAM o crear solicitudes. Configura una hora con al menos 6 minutos de anticipación."
+            : isTooClose
+                ? "La hora de inicio está demasiado cerca. Debe estar al menos 6 minutos después de la hora actual de Ecuador. La automatización no comenzó."
+            : timeFailure is not null && confirmationWasShown
             ? "La hora de inicio venció mientras la confirmación estaba abierta. La automatización se canceló antes de contactar PAM o crear solicitudes. Abre Configurar solicitud y elige una nueva hora."
             : timeFailure is not null
                 ? "La fecha u hora de inicio configurada ya pasó. La automatización no comenzó. Abre Configurar solicitud y elige una nueva hora."
@@ -767,6 +777,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
                     "El botón está desactivado porque la fecha de inicio configurada ya pasó. Abre Configurar solicitud y elige una fecha y hora futuras.",
                 ConfigurationValidationErrorCode.StartTimeInPast =>
                     "El botón está desactivado porque la hora de inicio configurada ya pasó. Abre Configurar solicitud y elige una fecha y hora futuras.",
+                ConfigurationValidationErrorCode.StartTimeTooClose =>
+                    "El botón está desactivado porque la hora de inicio está demasiado cerca. Configura una hora que esté al menos 6 minutos después de la hora actual de Ecuador.",
                 _ when failure is not null =>
                     $"El botón está desactivado porque la solicitud no es válida: {failure.Message} Abre Configurar solicitud para corregirla.",
                 _ =>

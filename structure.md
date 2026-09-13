@@ -66,6 +66,7 @@ Las fases construidas hasta ahora son:
 - Fase 21.7: cuadros importantes centralizados como avisos task-modal, topmost y solicitantes de primer plano.
 - Fase 21.8: progreso de solicitudes tipado por `Application` y acceso interactivo disponible durante el flujo oculto.
 - Fase 21.9: refresco temporal WPF cada minuto y doble validación local alrededor de la confirmación real.
+- Fase 21.10: margen mínimo central de 6 minutos y clasificación defensiva de respuestas PAM con JSON no estructurado como objeto.
 
 Los directorios `.git`, `.vs`, `bin` y `obj` contienen metadatos o salidas generadas y se omiten en el árbol.
 

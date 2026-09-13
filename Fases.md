@@ -270,6 +270,12 @@ La ventana principal ejecuta una comprobación local cada minuto mediante `Dispa
 
 El comando valida nuevamente la configuración justo antes de mostrar la confirmación. También repite esa validación al responder `Sí`, de modo que un cuadro abierto durante el vencimiento se cancela con un mensaje claro antes de autenticar, leer `Favorites` o crear solicitudes. La compilación `Release | x64` y 32 pruebas específicas pasaron; no se contactó PAM ni Outlook. **Fase completada.**
 
+## Fase 21.10 — Margen operativo mínimo de 6 minutos
+
+`RequestSettingsValidator` exige que el inicio configurado esté al menos 6 minutos después de la hora actual de Ecuador. Exactamente 6 minutos es válido; cualquier margen inferior produce `StartTimeTooClose`. Al ser una regla central, se aplica al guardar, al refresco local de cada minuto, antes y después de la confirmación, al preparar la ejecución y nuevamente antes del primer envío. El botón se deshabilita con un mensaje que explica el margen requerido.
+
+El diagnóstico `pam-automation-diagnostic-20260913-015429` mostró además que PAM devolvió una respuesta HTTP no exitosa cuyo JSON no tenía un objeto en la raíz. `PamSubmissionResponseClassifier` ahora rechaza de forma controlada objetos, arreglos, texto, números o `null` no reconocidos, sin permitir que `TryGetProperty` produzca una excepción técnica. La compilación `Release | x64`, las 51 pruebas específicas y la suite ordinaria completa de 337 pruebas pasaron; no se contactó PAM ni Outlook. **Fase completada.**
+
 ## Fases pendientes
 
 La clasificación siguiente se refiere únicamente a dependencias entre fases pendientes:
@@ -288,7 +294,7 @@ La clasificación siguiente se refiere únicamente a dependencias entre fases pe
 ```text
 Fases 6 a 18 completadas ──► Fase 19
 
-Fases 21–21.9 completadas de forma independiente
+Fases 21–21.10 completadas de forma independiente
 
 Fase 19 ──► Fase 20 (ampliación posterior a la migración)
 ```
