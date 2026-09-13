@@ -570,3 +570,11 @@ Cada cambio relevante debe registrar qué se decidió, por qué, qué se verific
 - `favorite-collections.dat` persiste el estado con DPAPI `CurrentUser`, `schemaVersion = 1` y escritura atómica. La actualización de Favorites elimina claves exactas ausentes y desactiva el modo si la colección activa queda vacía.
 - La ejecución con colección lee Favorites antes del preflight de Pending, filtra por `System + Application + Account` y transporta esa selección en `PamExecutionPreparation`. La autorización de un solo uso vuelve a resolver las mismas claves dentro de la sesión de envío; una ausencia o diferencia bloquea antes de crear solicitudes.
 - Se añadieron pruebas de dominio, DPAPI, ViewModels, presentación WPF, confirmación del alcance y límite de envío. La compilación `Release | x64` y las 363 pruebas ordinarias pasaron. No se crearon solicitudes PAM ni se enviaron correos.
+
+## 13 de septiembre de 2026 — Fase 20.4: automatización exclusivamente por colecciones
+
+- Se retiraron `UseCollectionsForAutomation` y el toggle de la portada. Toda ejecución de la interfaz requiere una colección activa y usa únicamente sus claves exactas.
+- `All favorites` se crea y activa en la primera obtención del catálogo. Cada actualización reemplaza automáticamente sus solicitudes con todas las filas actuales; el usuario solo puede editar su razón.
+- Las colecciones dejaron de guardar fecha, hora y duración. `Editar solicitud` conserva exclusivamente esos tres valores y la razón efectiva se toma de la colección activa al validar, confirmar y ejecutar.
+- `favorite-collections.dat` avanzó a `schemaVersion = 2`; la carga admite el esquema 1 y migra nombre, razón, selección y colección activa sin exponer el documento protegido.
+- La compilación `Release | x64` y las 368 pruebas ordinarias pasaron. No se contactó PAM, no se crearon solicitudes y no se envió correo.

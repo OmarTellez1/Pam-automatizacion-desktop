@@ -250,7 +250,7 @@ Después de responder `Sí`, la preparación, las comprobaciones y el envío con
 
 La confirmación inicial presenta la hora configurada en el mismo formato de 12 horas que eligió el usuario, incluyendo `AM` o `PM`. Cuando la acción final es Outlook, identifica por separado los destinatarios `Para` y `CC`; si no se configuró copia, muestra `CC: Ninguno` para evitar ambigüedad.
 
-`Configurar solicitud` dejó de mostrar el apartado `Habilitar modo de prueba`. El valor interno se conserva al editar para mantener compatibilidad con configuraciones de desarrollo existentes, pero la pantalla queda enfocada exclusivamente en fecha, hora, duración y razón. La compilación `Release | x64` pasó y 6 pruebas específicas de presentación y formato cubrieron la ausencia del control, ambas variantes horarias y los destinatarios. **Fase completada.**
+`Configurar solicitud` dejó de mostrar el apartado `Habilitar modo de prueba`. El valor interno se conserva al editar para mantener compatibilidad con configuraciones de desarrollo existentes. La fase 20.4 retiró posteriormente la razón de esta pantalla, que ahora se edita en la colección activa. **Fase completada.**
 
 ## Fase 21.7 — Avisos urgentes en primer plano
 
@@ -286,15 +286,21 @@ La lectura continúa siendo no destructiva: no abre formularios, no consulta `Pe
 
 ## Fase 20.2 — Creación, edición y selección de colecciones
 
-La ventana `Colecciones` muestra varias definiciones guardadas y permite crear o editar cada una. El editor reúne nombre, selección múltiple de `Favorites` mediante `Application - IP Address`, fecha, hora `hh:mm AM/PM`, duración y razón propias. Un toggle por fila selecciona de manera exclusiva una colección para automatización; seleccionar otra sustituye la anterior y desactivar la activa limpia la selección.
+La ventana `Colecciones` muestra varias definiciones guardadas y permite crear o editar cada una. Tras el ajuste de fase 20.4, el editor reúne nombre, selección múltiple de `Favorites` mediante `Application - IP Address` y razón. Un toggle por fila selecciona de manera exclusiva una colección para automatización; seleccionar otra sustituye la anterior y desactivar la activa limpia la selección.
 
-Las definiciones se guardan en `favorite-collections.dat` bajo la configuración privada del usuario con DPAPI `CurrentUser`, `schemaVersion = 1` y escritura atómica. Al actualizar Favorites se retiran automáticamente las claves exactas ausentes; las nuevas no se agregan solas. Una colección vacía queda inactiva y deshabilita el modo de colecciones. **Fase completada.**
+Las definiciones se guardan en `favorite-collections.dat` bajo la configuración privada del usuario con DPAPI `CurrentUser` y escritura atómica. La fase 20.4 elevó el documento a `schemaVersion = 2`. Al actualizar Favorites se retiran automáticamente de las colecciones personalizadas las claves exactas ausentes; las nuevas no se agregan solas. **Fase completada.**
 
 ## Fase 20.3 — Ejecución restringida a la colección activa
 
-La portada incorpora `Modo de automatización`: apagado ejecuta todas las filas actuales de `Favorites` con la configuración general; encendido exige una colección activa y utiliza solamente sus identidades y su `RequestSettings`. La selección se valida contra una lectura viva antes de `Pending` y vuelve a comprobarse dentro de la sesión de envío mediante la autorización de un solo uso. Cualquier identidad retirada o cambio de total detiene el flujo antes de `Submit Request`; la reconciliación posterior continúa usando únicamente las cuentas enviadas.
+Esta fase introdujo la ejecución restringida a identidades de colección y originalmente añadió un toggle de modo. La fase 20.4 retiró ese toggle y convirtió la colección activa en el único alcance. La selección se valida contra una lectura viva antes de `Pending` y vuelve a comprobarse dentro de la sesión de envío mediante la autorización de un solo uso. Cualquier identidad retirada o cambio de total detiene el flujo antes de `Submit Request`; la reconciliación posterior continúa usando únicamente las cuentas enviadas.
 
 La compilación `Release | x64` y las 363 pruebas ordinarias pasaron. Las pruebas cubren persistencia DPAPI, exclusividad, reconciliación, cambio de modo, configuración efectiva, confirmación explícita del alcance y filtrado exacto en el límite de envío. No se crearon solicitudes ni se envió correo durante la validación. **Implementación completada; prueba real de creación de solicitudes con una colección pendiente de autorización futura.**
+
+## Fase 20.4 — Colecciones como único alcance de automatización
+
+Se eliminó el modo alternativo y el toggle global de la portada: toda automatización utiliza obligatoriamente la colección activa. Al obtener Favorites se crea y activa automáticamente la colección reservada `All favorites`; cada actualización la sincroniza con el snapshot completo. El usuario puede editar únicamente su razón, mientras nombre y solicitudes quedan administrados por la aplicación. Las colecciones personalizadas conservan nombre, razón y selección.
+
+`Editar solicitud` dejó de editar la razón y ahora solo configura fecha, hora y duración. En el límite de ejecución esos valores se combinan con el motivo de la colección activa; el envío continúa limitado por autorización de un uso a sus claves exactas. `favorite-collections.dat` usa `schemaVersion = 2` y migra el esquema anterior conservando nombres, motivos, selecciones y colección activa. La compilación `Release | x64` y las 368 pruebas ordinarias pasaron; no se contactó PAM, no se crearon solicitudes y no se envió correo. **Fase completada.**
 
 ## Fases pendientes
 
@@ -307,7 +313,7 @@ La clasificación siguiente se refiere únicamente a dependencias entre fases pe
 | Fase | Clasificación | Dependencias pendientes | Alcance y posibilidad de paralelismo |
 |---|---|---|---|
 | 19 — Pruebas finales administradas | **Independiente** | Ninguna fase pendiente. | Es la validación final del producto publicado en el entorno Windows objetivo. |
-| 20.4+ — Administración ampliada de colecciones | **Dependiente** | Fases 20.2 y 20.3 implementadas. | Podrá añadir eliminación recuperable, duplicación, sobrescrituras por fila u otras mejoras que el usuario confirme; no son necesarias para crear, editar, seleccionar y ejecutar una colección. |
+| 20.5+ — Administración ampliada de colecciones | **Dependiente** | Fases 20.2–20.4 implementadas. | Podrá añadir eliminación recuperable, duplicación u otras mejoras que el usuario confirme; no son necesarias para crear, editar, seleccionar y ejecutar una colección. |
 
 ## Mapa recomendado de trabajo paralelo
 
@@ -316,12 +322,12 @@ Fases 6 a 18 completadas ──► Fase 19
 
 Fases 21–21.10 completadas de forma independiente
 
-Fases 20.1 y 20.2 completadas ──► Fase 20.3 implementada ──► validación real futura
+Fases 20.1–20.4 completadas ──► validación real futura
 ```
 
 La fase 18 quedó completada tras validar el manifiesto GitHub real. El coordinador solo podrá paralelizar una parte futura si vuelve a demostrar independencia, contratos congelados y ausencia de archivos compartidos.
 
-La fase 20 registra la ampliación solicitada después de la migración. Las fases 20.1 y 20.2 implementan el catálogo protegido y las colecciones nombradas editables; la fase 20.3 implementa su ejecución restringida. Su diseño, navegación, reconciliación y seguridad se detallan en `PAM_NAVIGATION.md`; ninguna de estas fases hereda autorización para crear solicitudes reales.
+La fase 20 registra la ampliación solicitada después de la migración. Las fases 20.1–20.4 implementan el catálogo protegido, las colecciones nombradas, `All favorites` administrada y la colección activa como único alcance de ejecución. Su diseño, navegación, reconciliación y seguridad se detallan en `PAM_NAVIGATION.md`; ninguna de estas fases hereda autorización para crear solicitudes reales.
 
 Esta clasificación es una guía de planificación, no una autorización automática para crear subagentes. Antes de cada oleada, el coordinador debe inspeccionar el diff y la estructura real; si el trabajo resultó pequeño o apareció solapamiento, debe conservarlo en el agente principal o ejecutarlo secuencialmente.
 

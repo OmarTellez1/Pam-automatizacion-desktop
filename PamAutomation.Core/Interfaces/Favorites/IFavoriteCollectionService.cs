@@ -18,12 +18,7 @@ public interface IFavoriteCollectionService
         Guid? collectionId,
         CancellationToken cancellationToken = default);
 
-    /// <summary>Enables or disables collection-based automation.</summary>
-    Task<FavoriteCollectionsState> SetAutomationModeAsync(
-        bool useCollections,
-        CancellationToken cancellationToken = default);
-
-    /// <summary>Removes exact keys that no longer exist in the latest Favorites catalog.</summary>
+    /// <summary>Synchronizes All favorites and removes missing keys from custom collections.</summary>
     Task<FavoriteCollectionsState> ReconcileAsync(
         FavoriteCatalogSnapshot catalog,
         CancellationToken cancellationToken = default);

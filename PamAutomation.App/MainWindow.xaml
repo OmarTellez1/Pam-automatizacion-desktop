@@ -156,29 +156,11 @@
                         BorderBrush="{StaticResource BorderBrush}"
                         BorderThickness="1"
                         CornerRadius="12">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <StackPanel VerticalAlignment="Center">
-                            <TextBlock FontWeight="SemiBold" Text="Modo de automatización" />
-                            <TextBlock Margin="0,2,0,0"
-                                       Foreground="{StaticResource TextSecondaryBrush}"
-                                       FontSize="12"
-                                       Text="{Binding CollectionAutomationModeText}"
-                                       TextTrimming="CharacterEllipsis" />
-                        </StackPanel>
-                        <ToggleButton x:Name="UseCollectionsToggle"
-                                      Grid.Column="1"
-                                      Margin="14,0,0,0"
-                                      VerticalAlignment="Center"
-                                      AutomationProperties.Name="Usar colecciones para la automatización"
-                                      Command="{Binding ToggleCollectionsModeCommand}"
-                                      IsChecked="{Binding UseCollectionsForAutomation, Mode=OneWay}"
-                                      IsEnabled="{Binding AreControlsEnabled}"
-                                      Style="{StaticResource MailToggleStyle}" />
-                    </Grid>
+                    <TextBlock HorizontalAlignment="Center"
+                               FontWeight="SemiBold"
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               Text="{Binding ActiveCollectionText}"
+                               TextTrimming="CharacterEllipsis" />
                 </Border>
 
                 <Button Margin="0,14,0,0"

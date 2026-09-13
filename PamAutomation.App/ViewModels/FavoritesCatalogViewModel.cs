@@ -119,7 +119,7 @@ public sealed partial class FavoritesCatalogViewModel : ObservableObject
                 result.Snapshot,
                 cancellationToken);
             StatusMessage = wasEmpty
-                ? $"Se obtuvieron {Favorites.Count} solicitudes favoritas."
+                ? $"Se obtuvieron {Favorites.Count} solicitudes favoritas y se creó All favorites."
                 : $"Se actualizaron {Favorites.Count} solicitudes favoritas. Nuevas: {result.AddedCount}. Eliminadas: {result.RemovedCount}.";
             if (removedSelections > 0)
             {
@@ -208,7 +208,7 @@ public sealed partial class FavoritesCatalogViewModel : ObservableObject
             ReplaceCollections(state);
             HasError = false;
             StatusMessage = isActive
-                ? "Colección seleccionada para la automatización. Activa también el modo Colecciones en la pantalla principal."
+                ? "Colección seleccionada para la automatización."
                 : "Ya no hay una colección seleccionada para la automatización.";
         }
         catch (FavoriteCollectionException exception)

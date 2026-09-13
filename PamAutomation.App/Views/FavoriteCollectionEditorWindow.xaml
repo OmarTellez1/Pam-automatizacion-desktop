@@ -2,10 +2,10 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Configurar colección"
-        Width="900"
-        Height="700"
-        MinWidth="760"
-        MinHeight="600"
+        Width="820"
+        Height="610"
+        MinWidth="720"
+        MinHeight="520"
         WindowStartupLocation="CenterOwner"
         Background="{StaticResource AppBackgroundBrush}"
         FontFamily="Segoe UI">
@@ -20,7 +20,7 @@
             <TextBlock FontSize="22" FontWeight="Bold" Text="Configurar colección" />
             <TextBlock Margin="0,5,0,0"
                        Foreground="{StaticResource TextSecondaryBrush}"
-                       Text="Elige las solicitudes favoritas y define la configuración exclusiva de esta colección." />
+                       Text="Elige las solicitudes favoritas y define el motivo que utilizará esta colección." />
         </StackPanel>
 
         <Grid Grid.Row="1">
@@ -65,41 +65,17 @@
             <Border Grid.Column="2" Style="{StaticResource CardStyle}" Padding="18">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel>
-                        <TextBlock FontSize="16" FontWeight="Bold" Text="Fecha de inicio" />
-                        <DatePicker x:Name="StartDatePicker" Height="38" Margin="0,8,0,12"
-                                    AutomationProperties.Name="Fecha de inicio de la colección" />
-
-                        <TextBlock FontSize="16" FontWeight="Bold" Text="Hora de inicio" />
-                        <Grid Margin="0,8,0,12">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="82" />
-                                <ColumnDefinition Width="22" />
-                                <ColumnDefinition Width="82" />
-                                <ColumnDefinition Width="10" />
-                                <ColumnDefinition Width="82" />
-                            </Grid.ColumnDefinitions>
-                            <ComboBox x:Name="HourBox" Height="38" AutomationProperties.Name="Hora de inicio" />
-                            <TextBlock Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center"
-                                       FontSize="18" FontWeight="Bold" Text=":" />
-                            <TextBox x:Name="MinuteBox" Grid.Column="2" Height="38" MaxLength="2"
-                                     PreviewTextInput="MinuteBox_PreviewTextInput"
-                                     AutomationProperties.Name="Minutos de inicio" />
-                            <ComboBox x:Name="MeridiemBox" Grid.Column="4" Height="38"
-                                      AutomationProperties.Name="AM o PM">
-                                <ComboBoxItem Content="AM" />
-                                <ComboBoxItem Content="PM" />
-                            </ComboBox>
-                        </Grid>
-
-                        <TextBlock FontSize="16" FontWeight="Bold" Text="Duración en horas" />
-                        <TextBox x:Name="DurationBox" Height="38" Margin="0,8,0,12"
-                                 AutomationProperties.Name="Duración de la colección" />
-
                         <TextBlock FontSize="16" FontWeight="Bold" Text="Razón de la petición" />
-                        <TextBox x:Name="ReasonBox" Height="112" Margin="0,8,0,0"
+                        <TextBox x:Name="ReasonBox" Height="180" Margin="0,8,0,0"
                                  AcceptsReturn="True" TextWrapping="Wrap"
                                  VerticalScrollBarVisibility="Auto"
                                  AutomationProperties.Name="Razón de la colección" />
+                        <Border x:Name="AllFavoritesNotice" Margin="0,16,0,0" Padding="12"
+                                Background="#FFE8F1FF" BorderBrush="#FF9BBCEF"
+                                BorderThickness="1" CornerRadius="8" Visibility="Collapsed">
+                            <TextBlock TextWrapping="Wrap"
+                                       Text="All favorites se sincroniza automáticamente con Favorites. Solo puedes editar su motivo." />
+                        </Border>
                     </StackPanel>
                 </ScrollViewer>
             </Border>

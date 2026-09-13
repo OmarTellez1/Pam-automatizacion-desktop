@@ -60,7 +60,8 @@ public sealed class MainWindowViewModelTests
             new FakeCredentialStore(),
             new FakeDialogs(confirm: true),
             new AppSettingsValidator(new RequestSettingsValidator()),
-            new FixedTimeProvider(now.ToUniversalTime()));
+            new FixedTimeProvider(now.ToUniversalTime()),
+            favoriteCollectionService: CreateActiveCollectionService(settings));
 
         await viewModel.InitializeAsync();
 
@@ -68,7 +69,7 @@ public sealed class MainWindowViewModelTests
         Assert.IsFalse(viewModel.CanAccessPam);
         Assert.IsTrue(viewModel.IsStartAutomationWarningVisible);
         Assert.Contains("hora de inicio configurada ya pasó", viewModel.StartAutomationWarningMessage);
-        Assert.Contains("Configurar solicitud", viewModel.StartAutomationWarningMessage);
+        Assert.Contains("Editar solicitud", viewModel.StartAutomationWarningMessage);
     }
 
     [TestMethod]
@@ -321,9 +322,11 @@ public sealed class MainWindowViewModelTests
     }
 
     [TestMethod]
-    public void TestAction_RequiresTestModeAndCompleteConfiguration()
+    public async Task TestAction_RequiresTestModeAndCompleteConfiguration()
     {
-        var viewModel = CreateConfiguredViewModel();
+        TestContext context = CreateIntegratedViewModel(confirm: true);
+        MainWindowViewModel viewModel = context.ViewModel;
+        await viewModel.InitializeAsync();
 
         Assert.IsFalse(viewModel.IsTestActionVisible);
 
@@ -498,40 +501,41 @@ public sealed class MainWindowViewModelTests
     }
 
     [TestMethod]
-    public async Task ToggleCollectionsMode_ActiveCollection_UsesItsOwnRequestAndSelection()
+    public async Task Automation_ActiveCollection_UsesGlobalScheduleAndCollectionReasonAndSelection()
     {
         var now = new DateTimeOffset(2026, 9, 10, 16, 0, 0, TimeSpan.FromHours(-5));
         AppSettings globalSettings = CreateSettingsForCollectionTest("Configuración global", new TimeOnly(17, 0));
         var collection = new FavoriteCollection(
             Guid.NewGuid(),
             "Accesos Peter",
-            globalSettings.Request with { StartTime = new TimeOnly(18, 0), RequestReason = "Configuración de colección" },
+            "Configuración de colección",
             [new FavoriteAccountKey("system", "application", "account")]);
         var collectionService = new FakeFavoriteCollectionService(
-            new FavoriteCollectionsState([collection], collection.Id, false));
+            new FavoriteCollectionsState([collection], collection.Id));
         var execution = new FakeExecutionService(now);
+        var dialogs = new FakeDialogs(confirm: true);
         var viewModel = new MainWindowViewModel(
             execution,
             new FakeSettingsStore(globalSettings),
             new FakeCredentialStore(),
-            new FakeDialogs(confirm: true),
+            dialogs,
             new AppSettingsValidator(new RequestSettingsValidator()),
             new FixedTimeProvider(now.ToUniversalTime()),
             favoriteCollectionService: collectionService);
         await viewModel.InitializeAsync();
 
-        await viewModel.ToggleCollectionsModeCommand.ExecuteAsync(null);
         await viewModel.StartAutomationCommand.ExecuteAsync(null);
 
-        Assert.IsTrue(viewModel.UseCollectionsForAutomation);
-        Assert.Contains("Accesos Peter", viewModel.CollectionAutomationModeText);
+        Assert.Contains("Accesos Peter", viewModel.ActiveCollectionText);
+        Assert.AreEqual("Accesos Peter", dialogs.LastAutomationCollectionName);
         Assert.AreEqual(1, execution.CollectionPreparationCount);
+        Assert.AreEqual(new TimeOnly(17, 0), execution.LastPreparedSettings?.Request.StartTime);
         Assert.AreEqual("Configuración de colección", execution.LastPreparedSettings?.Request.RequestReason);
         Assert.HasCount(1, execution.LastSelectedAccounts);
     }
 
     [TestMethod]
-    public async Task ToggleCollectionsMode_NoActiveCollection_RemainsDisabled()
+    public async Task Initialize_NoActiveCollection_DisablesAutomation()
     {
         var now = new DateTimeOffset(2026, 9, 10, 16, 0, 0, TimeSpan.FromHours(-5));
         var dialogs = new FakeDialogs(confirm: true);
@@ -545,11 +549,8 @@ public sealed class MainWindowViewModelTests
             favoriteCollectionService: new FakeFavoriteCollectionService(new FavoriteCollectionsState()));
         await viewModel.InitializeAsync();
 
-        await viewModel.ToggleCollectionsModeCommand.ExecuteAsync(null);
-
-        Assert.IsFalse(viewModel.UseCollectionsForAutomation);
-        Assert.Contains("Selecciona primero", viewModel.StatusMessage);
-        Assert.AreEqual(viewModel.StatusMessage, dialogs.LastError);
+        Assert.IsFalse(viewModel.CanStartAutomation);
+        Assert.Contains("no hay una colección activa", viewModel.StartAutomationWarningMessage);
     }
 
     [TestMethod]
@@ -617,6 +618,16 @@ public sealed class MainWindowViewModelTests
         }
     };
 
+    private static FakeFavoriteCollectionService CreateActiveCollectionService(AppSettings settings)
+    {
+        var collection = new FavoriteCollection(
+            Guid.NewGuid(),
+            "Colección de prueba",
+            settings.Request.RequestReason,
+            [new FavoriteAccountKey("system", "application", "account")]);
+        return new FakeFavoriteCollectionService(new FavoriteCollectionsState([collection], collection.Id));
+    }
+
     private static TestContext CreateIntegratedViewModel(
         bool confirm,
         bool configureTestEmail = false,
@@ -646,14 +657,16 @@ public sealed class MainWindowViewModelTests
             dialogs,
             new AppSettingsValidator(new RequestSettingsValidator()),
             new FixedTimeProvider(now.ToUniversalTime()),
-            diagnosticExportService: configureDiagnostics ? diagnostics : null);
+            diagnosticExportService: configureDiagnostics ? diagnostics : null,
+            favoriteCollectionService: CreateActiveCollectionService(settings));
         if (configureTestEmail)
         {
             viewModel = new MainWindowViewModel(
                 execution, settingsStore, new FakeCredentialStore(), dialogs,
                 new AppSettingsValidator(new RequestSettingsValidator()), new FixedTimeProvider(now.ToUniversalTime()),
                 mailSettingsStore: new FakeMailSettingsStore(),
-                diagnosticExportService: configureDiagnostics ? diagnostics : null);
+                diagnosticExportService: configureDiagnostics ? diagnostics : null,
+                favoriteCollectionService: CreateActiveCollectionService(settings));
         }
         return new TestContext(viewModel, execution, settingsStore, dialogs, diagnostics);
     }
@@ -684,7 +697,8 @@ public sealed class MainWindowViewModelTests
             new FakeCredentialStore(),
             dialogs,
             new AppSettingsValidator(new RequestSettingsValidator()),
-            timeProvider);
+            timeProvider,
+            favoriteCollectionService: CreateActiveCollectionService(settings));
         return new TestContext(viewModel, execution, settingsStore, dialogs, diagnostics);
     }
 
@@ -777,6 +791,7 @@ public sealed class MainWindowViewModelTests
         public bool ConfirmRepeatedRequests { get; set; }
         public Action? AutomationStartConfirmationAction { get; set; }
         public int AutomationStartConfirmationCount { get; private set; }
+        public string? LastAutomationCollectionName { get; private set; }
         public int RepeatedPendingConfirmationCount { get; private set; }
         public bool ConfirmRepeatedPendingRequests(PamExecutionPreparation preparation)
         {
@@ -789,6 +804,7 @@ public sealed class MainWindowViewModelTests
             string? collectionName = null)
         {
             AutomationStartConfirmationCount++;
+            LastAutomationCollectionName = collectionName;
             AutomationStartConfirmationAction?.Invoke();
             return confirm;
         }
@@ -867,20 +883,6 @@ public sealed class MainWindowViewModelTests
         public Task<FavoriteCollectionsState> SetActiveCollectionAsync(
             Guid? collectionId,
             CancellationToken cancellationToken = default) => throw new NotSupportedException();
-
-        public Task<FavoriteCollectionsState> SetAutomationModeAsync(
-            bool useCollections,
-            CancellationToken cancellationToken = default)
-        {
-            if (useCollections && state.ActiveCollection is null)
-            {
-                return Task.FromException<FavoriteCollectionsState>(new FavoriteCollectionException(
-                    "Selecciona primero una colección dentro de Colecciones para usarla en la automatización."));
-            }
-
-            state = new FavoriteCollectionsState(state.Collections, state.ActiveCollectionId, useCollections);
-            return Task.FromResult(state);
-        }
 
         public Task<FavoriteCollectionsState> ReconcileAsync(
             FavoriteCatalogSnapshot catalog,

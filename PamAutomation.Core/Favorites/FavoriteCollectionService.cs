@@ -5,6 +5,7 @@ namespace PamAutomation.Core.Favorites;
 /// <summary>Applies collection invariants around an atomic protected store.</summary>
 public sealed class FavoriteCollectionService : IFavoriteCollectionService
 {
+    private const string DefaultAllFavoritesReason = "Solicitud de acceso PAM";
     private readonly IFavoriteCollectionStore store;
     private readonly SemaphoreSlim gate = new(1, 1);
 
@@ -29,6 +30,19 @@ public sealed class FavoriteCollectionService : IFavoriteCollectionService
 
         return UpdateAsync(state =>
         {
+            FavoriteCollection? current = state.Collections.FirstOrDefault(existing => existing.Id == collection.Id);
+            if (current?.IsAllFavorites == true &&
+                (!collection.IsAllFavorites || !current.Accounts.SequenceEqual(collection.Accounts)))
+            {
+                throw new FavoriteCollectionException(
+                    "All favorites solo permite editar el motivo; sus solicitudes se actualizan desde PAM.");
+            }
+
+            if (collection.IsAllFavorites && current is null)
+            {
+                throw new FavoriteCollectionException("All favorites solo puede crearse al obtener Favorites desde PAM.");
+            }
+
             if (state.Collections.Any(existing =>
                     existing.Id != collection.Id &&
                     string.Equals(existing.Name, collection.Name, StringComparison.OrdinalIgnoreCase)))
@@ -39,9 +53,10 @@ public sealed class FavoriteCollectionService : IFavoriteCollectionService
             FavoriteCollection[] updated = state.Collections
                 .Where(existing => existing.Id != collection.Id)
                 .Append(collection)
-                .OrderBy(static item => item.Name, StringComparer.CurrentCultureIgnoreCase)
+                .OrderByDescending(static item => item.IsAllFavorites)
+                .ThenBy(static item => item.Name, StringComparer.CurrentCultureIgnoreCase)
                 .ToArray();
-            return new FavoriteCollectionsState(updated, state.ActiveCollectionId, state.UseCollectionsForAutomation);
+            return new FavoriteCollectionsState(updated, state.ActiveCollectionId);
         }, cancellationToken);
     }
 
@@ -61,23 +76,7 @@ public sealed class FavoriteCollectionService : IFavoriteCollectionService
                 }
             }
 
-            bool useCollections = collectionId is null ? false : state.UseCollectionsForAutomation;
-            return new FavoriteCollectionsState(state.Collections, collectionId, useCollections);
-        }, cancellationToken);
-
-    /// <inheritdoc />
-    public Task<FavoriteCollectionsState> SetAutomationModeAsync(
-        bool useCollections,
-        CancellationToken cancellationToken = default) =>
-        UpdateAsync(state =>
-        {
-            if (useCollections && state.ActiveCollection is null)
-            {
-                throw new FavoriteCollectionException(
-                    "Selecciona primero una colección dentro de Colecciones para usarla en la automatización.");
-            }
-
-            return new FavoriteCollectionsState(state.Collections, state.ActiveCollectionId, useCollections);
+            return new FavoriteCollectionsState(state.Collections, collectionId);
         }, cancellationToken);
 
     /// <inheritdoc />
@@ -86,22 +85,38 @@ public sealed class FavoriteCollectionService : IFavoriteCollectionService
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(catalog);
-        HashSet<FavoriteAccountKey> available = catalog.Entries
-            .Select(FavoriteAccountKey.From)
-            .ToHashSet();
+        FavoriteAccountKey[] allFavoriteKeys = catalog.Entries.Select(FavoriteAccountKey.From).ToArray();
+        HashSet<FavoriteAccountKey> available = allFavoriteKeys.ToHashSet();
         return UpdateAsync(state =>
         {
-            FavoriteCollection[] reconciled = state.Collections.Select(collection => new FavoriteCollection(
-                collection.Id,
-                collection.Name,
-                collection.Request,
-                collection.Accounts.Where(available.Contains).ToArray())).ToArray();
-            FavoriteCollection? active = state.ActiveCollectionId is Guid activeId
-                ? reconciled.First(collection => collection.Id == activeId)
+            FavoriteCollection? allFavorites = state.Collections.FirstOrDefault(static collection => collection.IsAllFavorites);
+            FavoriteCollection synchronizedAll = new(
+                allFavorites?.Id ?? Guid.NewGuid(),
+                FavoriteCollection.AllFavoritesName,
+                allFavorites?.RequestReason ?? DefaultAllFavoritesReason,
+                allFavoriteKeys,
+                isAllFavorites: true);
+
+            FavoriteCollection[] custom = state.Collections
+                .Where(static collection => !collection.IsAllFavorites)
+                .Select(collection => new FavoriteCollection(
+                    collection.Id,
+                    collection.Name,
+                    collection.RequestReason,
+                    collection.Accounts.Where(available.Contains).ToArray()))
+                .ToArray();
+            FavoriteCollection[] reconciled = [synchronizedAll, .. custom];
+
+            Guid? retainedActiveId = state.ActiveCollectionId;
+            FavoriteCollection? active = retainedActiveId is Guid activeId
+                ? reconciled.FirstOrDefault(collection => collection.Id == activeId)
                 : null;
-            Guid? retainedActiveId = active is { Accounts.Count: > 0 } ? active.Id : null;
-            bool useCollections = state.UseCollectionsForAutomation && retainedActiveId is not null;
-            return new FavoriteCollectionsState(reconciled, retainedActiveId, useCollections);
+            if (active is null || active.Accounts.Count == 0)
+            {
+                retainedActiveId = synchronizedAll.Id;
+            }
+
+            return new FavoriteCollectionsState(reconciled, retainedActiveId);
         }, cancellationToken);
     }
 

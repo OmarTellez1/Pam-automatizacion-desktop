@@ -11,12 +11,14 @@ public partial class RequestSettingsWindow : Window
 {
     private readonly DateOnly ecuadorToday;
     private readonly bool testModeEnabled;
+    private readonly string preservedRequestReason;
 
     public RequestSettingsWindow(RequestSettings current, bool testModeEnabled, DateOnly ecuadorToday)
     {
         InitializeComponent();
         this.ecuadorToday = ecuadorToday;
         this.testModeEnabled = testModeEnabled;
+        preservedRequestReason = current.RequestReason;
         DateOnly date = current.StartDate == default ? ecuadorToday : current.StartDate;
         TimeOnly time = current.StartTime == default ? new TimeOnly(9, 0) : current.StartTime;
         StartDatePicker.DisplayDateStart = ecuadorToday.ToDateTime(TimeOnly.MinValue);
@@ -29,7 +31,6 @@ public partial class RequestSettingsWindow : Window
         MinuteBox.Text = time.Minute.ToString("00", CultureInfo.InvariantCulture);
         MeridiemBox.SelectedIndex = time.Hour < 12 ? 0 : 1;
         DurationBox.Text = current.SessionHours.ToString(CultureInfo.InvariantCulture);
-        ReasonBox.Text = current.RequestReason;
         UpdateDateDescription();
     }
 
@@ -76,19 +77,13 @@ public partial class RequestSettingsWindow : Window
             return;
         }
 
-        if (string.IsNullOrWhiteSpace(ReasonBox.Text))
-        {
-            ShowValidation("Ingresa la razón de la petición.");
-            return;
-        }
-
         Edit = new RequestConfigurationEdit(
             new RequestSettings
             {
                 StartDate = DateOnly.FromDateTime(date),
                 StartTime = startTime,
                 SessionHours = duration,
-                RequestReason = ReasonBox.Text.Trim()
+                RequestReason = preservedRequestReason
             },
             testModeEnabled);
         DialogResult = true;

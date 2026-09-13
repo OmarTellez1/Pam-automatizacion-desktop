@@ -125,25 +125,22 @@ La fase 20.1 crea una ventana propia `Colecciones`. Su primer estado está vací
 
 El encabezado visible `IP Address` utiliza en el DOM real `data-column-id="SystemIP"`. La primera validación de fase 20.1 demostró que suponer literalmente `IPAddress` impide completar las filas aunque `Favorites` haya cargado. Debe mantenerse la separación entre el nombre visible documentado en inglés y el identificador técnico confirmado del grid.
 
-La pantalla de edición deberá:
+La pantalla de colecciones:
 
 - Mostrar el snapshot completo y actualizado de Favorites con selección individual.
 - Conservar en el selector los encabezados del portal `Directory`, `Account`, `Description`, `System`, `Account Status`, `IP Address`, `Platform` y `Application`; una traducción de interfaz podrá acompañarlos, pero no reemplazar los nombres técnicos en documentación o diagnóstico.
 - Permitir seleccionar únicamente filas cuyo `Account Status` sea `Available`; los demás estados deberán mostrarse sin reinterpretarlos.
-- Permitir crear, renombrar, duplicar, modificar y eliminar colecciones.
-- Mostrar cuántas `Favorites` rows tienen `Account Status = Available` y cuántas están seleccionadas para la colección.
-- Permitir buscar o filtrar sin perder la selección de otras páginas.
-- Guardar valores predeterminados de fecha, hora, duración y razón para la colección.
-- Presentar la fecha mediante día y mes y una descripción completa, como en la referencia visual aportada.
-- Presentar la hora en formato de 12 horas con selector `AM/PM`; el dominio continuará usando una representación temporal inequívoca y la conversión al formato del portal se verificará antes del envío.
-- Presentar duración operativa en horas, aunque las integraciones técnicas autorizadas puedan utilizar minutos mínimos.
-- Permitir opcionalmente sobrescribir fecha, hora, duración o razón para solicitudes individuales asociadas a una `Favorites` row. Esta capacidad se considera planificada y deberá confirmarse al diseñar la fase.
+- Permite crear y modificar colecciones personalizadas con nombre, razón y selección de `Favorites` rows.
+- Muestra cuántas solicitudes contiene cada colección y cuál está activa mediante un toggle exclusivo.
+- Reserva `All favorites` para la aplicación: su nombre y solicitudes no son editables; el usuario solo modifica la razón.
+- Sincroniza `All favorites` con todas las filas tras cada `Obtener/Actualizar solicitudes favoritas`.
+- Mantiene fecha, hora y duración fuera de las colecciones. Esos valores se editan en `Editar solicitud` para la colección activa.
 
 Entrar al selector de `Favorites` rows requerirá actualizar `Favorites` mediante una sesión autenticada. Si PAM no está disponible, la aplicación podrá mostrar los datos locales protegidos, pero deberá distinguir claramente que `Account Status` no fue comprobado y bloquear tanto la ejecución como los cambios de selección que dependan del snapshot vivo.
 
-## Modelo y reconciliación previstos
+## Modelo y reconciliación
 
-Cada colección deberá tener un identificador local estable independiente de su nombre, un nombre editable, una lista ordenada de claves de `Favorites` rows y una configuración predeterminada de solicitud. Los posibles valores específicos de una fila se modelarán como sobrescrituras, no como copias completas de la configuración general.
+Cada colección tiene un identificador local estable independiente de su nombre, una lista ordenada de claves de `Favorites` rows y una razón. Las colecciones personalizadas permiten editar nombre, selección y razón. `All favorites` conserva un indicador administrado que impide modificar su nombre o selección fuera de la reconciliación.
 
 La combinación `System + Application + Account` es la mejor clave confirmada hasta la fase 11, pero no debe asumirse inmutable para siempre. Si las fases 12 o 13 descubren un identificador estable del portal o demuestran que otra columna —por ejemplo `Platform`— forma parte de la identidad, la fase 20 deberá ampliar la clave mediante una migración de esquema explícita, nunca reinterpretar silenciosamente datos guardados.
 
@@ -152,11 +149,11 @@ La combinación `System + Application + Account` es la mejor clave confirmada ha
 - **`Available`:** existe exactamente una coincidencia y su `Account Status` es `Available`; puede mantenerse seleccionada.
 - **`Missing`:** la clave guardada ya no aparece en `Favorites`; durante una actualización se retirará automáticamente de las colecciones que la contengan y se notificará cuántas selecciones fueron eliminadas.
 - **`Ambiguous`:** aparece más de una coincidencia exacta; toda la colección debe bloquearse hasta resolver la inconsistencia.
-- **`New in Favorites`:** la fila aparece en el snapshot vivo pero no en la colección; se ofrece para añadir, pero nunca se incorpora automáticamente.
+- **`New in Favorites`:** la fila aparece en el snapshot vivo pero no en una colección personalizada; se ofrece para añadir, pero nunca se incorpora automáticamente. En `All favorites` sí se incorpora automáticamente.
 
-No se sustituirá una `Favorites` row eliminada por otra con `Account`, `System` o `Application` parecido ni se actualizará una identidad silenciosamente. Las eliminaciones automáticas se limitarán a claves exactas ausentes del snapshot vivo y se comunicarán al usuario; agregar filas nuevas y los demás cambios de selección o configuración requerirán una acción explícita.
+No se sustituirá una `Favorites` row eliminada por otra con `Account`, `System` o `Application` parecido. En colecciones personalizadas, las eliminaciones automáticas se limitan a claves exactas ausentes y las filas nuevas requieren acción explícita. En `All favorites`, tanto altas como bajas exactas se sincronizan automáticamente porque esa colección representa siempre el catálogo completo.
 
-## Persistencia y seguridad previstas
+## Persistencia y seguridad
 
 Las colecciones contendrán identidades de `Favorites` rows y razones de negocio, por lo que se tratarán como configuración privada. Se guardarán bajo `%LOCALAPPDATA%\PamAutomation\config`, con `schemaVersion`, escritura atómica y protección DPAPI `CurrentUser`. No se almacenarán credenciales, TOTP, cookies, estados de sesión ni resultados de ejecución dentro de una colección.
 
@@ -166,16 +163,16 @@ El catálogo previo de fase 20.1 se guarda aparte como `favorite-catalog.dat`, t
 
 La eliminación deberá ser explícita y recuperable durante la sesión de edición cuando resulte práctico. Los resultados y Request ID producidos al ejecutar una colección seguirán únicamente en memoria conforme a las reglas generales del proyecto.
 
-La fase 20.2 materializa el editor con nombre, checklist `Application - IP Address`, fecha, hora `hh:mm AM/PM`, duración en horas y razón. La ventana principal de Colecciones muestra cada definición y un toggle exclusivo para escoger una sola colección candidata. El toggle separado de la portada activa o desactiva el uso de esa candidata; al estar desactivado, el flujo continúa usando todas las filas actuales de `Favorites`.
+Las fases 20.2–20.4 materializan el editor con nombre, checklist `Application - IP Address` y razón. La ventana de Colecciones muestra cada definición y un toggle exclusivo para escoger la colección activa. No existe un toggle de modo en la portada: toda automatización usa esa colección. `Editar solicitud` configura únicamente fecha, hora `hh:mm AM/PM` y duración.
 
 La ejecución nunca utiliza los índices ni una copia ciega del catálogo. Resuelve `System + Application + Account` contra una lectura viva antes del preflight de `Pending` y nuevamente en el límite irreversible de envío. Una ausencia o diferencia cancela antes de crear solicitudes y pide actualizar `Favorites`.
 
-## Validación futura mínima
+## Validación mínima
 
 - Reconciliación determinista de `Favorites` rows con estados `Available`, `Missing`, `New in Favorites` y `Ambiguous`.
 - Selección conservada al filtrar y paginar.
 - Conversión correcta entre entrada `AM/PM`, modelo temporal y valor normalizado por PAM.
-- Configuración general y sobrescrituras individuales sin mutaciones cruzadas.
+- Separación entre razón de la colección y configuración temporal común sin mutaciones cruzadas.
 - Persistencia versionada, protegida y atómica sin secretos.
 - Confirmación que muestre nombre de colección y cantidad exacta de solicitudes antes de una ejecución real.
 - Pruebas de modo seguro que recorran únicamente las `Favorites` rows seleccionadas y mantengan `submitted = 0`.

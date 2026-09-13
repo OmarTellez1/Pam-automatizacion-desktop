@@ -54,6 +54,24 @@ public sealed class FavoritesCatalogViewModelTests
     }
 
     [TestMethod]
+    public async Task RefreshCommand_FirstSuccessfulRead_CreatesAndActivatesAllFavorites()
+    {
+        var catalogService = new StubCatalogService(
+            null,
+            new FavoriteCatalogRefreshResult(Snapshot, 1, 0));
+        var collectionService = new FavoriteCollectionService(new MemoryCollectionStore());
+        var viewModel = new FavoritesCatalogViewModel(catalogService, collectionService);
+        await viewModel.InitializeAsync();
+
+        await viewModel.RefreshCommand.ExecuteAsync(null);
+
+        Assert.HasCount(1, viewModel.Collections);
+        Assert.AreEqual(FavoriteCollection.AllFavoritesName, viewModel.Collections[0].Name);
+        Assert.IsTrue(viewModel.Collections[0].IsActive);
+        Assert.HasCount(1, viewModel.Collections[0].Collection.Accounts);
+    }
+
+    [TestMethod]
     public async Task RefreshCommand_SafeFailure_PreservesExistingSnapshotAndShowsReason()
     {
         var service = new StubCatalogService(
@@ -81,5 +99,19 @@ public sealed class FavoritesCatalogViewModelTests
             exception is not null
                 ? Task.FromException<FavoriteCatalogRefreshResult>(exception)
                 : Task.FromResult(refreshed ?? throw new InvalidOperationException("No refresh result configured."));
+    }
+
+    private sealed class MemoryCollectionStore : IFavoriteCollectionStore
+    {
+        private FavoriteCollectionsState state = new();
+
+        public Task<FavoriteCollectionsState> LoadAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(state);
+
+        public Task SaveAsync(FavoriteCollectionsState state, CancellationToken cancellationToken = default)
+        {
+            this.state = state;
+            return Task.CompletedTask;
+        }
     }
 }

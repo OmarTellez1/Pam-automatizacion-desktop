@@ -22,20 +22,8 @@ public sealed partial class FavoriteCollectionItemViewModel : ObservableObject
     /// <summary>Gets the collection name.</summary>
     public string Name => Collection.Name;
 
-    /// <summary>Gets a concise request and selection summary.</summary>
-    public string Summary
-    {
-        get
-        {
-            TimeOnly startTime = Collection.Request.StartTime;
-            int displayHour = startTime.Hour % 12;
-            displayHour = displayHour == 0 ? 12 : displayHour;
-            string meridiem = startTime.Hour < 12 ? "AM" : "PM";
-            return $"{Collection.Accounts.Count} solicitudes · {Collection.Request.StartDate:dd/MM/yyyy} " +
-                   $"{displayHour:00}:{startTime.Minute:00} {meridiem} · " +
-                   $"{Collection.Request.SessionHours} hora(s)";
-        }
-    }
+    /// <summary>Gets a concise selection and reason summary.</summary>
+    public string Summary => $"{Collection.Accounts.Count} solicitudes · Motivo: {Collection.RequestReason}";
 
     /// <summary>Gets whether this collection can be selected for automation.</summary>
     public bool CanActivate => Collection.Accounts.Count > 0;

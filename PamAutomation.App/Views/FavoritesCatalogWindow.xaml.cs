@@ -31,8 +31,7 @@ public partial class FavoritesCatalogWindow : Window
         var viewModel = (FavoritesCatalogViewModel)DataContext;
         var editor = new FavoriteCollectionEditorWindow(
             viewModel.Favorites,
-            null,
-            DateTimeOffset.UtcNow.ToOffset(TimeSpan.FromHours(-5)))
+            null)
         {
             Owner = this
         };
@@ -48,8 +47,7 @@ public partial class FavoritesCatalogWindow : Window
         var viewModel = (FavoritesCatalogViewModel)DataContext;
         var editor = new FavoriteCollectionEditorWindow(
             viewModel.Favorites,
-            item.Collection,
-            DateTimeOffset.UtcNow.ToOffset(TimeSpan.FromHours(-5)))
+            item.Collection)
         {
             Owner = this
         };

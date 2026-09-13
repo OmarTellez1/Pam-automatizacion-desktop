@@ -11,7 +11,7 @@
         <StackPanel Margin="0,0,0,14">
             <TextBlock Style="{StaticResource PageTitleTextStyle}" Text="Colecciones"/>
             <TextBlock Margin="0,6,0,0" Style="{StaticResource BodyTextStyle}"
-                       Text="Crea grupos de solicitudes favoritas con su propia fecha, hora, duración y razón."/>
+                       Text="Crea grupos de Favorites con su propio motivo y selecciona cuál usar en la automatización."/>
         </StackPanel>
 
         <Grid Grid.Row="1">
@@ -44,7 +44,7 @@
                             </Border.Style>
                             <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center"
                                        Foreground="{StaticResource TextSecondaryBrush}"
-                                       Text="Todavía no has creado colecciones. Obtén Favorites y pulsa Crear colección."
+                                       Text="Obtén Favorites para crear y activar All favorites automáticamente."
                                        TextAlignment="Center" TextWrapping="Wrap"/>
                         </Border>
                         <ListBox x:Name="CollectionsList" ItemsSource="{Binding Collections}" BorderThickness="0"
@@ -79,7 +79,7 @@
                     </Grid>
                     <TextBlock Grid.Row="2" Margin="0,10,0,0" FontSize="12"
                                Foreground="{StaticResource TextSecondaryBrush}"
-                               Text="Solo una colección puede quedar seleccionada. El toggle principal decide si se utiliza."
+                               Text="Solo una colección puede quedar seleccionada y toda automatización utilizará esa colección."
                                TextWrapping="Wrap"/>
                 </Grid>
             </Border>

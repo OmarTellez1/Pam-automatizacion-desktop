@@ -1,7 +1,6 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PamAutomation.Core.Favorites;
 using PamAutomation.Core.Interfaces.Favorites;
-using PamAutomation.Core.Models.Configuration;
 
 namespace PamAutomation.Tests.Core.Favorites;
 
@@ -26,34 +25,73 @@ public sealed class FavoriteCollectionServiceTests
     }
 
     [TestMethod]
-    public async Task SetAutomationModeAsync_NoActiveCollection_RejectsEnable()
+    public async Task ReconcileAsync_FirstFavoritesRead_CreatesAndActivatesAllFavorites()
     {
         var service = new FavoriteCollectionService(new MemoryStore());
 
-        FavoriteCollectionException exception = await Assert.ThrowsExactlyAsync<FavoriteCollectionException>(
-            () => service.SetAutomationModeAsync(true));
+        FavoriteCollectionsState state = await service.ReconcileAsync(CreateCatalog("system-1", "system-2"));
 
-        Assert.Contains("Selecciona primero", exception.Message);
+        Assert.IsNotNull(state.ActiveCollection);
+        FavoriteCollection all = state.ActiveCollection;
+        Assert.IsTrue(all.IsAllFavorites);
+        Assert.AreEqual(FavoriteCollection.AllFavoritesName, all.Name);
+        Assert.HasCount(2, all.Accounts);
     }
 
     [TestMethod]
-    public async Task ReconcileAsync_RemovedFavorite_RemovesSelectionAndDisablesEmptyActiveCollection()
+    public async Task ReconcileAsync_ChangedCatalog_SynchronizesAllFavoritesAndPrunesCustomCollection()
     {
-        var store = new MemoryStore();
-        var service = new FavoriteCollectionService(store);
-        FavoriteCollection collection = CreateCollection("Accesos", "removed-system");
-        await service.SaveCollectionAsync(collection);
-        await service.SetActiveCollectionAsync(collection.Id);
-        await service.SetAutomationModeAsync(true);
-        var catalog = new FavoriteCatalogSnapshot(
-            DateTimeOffset.UtcNow,
-            [new FavoriteCatalogEntry("other-system", "app", "account", "10.0.0.2")]);
+        var service = new FavoriteCollectionService(new MemoryStore());
+        await service.ReconcileAsync(CreateCatalog("system-1", "system-2"));
+        FavoriteCollection custom = CreateCollection("Accesos", "system-2");
+        await service.SaveCollectionAsync(custom);
+        await service.SetActiveCollectionAsync(custom.Id);
 
-        FavoriteCollectionsState state = await service.ReconcileAsync(catalog);
+        FavoriteCollectionsState state = await service.ReconcileAsync(CreateCatalog("system-1", "system-3"));
 
-        Assert.IsNull(state.ActiveCollectionId);
-        Assert.IsFalse(state.UseCollectionsForAutomation);
-        Assert.IsEmpty(state.Collections.Single().Accounts);
+        FavoriteCollection all = state.Collections.Single(static collection => collection.IsAllFavorites);
+        Assert.HasCount(2, all.Accounts);
+        Assert.IsTrue(all.Accounts.Any(key => key.SystemName == "system-3"));
+        Assert.IsEmpty(state.Collections.Single(collection => collection.Id == custom.Id).Accounts);
+        Assert.AreEqual(all.Id, state.ActiveCollectionId);
+    }
+
+    [TestMethod]
+    public async Task SaveCollectionAsync_AllFavoritesAccountEdit_IsRejected()
+    {
+        var service = new FavoriteCollectionService(new MemoryStore());
+        FavoriteCollectionsState state = await service.ReconcileAsync(CreateCatalog("system-1", "system-2"));
+        FavoriteCollection all = state.ActiveCollection!;
+        var changed = new FavoriteCollection(
+            all.Id,
+            all.Name,
+            "Motivo actualizado",
+            [all.Accounts[0]],
+            isAllFavorites: true);
+
+        FavoriteCollectionException exception = await Assert.ThrowsExactlyAsync<FavoriteCollectionException>(
+            () => service.SaveCollectionAsync(changed));
+
+        Assert.Contains("solo permite editar el motivo", exception.Message);
+    }
+
+    [TestMethod]
+    public async Task SaveCollectionAsync_AllFavoritesReasonEdit_IsAllowed()
+    {
+        var service = new FavoriteCollectionService(new MemoryStore());
+        FavoriteCollectionsState state = await service.ReconcileAsync(CreateCatalog("system-1", "system-2"));
+        FavoriteCollection all = state.ActiveCollection!;
+        var changed = new FavoriteCollection(
+            all.Id,
+            all.Name,
+            "Motivo actualizado",
+            all.Accounts,
+            isAllFavorites: true);
+
+        FavoriteCollectionsState saved = await service.SaveCollectionAsync(changed);
+
+        Assert.AreEqual("Motivo actualizado", saved.ActiveCollection?.RequestReason);
+        Assert.HasCount(2, saved.ActiveCollection!.Accounts);
     }
 
     [TestMethod]
@@ -71,14 +109,12 @@ public sealed class FavoriteCollectionServiceTests
     private static FavoriteCollection CreateCollection(string name, string system) => new(
         Guid.NewGuid(),
         name,
-        new RequestSettings
-        {
-            StartDate = new DateOnly(2026, 9, 14),
-            StartTime = new TimeOnly(9, 0),
-            SessionHours = 1,
-            RequestReason = "Prueba"
-        },
-        [new FavoriteAccountKey(system, "app", "account")]);
+        "Prueba",
+        [new FavoriteAccountKey(system, "app", $"account-{system}")]);
+
+    private static FavoriteCatalogSnapshot CreateCatalog(params string[] systems) => new(
+        DateTimeOffset.UtcNow,
+        systems.Select(system => new FavoriteCatalogEntry(system, "app", $"account-{system}", "10.0.0.1")).ToArray());
 
     private sealed class MemoryStore : IFavoriteCollectionStore
     {

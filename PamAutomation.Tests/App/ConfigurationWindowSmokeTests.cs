@@ -37,7 +37,7 @@ public sealed class ConfigurationWindowSmokeTests
             Assert.IsNotNull(window.FindName("ExportDiagnosticsButton"));
             Assert.IsNotNull(window.FindName("AccessPamButton"));
             Assert.IsNotNull(window.FindName("CollectionsButton"));
-            Assert.IsNotNull(window.FindName("UseCollectionsToggle"));
+            Assert.IsNull(window.FindName("UseCollectionsToggle"));
             var updateBanner = Assert.IsInstanceOfType<Border>(window.FindName("UpdateNotificationBanner"));
             var startWarning = Assert.IsInstanceOfType<Border>(window.FindName("StartAutomationWarningBanner"));
             var resultButton = Assert.IsInstanceOfType<Button>(window.FindName("ShowAutomationResultButton"));
@@ -94,6 +94,7 @@ public sealed class ConfigurationWindowSmokeTests
             Assert.IsNotNull(credentialsWindow.FindName("PamOperationSpinner"));
             Assert.IsNotNull(credentialsWindow.FindName("OutlookOperationSpinner"));
             Assert.AreEqual("Configurar solicitud", requestWindow.Title);
+            Assert.IsNull(requestWindow.FindName("ReasonBox"));
             var hourBox = Assert.IsInstanceOfType<ComboBox>(requestWindow.FindName("HourBox"));
             var minuteBox = Assert.IsInstanceOfType<TextBox>(requestWindow.FindName("MinuteBox"));
             Assert.HasCount(12, hourBox.Items);
@@ -143,7 +144,7 @@ public sealed class ConfigurationWindowSmokeTests
     }
 
     [STATestMethod]
-    public void FavoriteCollectionEditor_RendersSelectionAndRequestFields()
+    public void FavoriteCollectionEditor_RendersSelectionAndReasonFields()
     {
         EnsureApplicationResources();
         var favorites = new[]
@@ -152,8 +153,7 @@ public sealed class ConfigurationWindowSmokeTests
         };
         var window = new FavoriteCollectionEditorWindow(
             favorites,
-            null,
-            new DateTimeOffset(2026, 9, 13, 8, 0, 0, TimeSpan.FromHours(-5)));
+            null);
 
         try
         {
@@ -162,9 +162,43 @@ public sealed class ConfigurationWindowSmokeTests
 
             Assert.IsNotNull(window.FindName("CollectionNameBox"));
             Assert.IsNotNull(window.FindName("FavoriteSelectionList"));
-            Assert.IsNotNull(window.FindName("StartDatePicker"));
+            Assert.IsNull(window.FindName("StartDatePicker"));
             Assert.IsNotNull(window.FindName("ReasonBox"));
             Assert.IsNotNull(window.FindName("SaveCollectionButton"));
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [STATestMethod]
+    public void FavoriteCollectionEditor_AllFavorites_LocksNameAndSelection()
+    {
+        EnsureApplicationResources();
+        var favorites = new[]
+        {
+            new FavoriteCatalogEntry("system", "NOSQLBOOSTER", "account", "10.31.32.25")
+        };
+        var allFavorites = new FavoriteCollection(
+            Guid.NewGuid(),
+            FavoriteCollection.AllFavoritesName,
+            "Soporte",
+            [FavoriteAccountKey.From(favorites[0])],
+            isAllFavorites: true);
+        var window = new FavoriteCollectionEditorWindow(favorites, allFavorites);
+
+        try
+        {
+            window.Show();
+            Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+
+            var name = Assert.IsInstanceOfType<TextBox>(window.FindName("CollectionNameBox"));
+            var selection = Assert.IsInstanceOfType<ListBox>(window.FindName("FavoriteSelectionList"));
+            var notice = Assert.IsInstanceOfType<Border>(window.FindName("AllFavoritesNotice"));
+            Assert.IsTrue(name.IsReadOnly);
+            Assert.IsFalse(selection.IsEnabled);
+            Assert.AreEqual(Visibility.Visible, notice.Visibility);
         }
         finally
         {

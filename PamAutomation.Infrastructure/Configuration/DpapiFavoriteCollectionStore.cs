@@ -4,7 +4,6 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using PamAutomation.Core.Favorites;
 using PamAutomation.Core.Interfaces.Favorites;
-using PamAutomation.Core.Models.Configuration;
 
 namespace PamAutomation.Infrastructure.Configuration;
 
@@ -49,16 +48,16 @@ public sealed class DpapiFavoriteCollectionStore : IFavoriteCollectionStore
             clearBytes = ProtectedData.Unprotect(protectedBytes, Entropy, DataProtectionScope.CurrentUser);
             CollectionDocument document = JsonSerializer.Deserialize<CollectionDocument>(clearBytes, JsonOptions)
                 ?? throw new InvalidDataException("El documento protegido de colecciones está vacío.");
-            if (document.SchemaVersion != FavoriteCollectionsState.CurrentSchemaVersion || document.Collections is null)
+            if (document.SchemaVersion is not 1 and not FavoriteCollectionsState.CurrentSchemaVersion ||
+                document.Collections is null)
             {
                 throw new InvalidDataException("El documento protegido de colecciones no tiene un esquema compatible.");
             }
 
-            FavoriteCollection[] collections = document.Collections.Select(ToDomain).ToArray();
-            return new FavoriteCollectionsState(
-                collections,
-                document.ActiveCollectionId,
-                document.UseCollectionsForAutomation);
+            FavoriteCollection[] collections = document.Collections
+                .Select(item => ToDomain(item, document.SchemaVersion))
+                .ToArray();
+            return new FavoriteCollectionsState(collections, document.ActiveCollectionId);
         }
         catch (CryptographicException exception)
         {
@@ -89,7 +88,6 @@ public sealed class DpapiFavoriteCollectionStore : IFavoriteCollectionStore
         var document = new CollectionDocument(
             FavoriteCollectionsState.CurrentSchemaVersion,
             state.ActiveCollectionId,
-            state.UseCollectionsForAutomation,
             state.Collections.Select(ToDocument).ToArray());
         byte[] clearBytes = JsonSerializer.SerializeToUtf8Bytes(document, JsonOptions);
         byte[]? protectedBytes = null;
@@ -127,37 +125,35 @@ public sealed class DpapiFavoriteCollectionStore : IFavoriteCollectionStore
         }
     }
 
-    private static FavoriteCollection ToDomain(CollectionItemDocument document)
+    private static FavoriteCollection ToDomain(CollectionItemDocument document, int schemaVersion)
     {
-        if (document.Request is null || document.Accounts is null)
+        if (document.Accounts is null)
         {
             throw new ArgumentException("La colección protegida está incompleta.", nameof(document));
         }
 
+        string? requestReason = schemaVersion == 1
+            ? document.Request?.RequestReason
+            : document.RequestReason;
+        bool isAllFavorites = document.IsAllFavorites ||
+            string.Equals(document.Name, FavoriteCollection.AllFavoritesName, StringComparison.OrdinalIgnoreCase);
         return new FavoriteCollection(
             document.Id,
             document.Name,
-            new RequestSettings
-            {
-                StartDate = document.Request.StartDate,
-                StartTime = document.Request.StartTime,
-                SessionHours = document.Request.SessionHours,
-                RequestReason = document.Request.RequestReason
-            },
+            requestReason ?? throw new ArgumentException("La colección protegida no contiene un motivo.", nameof(document)),
             document.Accounts.Select(account => new FavoriteAccountKey(
                 account.System,
                 account.Application,
-                account.Account)).ToArray());
+                account.Account)).ToArray(),
+            isAllFavorites);
     }
 
     private static CollectionItemDocument ToDocument(FavoriteCollection collection) => new(
         collection.Id,
         collection.Name,
-        new RequestDocument(
-            collection.Request.StartDate,
-            collection.Request.StartTime,
-            collection.Request.SessionHours,
-            collection.Request.RequestReason),
+        collection.RequestReason,
+        collection.IsAllFavorites,
+        Request: null,
         collection.Accounts.Select(account => new AccountKeyDocument(
             account.SystemName,
             account.ApplicationName,
@@ -177,16 +173,17 @@ public sealed class DpapiFavoriteCollectionStore : IFavoriteCollectionStore
     private sealed record CollectionDocument(
         [property: JsonPropertyName("schemaVersion")] int SchemaVersion,
         [property: JsonPropertyName("activeCollectionId")] Guid? ActiveCollectionId,
-        [property: JsonPropertyName("useCollectionsForAutomation")] bool UseCollectionsForAutomation,
         [property: JsonPropertyName("collections")] IReadOnlyList<CollectionItemDocument>? Collections);
 
     private sealed record CollectionItemDocument(
         [property: JsonPropertyName("id")] Guid Id,
         [property: JsonPropertyName("name")] string Name,
-        [property: JsonPropertyName("request")] RequestDocument? Request,
+        [property: JsonPropertyName("requestReason")] string? RequestReason,
+        [property: JsonPropertyName("isAllFavorites")] bool IsAllFavorites,
+        [property: JsonPropertyName("request")] LegacyRequestDocument? Request,
         [property: JsonPropertyName("accounts")] IReadOnlyList<AccountKeyDocument>? Accounts);
 
-    private sealed record RequestDocument(
+    private sealed record LegacyRequestDocument(
         [property: JsonPropertyName("startDate")] DateOnly StartDate,
         [property: JsonPropertyName("startTime")] TimeOnly StartTime,
         [property: JsonPropertyName("sessionHours")] int SessionHours,

@@ -57,8 +57,9 @@ Las fases construidas hasta ahora son:
 - Fase 18.10: aviso accionable en la ventana principal para explicar cada bloqueo de `Iniciar automatización`.
 - Fase 18.11: resultado consultable bajo demanda, semántica de envío clara y composición Outlook con tipografía y tabla compactas.
 - Fase 20.1: catálogo protegido de Favorites con presentación `Application - IP Address` y actualización dinámica.
-- Fase 20.2: creación y edición de colecciones con selección exclusiva y configuración de solicitud propia.
-- Fase 20.3: toggle global y autorización de ejecución restringida a las claves exactas de la colección activa.
+- Fase 20.2: creación y edición de colecciones con selección exclusiva y razón propia.
+- Fase 20.3: autorización de ejecución restringida a las claves exactas de la colección activa.
+- Fase 20.4: `All favorites` sincronizada, colección activa obligatoria y configuración temporal separada.
 - Fase 21: acceso interactivo persistente separado del flujo de solicitudes.
 - Fase 21.1: preflight de Pending con repetición o cancelación explícitas; el intento WebSocket/CDP quedó sustituido en fase 21.2.
 - Fase 21.2: Edge normal mediante Windows UI Automation, confianza manual del certificado y liberación sin cerrar el navegador.
@@ -422,7 +423,7 @@ Contenido actual:
 - `MainWindow.xaml`: portada nativa de la aplicación.
 - `MainWindow.xaml.cs`: inicialización y ciclo de vida del temporizador de presentación que solicita al ViewModel una revalidación local cada minuto; no contiene reglas de negocio.
 - `ViewModels/MainWindowViewModel.cs`: estado de presentación y comandos de la portada mediante `CommunityToolkit.Mvvm`.
-- `Views`: diálogos nativos para credenciales PAM y Outlook, solicitud, plantilla de correo, catálogo de colecciones y editor de colección; la solicitud general y cada colección exponen fecha, hora, duración y razón.
+- `Views`: diálogos nativos para credenciales PAM y Outlook, solicitud, plantilla de correo, catálogo de colecciones y editor de colección; `Editar solicitud` expone fecha, hora y duración, y cada colección mantiene su razón.
 - `ViewModels/FavoritesCatalogViewModel`, `FavoriteCollectionItemViewModel` y `FavoriteSelectionItemViewModel`: catálogo actualizado, varias colecciones, selección exclusiva y checklist de `Favorites` sin exponer claves internas en la presentación.
 - `Services`: confirmaciones —incluida la presentación `AM/PM`, `Para` y `CC`— y avisos urgentes centralizados, adaptación de diálogos, coordinación no destructiva de credenciales, clasificación segura del resultado de correo de prueba, importación acotada de firmas HTML y conversión bidireccional entre `FlowDocument` y XHTML/CID.
 - `Resources/Styles.xaml`: estilos compartidos, incluida la apariencia estática del indicador circular cuya animación controla la ventana únicamente durante operaciones activas.
@@ -470,7 +471,7 @@ Biblioteca para `net10.0`, sin dependencia de WPF o Windows. Actualmente contien
 - `Interfaces/Authentication/IPamInteractiveAccessService`: contrato del acceso manual que entrega al usuario un Edge autenticado sin ejecutar operaciones PAM posteriores.
 - `Browser`: respuesta de navegación reducida a URI, estado y HTTP `Date`, junto con errores controlados de inicialización y navegación.
 - `Authentication`: servicio de autenticación simulado, espera asincrónica, errores estables y contratos del puerto ligado a una sesión.
-- `Interfaces/Favorites` y `Favorites`: lectura y validación de identidades únicas, catálogo protegido, claves exactas, colecciones nombradas, selección activa, modo global y reconciliación de bajas contra `Favorites`.
+- `Interfaces/Favorites` y `Favorites`: lectura y validación de identidades únicas, catálogo protegido, claves exactas, colecciones nombradas, selección activa obligatoria y sincronización de `All favorites` contra `Favorites`.
 - `Interfaces/Requests` y `Requests`: contratos separados para prueba, envío y lectura; coordinación de solicitudes, preflight de coincidencias exactas, línea base de Request ID en memoria y reconciliación estricta de las filas nuevas de Pending.
 - `Interfaces/Outlook` y `Outlook`: contrato del cliente clásico, modelos redactados, validaciones, resultados y errores seguros; `OutlookHtmlComposer` sanea XHTML, valida el marcador y compone Request ID por línea.
 - `Interfaces/Execution` y `Execution`: preparación confirmable, selección opcional de colección, coordinación completa y resultado exclusivamente en memoria.
@@ -539,7 +540,7 @@ Biblioteca para `net10.0-windows`. Referencia `PamAutomation.Core` e implementa 
 - `Configuration/DpapiMailSettingsStore.cs`: cifra el documento privado de correo con DPAPI `CurrentUser` y lo sustituye atómicamente.
 - `Configuration/DpapiOutlookAccountSettingsStore.cs`: mantiene la cuenta SMTP clásica en un documento DPAPI independiente, versionado y atómico.
 - `Configuration/DpapiFavoriteCatalogStore.cs`: conserva el último catálogo completo de `Favorites` con metadata `IP Address`.
-- `Configuration/DpapiFavoriteCollectionStore.cs`: conserva varias colecciones, su configuración propia, la colección activa y el modo global mediante DPAPI `CurrentUser`, esquema versionado y reemplazo atómico.
+- `Configuration/DpapiFavoriteCollectionStore.cs`: conserva varias colecciones, sus razones, selecciones y colección activa mediante DPAPI `CurrentUser`; usa esquema 2, migra el esquema 1 y realiza reemplazo atómico.
 - `Configuration/AppSettingsPersistenceErrorCode.cs` y `AppSettingsPersistenceException.cs`: errores controlados para contenido inválido, esquema incompatible y fallos de lectura o escritura.
 - `Credentials/WindowsPamCredentialStore.cs`: implementación del contrato de Core mediante una única credencial genérica del usuario actual.
 - `Credentials/CredentialPayloadCodec.cs`: formato binario versionado que mantiene juntas contraseña y semilla TOTP y aplica el límite del blob de Windows.
@@ -767,9 +768,9 @@ No se deben crear carpetas vacías por adelantado. Cada submódulo aparecerá ú
 
 La fase 20 incorpora colecciones personalizadas sin convertirlas en una función del portal PAM. Su implementación respeta estos límites:
 
-- `PamAutomation.Core/Favorites`: modelos de colección, claves `System + Application + Account` de cada `Favorites` row, configuración propia y reconciliación con `Favorites`.
+- `PamAutomation.Core/Favorites`: modelos de colección, claves `System + Application + Account`, razón propia, colección activa y reconciliación con `Favorites`.
 - `PamAutomation.Infrastructure/Configuration`: documento versionado, protección DPAPI `CurrentUser` y escritura atómica bajo la configuración privada del usuario.
-- `PamAutomation.App/Views` y `ViewModels`: listado de colecciones, editor de nombre, checklist de `Favorites` rows y configuración WPF con hora `AM/PM`.
+- `PamAutomation.App/Views` y `ViewModels`: listado de colecciones, editor de nombre/razón, checklist de `Favorites` rows y configuración temporal común con hora `AM/PM`.
 - `PamAutomation.Browser`: no administrará colecciones; continuará entregando el snapshot vivo de `Favorites` y ejecutando únicamente el subconjunto validado que Core le indique.
 - `PamAutomation.Tests`: cubre reconciliación, persistencia protegida, selección exclusiva, presentación horaria y bloqueo de envíos no autorizados.
 
@@ -814,7 +815,7 @@ La aplicación instalada solo podrá mantener esta configuración privada por us
 - `mail-settings.dat`: configuración de correo protegida con DPAPI `CurrentUser`.
 - `outlook-account.dat`: cuenta SMTP exacta de Outlook clásico, versionada y protegida con DPAPI `CurrentUser`.
 - `favorite-catalog.dat`: último snapshot completo de `Favorites`, versionado, atómico y protegido con DPAPI `CurrentUser`; sostiene el estado Obtener/Actualizar y la reconciliación de colecciones.
-- `favorite-collections.dat`: colecciones post-migración con identidades, configuración propia, selección activa y modo global, versionadas y protegidas con DPAPI `CurrentUser`.
+- `favorite-collections.dat`: colecciones con identidades, razones y selección activa, versionadas y protegidas con DPAPI `CurrentUser`.
 - Usuario, contraseña y semilla TOTP: Windows Credential Manager.
 - Resultados, Request ID, conflictos y estado: únicamente en memoria.
 

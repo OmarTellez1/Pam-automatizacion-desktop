@@ -6,9 +6,9 @@ Aplicación de escritorio Windows para automatizar BeyondInsight Password Safe d
 
 La raíz oficial del repositorio es `C:\pam automatizacion dotnet\PamAutomation`.
 
-La solución `PamAutomation.slnx` contiene la aplicación WPF `PamAutomation.App` y los proyectos base `PamAutomation.Core`, `PamAutomation.Browser`, `PamAutomation.Outlook`, `PamAutomation.Infrastructure` y `PamAutomation.Tests`. Las fases 3A y 3B incorporan el dominio, la validación y la persistencia JSON de la configuración no sensible; las fases 4 a 7 incorporan credenciales protegidas, TOTP, reloj HTTP y sesión restringida de Edge. Las fases 8 a 13 agregan autenticación simulada, login real, lectura paginada de Favorites, formularios seguros, solicitudes confirmadas y lectura/comparación de Pending; la fase 14 incorpora Outlook clásico, la fase 15 la composición HTML saneada, la fase 16 conecta el flujo PAM con la interfaz, la fase 17 permite exportar diagnóstico seguro y la fase 18 produce la aplicación portable versionada. Las fases 21–21.10 añaden acceso interactivo y robustez operativa. Las fases 20.1–20.3 incorporan el catálogo protegido, colecciones editables con configuración propia, selección exclusiva y ejecución restringida mediante un toggle global.
+La solución `PamAutomation.slnx` contiene la aplicación WPF `PamAutomation.App` y los proyectos base `PamAutomation.Core`, `PamAutomation.Browser`, `PamAutomation.Outlook`, `PamAutomation.Infrastructure` y `PamAutomation.Tests`. Las fases 3A y 3B incorporan el dominio, la validación y la persistencia JSON de la configuración no sensible; las fases 4 a 7 incorporan credenciales protegidas, TOTP, reloj HTTP y sesión restringida de Edge. Las fases 8 a 13 agregan autenticación simulada, login real, lectura paginada de Favorites, formularios seguros, solicitudes confirmadas y lectura/comparación de Pending; la fase 14 incorpora Outlook clásico, la fase 15 la composición HTML saneada, la fase 16 conecta el flujo PAM con la interfaz, la fase 17 permite exportar diagnóstico seguro y la fase 18 produce la aplicación portable versionada. Las fases 21–21.10 añaden acceso interactivo y robustez operativa. Las fases 20.1–20.4 incorporan el catálogo protegido, colecciones editables, `All favorites` sincronizada y la colección activa como único alcance de automatización.
 
-`PamAutomation.Tests` utiliza MSTest con Microsoft Testing Platform e incluye pruebas de presentación, configuración DPAPI, credenciales, TOTP, reloj HTTP, navegador, autenticación, `Favorites`, colecciones, formularios, Pending, resultados en memoria, diagnóstico, actualización, acceso interactivo persistente, composición HTML y Outlook. Las fases 1 a 18.11, 20.1–20.3 y 21–21.10 fueron compiladas con `Release | x64`; la suite ordinaria contiene 363 pruebas. La reconciliación mantiene exactos `Request Start Date`, `Expires`, `Description`, `System` y `Account`; la ejecución de una colección exige nuevamente sus claves `System + Application + Account` antes de cualquier envío.
+`PamAutomation.Tests` utiliza MSTest con Microsoft Testing Platform e incluye pruebas de presentación, configuración DPAPI, credenciales, TOTP, reloj HTTP, navegador, autenticación, `Favorites`, colecciones, formularios, Pending, resultados en memoria, diagnóstico, actualización, acceso interactivo persistente, composición HTML y Outlook. Las fases 1 a 18.11, 20.1–20.4 y 21–21.10 fueron compiladas con `Release | x64`; la suite ordinaria contiene 368 pruebas. La reconciliación mantiene exactos `Request Start Date`, `Expires`, `Description`, `System` y `Account`; la ejecución exige nuevamente las claves `System + Application + Account` de la colección activa antes de cualquier envío.
 
 Todo el flujo de desarrollo se administra exclusivamente desde la terminal con el SDK x64 de .NET 10: restauración, compilación, pruebas, ejecución y publicación.
 
@@ -45,7 +45,7 @@ Las operaciones de guardado y comprobación muestran un indicador circular anima
 - structure.md: estructura física actual, responsabilidades de proyectos y arquitectura objetivo.
 - Fases.md: resumen acumulativo, dependencias entre fases pendientes y combinaciones de trabajo paralelo recomendadas.
 - Subagentes.md: protocolo para un máximo de dos subagentes, con unidades verticales independientes, contexto acotado, aislamiento, pruebas propias, integración y control de consumo.
-- PAM_NAVIGATION.md: recorrido confirmado del portal, selectores e invariantes, y diseño preliminar de colecciones personalizadas posteriores a la migración.
+- PAM_NAVIGATION.md: recorrido confirmado del portal, selectores, invariantes y contratos actuales de colecciones personalizadas.
 
 ## Referencia histórica
 
@@ -73,7 +73,7 @@ La configuración no secreta se guardará en:
 
     %LOCALAPPDATA%\PamAutomation\config\app-settings.json
 
-Incluirá la acción final, razón, duración, fecha, hora y zona horaria. La fecha se persistirá internamente en formato ISO, aunque la interfaz podrá mostrarla como dd/MM.
+Incluye la acción final, duración, fecha, hora, zona horaria y un campo de razón legado para compatibilidad. La razón efectiva procede siempre de la colección activa. La fecha se persiste internamente en formato ISO, aunque la interfaz la muestra como dd/MM.
 
 La configuración de correo se guardará en:
 
