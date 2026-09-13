@@ -4,7 +4,13 @@ Aplicación de escritorio Windows para automatizar BeyondInsight Password Safe d
 
 ## Estado actual
 
-Este repositorio contiene inicialmente solo documentación de diseño. Todavía no se han creado la solución .NET, la aplicación WPF ni los proyectos de código.
+La raíz oficial del repositorio es `C:\pam automatizacion dotnet\PamAutomation`.
+
+La solución `PamAutomation.slnx` contiene la aplicación WPF `PamAutomation.App` y los proyectos base `PamAutomation.Core`, `PamAutomation.Browser`, `PamAutomation.Outlook`, `PamAutomation.Infrastructure` y `PamAutomation.Tests`. Las fases 3A y 3B incorporan el dominio, la validación y la persistencia JSON de la configuración no sensible; las fases 4 a 7 incorporan credenciales protegidas, TOTP, reloj HTTP y sesión restringida de Edge. Las fases 8 a 13 agregan autenticación simulada, login real, lectura paginada de Favorites, formularios seguros, solicitudes confirmadas y lectura/comparación de Pending; la fase 14 incorpora Outlook clásico, la fase 15 la composición HTML saneada, la fase 16 conecta el flujo PAM con la interfaz, la fase 16.5 completa la paridad funcional, la 16.6 añade logging seguro, la 16.7 corrige la activación COM, la 16.8 mejora el estado visual, la fase 17 permite exportar diagnóstico seguro, la fase 18 produce la aplicación portable versionada y las fases 18.5–18.11 completan los ajustes previos a las pruebas finales. Las fases 21–21.10 añaden acceso interactivo mediante el Edge normal del usuario, confianza manual del certificado, zoom verificado al 67 %, automatización de solicitudes oculta, confirmación inicial inmediata y completa, avisos urgentes, progreso por `Application`, acceso interactivo concurrente, margen mínimo de inicio y un preflight para repetir solicitudes Pending de manera explícita.
+
+`PamAutomation.Tests` utiliza MSTest con Microsoft Testing Platform e incluye pruebas de presentación, configuración DPAPI, credenciales, TOTP, reloj HTTP, navegador, autenticación, `Favorites`, formularios, Pending, resultados en memoria, diagnóstico, actualización, acceso interactivo persistente, conversión `FlowDocument`, importación de firmas, composición HTML, imágenes CID y Outlook. Las fases 1 a 18.11 y 21–21.10 fueron compiladas y validadas con `Release | x64`; la suite ordinaria contiene 337 pruebas. La reconciliación mantiene exactos `Request Start Date`, `Expires`, `Description`, `System` y `Account`, reconoce las familias controladas `NOSQLBOOSTER`, `PLSQL`, `PuTTY` y `WinSCP` cuando Pending añade versión o destino a `Application`, y excluye la línea base cuando el usuario autoriza solicitudes repetidas.
+
+Todo el flujo de desarrollo se administra exclusivamente desde la terminal con el SDK x64 de .NET 10: restauración, compilación, pruebas, ejecución y publicación.
 
 ## Objetivo
 
@@ -14,7 +20,7 @@ La aplicación permitirá:
 - Generar TOTP usando la hora HTTP del portal.
 - Iniciar sesión en BeyondInsight mediante Playwright .NET.
 - Utilizar Microsoft Edge instalado externamente.
-- Procesar las cuentas de Favorites.
+- Procesar las `Favorites` rows mediante su identidad `System + Application + Account`.
 - Ejecutar un modo de prueba que nunca cree solicitudes.
 - Crear solicitudes reales tras confirmación explícita.
 - Leer solicitudes Pending, paginación y conflictos.
@@ -22,12 +28,24 @@ La aplicación permitirá:
 - Enviar opcionalmente mediante Outlook clásico.
 - Distribuirse como aplicación Windows autocontenida.
 
+El modo de prueba permanece deshabilitado por defecto mediante `testModeEnabled`, pero ya no se expone como opción editable en `Configurar solicitud`. Si está habilitado en una configuración de desarrollo compatible, su botón solo será visible cuando las configuraciones necesarias estén completas. Su correo continúa limitado a `tellezoe@hitss.com`, sin utilizar Para ni CC configurados y con confirmación explícita.
+
+`Editar credenciales` separa las tarjetas `Credenciales del PAM` y `Cuenta de Outlook`. La primera permite guardar y probar un login no destructivo; la segunda guarda y verifica la cuenta clásica y ofrece, tras confirmación, un correo de prueba desde y hacia la misma dirección, sin CC. La plantilla, destinatarios y marcador `{{REQUEST_IDS}}` se administran aparte en `Editar envío de correo`.
+
+El texto y la firma del correo se componen en otra aplicación y se pegan conservando el formato compatible. Las tablas no deben pegarse: `Insertar tabla 2×2` crea en la posición del cursor la estructura de solicitudes y motivo, incorpora un único `{{REQUEST_IDS}}` y deja una línea posterior editable. El botón independiente `Insertar {{REQUEST_IDS}}` continúa disponible.
+
+Las operaciones de guardado y comprobación muestran un indicador circular animado, un mensaje inmediato de solicitud recibida y controles temporalmente deshabilitados. El indicador desaparece al finalizar. El correo de prueba solo muestra éxito cuando Outlook acepta `Send()`; un resultado `NotConfirmed` se presenta como error y no como confirmación verde.
+
 ## Documentación
 
-- AGENTS.md: reglas de trabajo para Codex.
+- AGENTS.md: reglas permanentes que Codex carga normalmente en cada tarea e índice para consultar los demás documentos bajo demanda. La lectura completa de esos otros Markdown se realiza únicamente la primera vez que un thread entra al proyecto sin contexto previo; nuevas tareas dentro del mismo thread no la reinician.
 - CODEX_BUILD_SPEC.md: especificación completa y fuente principal de decisiones.
 - LOGIC.md: lógica prevista y contratos del sistema.
 - History.md: historial propio de este proyecto nuevo.
+- structure.md: estructura física actual, responsabilidades de proyectos y arquitectura objetivo.
+- Fases.md: resumen acumulativo, dependencias entre fases pendientes y combinaciones de trabajo paralelo recomendadas.
+- Subagentes.md: protocolo para un máximo de dos subagentes, con unidades verticales independientes, contexto acotado, aislamiento, pruebas propias, integración y control de consumo.
+- PAM_NAVIGATION.md: recorrido confirmado del portal, selectores e invariantes, y diseño preliminar de colecciones personalizadas posteriores a la migración.
 
 ## Referencia histórica
 
@@ -49,6 +67,8 @@ Las credenciales PAM se guardarán en Windows Credential Manager, asociadas al u
 - Contraseña PAM.
 - Semilla TOTP de Microsoft Authenticator.
 
+La implementación utiliza una sola credencial genérica versionada para que usuario, contraseña y semilla se sustituyan juntos. Los campos vacíos durante una edición conservan el valor protegido anterior. Las pruebas automatizadas sustituyen la API de Windows por un adaptador falso y no crean entradas reales en Credential Manager.
+
 La configuración no secreta se guardará en:
 
     %LOCALAPPDATA%\PamAutomation\config\app-settings.json
@@ -61,9 +81,7 @@ La configuración de correo se guardará en:
 
 Ese archivo contendrá remitente, destinatarios, copias, asunto y contenido HTML. Se protegerá con DPAPI CurrentUser porque el contenido del correo puede ser sensible.
 
-La configuración anterior es privada y específica del usuario. Los archivos operativos que un usuario normal no necesita leer no se guardarán en su perfil, sino en una carpeta común de datos de la máquina:
-
-La estructura persistente completa queda limitada a:
+La configuración es privada y específica del usuario. La estructura persistente completa queda limitada a:
 
     %LOCALAPPDATA%\PamAutomation\
     └── config\
@@ -72,7 +90,9 @@ La estructura persistente completa queda limitada a:
 
 No crear ni mantener carpetas persistentes de `results`, `logs`, `artifacts` o `temp` en `%PROGRAMDATA%`, `%LOCALAPPDATA%` ni junto al ejecutable. Los resultados de una ejecución deben vivir en memoria y mostrarse en la interfaz mientras la aplicación esté abierta. Si la acción final es correo, el envío se realiza dentro de la misma ejecución; no se necesita conservar un `last-run` para completar la operación.
 
-La aplicación no tendrá auditoría local ni debugging persistente en el uso normal. Si el desarrollador necesita diagnóstico, deberá activarse explícitamente y exportarse manualmente a una ubicación elegida por el usuario; no será una función automática ni una dependencia del flujo normal.
+La aplicación no tendrá auditoría local ni debugging persistente en el uso normal. Durante cada proceso conserva como máximo 500 eventos técnicos seguros en memoria; se pierden al cerrar salvo que el usuario pulse `Exportar diagnóstico` y elija manualmente un ZIP. El logging en archivo se activa únicamente al ejecutar con un depurador conectado o con `PAM_AUTOMATION_DEVELOPMENT_LOGGING=1`, y solo cuando el proceso puede confirmar la raíz del repositorio mediante `.git` y `PamAutomation.slnx`.
+
+El ZIP manual contiene `manifest.json`, `environment.json`, `execution-summary.json` y `diagnostic.log`. Solo incluye versiones, arquitectura, estados, conteos, plantillas de eventos, tipo de excepción, `HRESULT` y stack trace sin rutas de código. Nunca contiene credenciales, TOTP, cookies, tokens, Request ID, identidades del portal, direcciones de correo, razón, asunto, HTML, imágenes o adjuntos. Si una operación falla, la interfaz recomienda exportarlo; ante una excepción WPF fatal se ofrece exportarlo antes del cierre seguro.
 
 Windows o Playwright pueden crear archivos internos momentáneos en `%TEMP%` durante la ejecución. No forman parte del almacenamiento persistente de la aplicación, no deben contener secretos y deben limpiarse al finalizar cuando sea técnicamente posible.
 
@@ -80,31 +100,42 @@ Windows o Playwright pueden crear archivos internos momentáneos en `%TEMP%` dur
 
 El repositorio de desarrollo sí podrá generar información técnica para que el desarrollador analice fallos. Esos archivos estarán en la raíz del repositorio y no formarán parte de la instalación ni de la publicación para usuarios:
 
-    C:\pam automatizacion dotnet\
+    C:\pam automatizacion dotnet\PamAutomation\
     ├── results\
     ├── logs\
     ├── artifacts\
     └── temp\
 
-Estas carpetas serán exclusivas de las ejecuciones de desarrollo, pruebas e integración. Deben estar excluidas de Git, no deben copiarse al instalador y nunca deben contener contraseñas, semillas TOTP, códigos TOTP, cookies, tokens ni perfiles del navegador. La aplicación publicada debe desactivar esta escritura en la raíz del repositorio y mantener únicamente los resultados en memoria.
+Estas carpetas serán exclusivas de las ejecuciones de desarrollo, pruebas e integración. Deben estar excluidas de Git, no deben copiarse a la publicación y nunca deben contener contraseñas, semillas TOTP, códigos TOTP, cookies, tokens ni perfiles del navegador. La aplicación publicada debe desactivar esta escritura en la raíz del repositorio y mantener únicamente los resultados en memoria.
 
-## Instalación de Visual Studio para desarrollar
+Los logs de desarrollo se escriben como `logs\pam-automation-AAAA-MM-DD.log`. Conservan niveles, categoría, etapa, `EventId`, tipo de excepción, `HRESULT` y stack trace, pero omiten deliberadamente el mensaje de la excepción para evitar que un adaptador incluya valores sensibles. Al iniciar el logger y antes de cada escritura se eliminan exclusivamente sus archivos diarios con más de dos días de antigüedad. Las direcciones, credenciales, TOTP, cookies, tokens, Request ID y contenido del correo no forman parte de los eventos.
 
-En Visual Studio Installer instalar únicamente la carga de trabajo **Desarrollo de escritorio de .NET**. Esta carga es la necesaria para crear y depurar la aplicación WPF con C# y .NET. El proyecto debe seleccionar el SDK de .NET 10 LTS cuando esté disponible en la instalación.
+En Visual Studio se activan al usar **Iniciar depuración (F5)**. **Iniciar sin depurar (Ctrl+F5)** requiere definir previamente `PAM_AUTOMATION_DEVELOPMENT_LOGGING=1` en el entorno del proceso.
 
-No es necesario instalar para este proyecto:
+## Entorno de desarrollo por terminal
 
-- Desarrollo de la interfaz de usuario de aplicaciones multiplataforma (.NET MAUI).
-- Desarrollo de aplicaciones WinUI.
-- Desarrollo para escritorio con C++.
-- Desarrollo móvil con C++.
-- Desarrollo de ASP.NET y web.
-- Desarrollo de Azure, Node.js, Python, Java o herramientas web.
-- Entity Framework 6, ML.NET Model Builder, WCF o componentes de compatibilidad de .NET Framework, salvo que otra dependencia corporativa los exija.
+Instalar el SDK x64 de .NET 10 LTS y comprobar que `dotnet` esté disponible en `PATH`. El SDK incluye los componentes necesarios para compilar la aplicación WPF y sus pruebas; no es necesario instalar runtimes por separado.
 
-Dentro de los componentes opcionales de **Desarrollo de escritorio de .NET**, no es necesario agregar Blend, IntelliCode, GitHub Copilot, .NET Copilot Skills, Modernización de GitHub Copilot ni herramientas de perfiles para que la aplicación compile. Pueden instalarse por preferencia del desarrollador, pero no son dependencias del producto.
+Comprobación del entorno:
 
-La carga recomendada corresponde a la guía oficial de [crear una aplicación WPF con C#](https://learn.microsoft.com/en-us/visualstudio/get-started/csharp/tutorial-wpf?view=visualstudio) y al listado oficial de componentes de [Desarrollo de escritorio de .NET](https://learn.microsoft.com/en-us/visualstudio/install/workload-component-id-vs-professional).
+```text
+dotnet --info
+dotnet --list-sdks
+```
+
+Flujo canónico desde la raíz del repositorio:
+
+```text
+dotnet restore PamAutomation.slnx -p:Platform=x64
+dotnet build PamAutomation.slnx -c Release -p:Platform=x64 --no-restore
+dotnet run --project PamAutomation.Tests\PamAutomation.Tests.csproj -c Release -p:Platform=x64 --no-build
+dotnet run --project PamAutomation.App\PamAutomation.App.csproj -c Release -p:Platform=x64 --no-build
+dotnet publish PamAutomation.App\PamAutomation.App.csproj -c Release -p:Platform=x64 -p:PublishProfile=Portable-x64 -o artifacts\publish\final\PAM-Automation-1.0.0
+```
+
+`PamAutomation.Tests` usa el runner integrado de Microsoft Testing Platform. Mientras la solución no defina el runner MTP mediante `global.json`, las pruebas se ejecutan con `dotnet run` sobre el proyecto de pruebas y no con `dotnet test`.
+
+No se requieren .NET MAUI, WinUI, C++, ASP.NET, Azure, Node.js, Python, Java, runtimes independientes ni herramientas web para compilar esta solución.
 
 ## Plataforma objetivo
 
@@ -114,12 +145,46 @@ La carga recomendada corresponde a la guía oficial de [crear una aplicación WP
 - Conectividad a la red o VPN de PAM.
 - Publicación autocontenida para no exigir .NET instalado en el equipo final.
 
-El entregable final será un ejecutable Windows x64 autocontenido, preferiblemente distribuido mediante un instalador firmado. Incluirá la lógica de la aplicación, WPF, Playwright .NET, TOTP, configuración, validaciones, resultados en memoria e integración con Outlook. No exigirá instalar .NET, Node.js, Python ni PowerShell en el equipo final.
+El entregable será `PAM Automation.exe`, un ejecutable portable Windows x64 autocontenido que el usuario guardará donde prefiera y reemplazará manualmente cuando descargue una nueva versión. Incluirá la lógica de la aplicación, WPF, Playwright .NET, TOTP, configuración, validaciones, resultados en memoria e integración con Outlook. No exigirá instalar .NET, Node.js, Python ni PowerShell en el equipo final.
+
+La versión estable configurada es `1.0.0` y aparece en el título de WPF y en las propiedades nativas del archivo. Al iniciar, la aplicación intenta leer durante un máximo de ocho segundos el `latest.json` público de GitHub mediante su URL `raw`; si contiene una versión superior y la dirección exacta del repositorio esperado, muestra un aviso descartable. No descarga ni elimina archivos.
+
+### Publicar una nueva versión portable
+
+1. Actualizar `Version`, `AssemblyVersion`, `FileVersion` e `InformationalVersion` en `PamAutomation.App/PamAutomation.App.csproj`. Para `1.0.0`, las versiones de ensamblado y archivo son `1.0.0.0`.
+2. Desde la raíz, ejecutar el automatizador local excluido de Git. Este restaura, compila, ejecuta la suite ordinaria, publica y verifica los metadatos y el SHA-256:
+
+   ```powershell
+   .\Publish-Portable.ps1
+   ```
+
+   Si la salida de esa misma versión ya existe y se desea regenerarla deliberadamente:
+
+   ```powershell
+   .\Publish-Portable.ps1 -ReplaceExisting
+   ```
+
+3. Recoger el único entregable desde `artifacts\publish\final\PAM-Automation-<versión>\PAM Automation.exe`.
+4. En GitHub, crear el tag y release `v<versión>`, adjuntar ese ejecutable como asset y publicar el release. El ejecutable autocontenido excede el límite de un archivo normal del repositorio, por lo que no debe añadirse al commit.
+5. Solo después de publicar el asset, actualizar `latest.json` en `main` con la versión nueva, la fecha ISO y `repositoryUrl` igual a `https://github.com/OmarTellez1/Pam-automation-installer`. Este orden evita anunciar una versión que todavía no se puede descargar.
 
 La aplicación seguirá requiriendo deliberadamente Windows, Microsoft Edge instalado, conectividad al portal PAM y Outlook clásico instalado cuando se active el correo. Edge y Outlook no se incluirán dentro del ejecutable porque deben utilizar las instalaciones corporativas existentes.
 
 La automatización utilizará la opción 1: abrirá el Edge instalado mediante Playwright y creará un contexto temporal de automatización. No seleccionará, reutilizará ni modificará perfiles existentes, cookies, extensiones o sesiones del usuario. No utilizará LaunchPersistentContext, userDataDir ni conexión CDP a un navegador existente. La aplicación no debe mostrar una ventana de incógnito; el aislamiento es interno de Playwright.
 
+La automatización temporal ejecuta Edge en modo `headless`: autenticación, lectura de `Favorites`, formularios, envíos y reconciliación de `Pending` ocurren en segundo plano. El único navegador visible es el Edge normal abierto por `Acceder a PAM`, que sigue fuera del contexto temporal y permanece bajo control del usuario.
+
+## Decisiones de implementación confirmadas
+
+- Framework de pruebas: MSTest con Microsoft Testing Platform y runner integrado ejecutado desde la terminal.
+- Presentación: MVVM con CommunityToolkit.Mvvm; los estados y comandos se mantienen fuera del code-behind. La aplicación anterior es la referencia visual para la portada y los formularios, reconstruidos con WPF/XAML nativo.
+- Solución: `PamAutomation.slnx`.
+- Credenciales PAM: una credencial genérica versionada en Windows Credential Manager, vinculada al usuario actual y sin archivos de secretos.
+- Navegador automático: Edge instalado, `Channel = "msedge"`, contexto temporal y ejecución `headless`; `Acceder a PAM` utiliza una ventana normal visible separada.
+- Protección contra correo duplicado: estado en memoria durante la ejecución y consulta de Enviados, Bandeja de salida y Borradores de Outlook antes de enviar; no se crearán archivos locales `last-email` o `delivery-state`.
+- Outlook COM: activación tardía del `ProgID` corporativo `Outlook.Application`, sin PIA administrada ni dependencia en `office.dll`; el acceso permanece encapsulado, ejecutado en STA y con liberación explícita.
+- Editor de correo: `RichTextBox` y `FlowDocument` como editor nativo, con un subconjunto explícito de formato y un convertidor C# propio a HTML saneado. El contenido enriquecido y las imágenes se persistirán únicamente dentro de `mail-settings.dat` protegido con DPAPI.
+
 ## Próximo paso
 
-Antes de escribir código, Codex debe analizar la documentación nueva y la aplicación anterior como referencia de solo lectura, informar contradicciones y proponer un plan por fases.
+Ejecutar la fase 19 en un equipo Windows administrado sin SDK de .NET, utilizando el ejecutable portable ya validado y el release publicado en GitHub.

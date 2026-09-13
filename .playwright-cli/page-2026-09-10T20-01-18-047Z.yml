@@ -1,0 +1,68 @@
+- main [ref=e2]:
+  - generic [ref=e3]:
+    - link "Volver al inicio de Accesos PAM" [ref=e4] [cursor=pointer]:
+      - /url: /
+      - generic [ref=e5]: P
+      - generic [ref=e6]:
+        - strong [ref=e7]: Accesos PAM
+        - generic [ref=e8]: BeyondInsight Password Safe
+    - link "← Volver al inicio" [ref=e9] [cursor=pointer]:
+      - /url: /
+  - region "Configurar solicitud" [ref=e10]:
+    - heading "Configurar solicitud" [level=1] [ref=e11]
+    - region "Formulario de configuración de solicitud" [ref=e12]:
+      - generic [ref=e13]:
+        - generic [ref=e14]:
+          - generic [ref=e15]:
+            - generic [ref=e16]: Fecha de inicio
+            - status [ref=e17]: Jueves, 10 de septiembre de 2026
+          - generic [ref=e18]:
+            - generic [ref=e19]:
+              - generic [ref=e20]: Día
+              - combobox "Día" [ref=e21]:
+                - option "10" [selected]
+                - option "11"
+                - option "12"
+                - option "13"
+                - option "14"
+                - option "15"
+                - option "16"
+                - option "17"
+                - option "18"
+                - option "19"
+                - option "20"
+                - option "21"
+                - option "22"
+                - option "23"
+                - option "24"
+                - option "25"
+                - option "26"
+                - option "27"
+                - option "28"
+                - option "29"
+                - option "30"
+            - generic [ref=e22]:
+              - generic [ref=e23]: Mes
+              - combobox "Mes" [ref=e24]:
+                - option "Septiembre" [selected]
+                - option "Octubre"
+                - option "Noviembre"
+                - option "Diciembre"
+        - generic [ref=e25]:
+          - generic [ref=e26]: Hora de inicio
+          - generic [ref=e27]:
+            - textbox "Hora de inicio" [ref=e28]:
+              - /placeholder: hh:mm
+              - text: 09:00
+            - combobox "AM o PM" [ref=e29]:
+              - option "AM" [selected]
+              - option "PM"
+        - generic [ref=e30]:
+          - generic [ref=e31]: Duración de la sesión en horas
+          - spinbutton "Duración de la sesión en horas" [ref=e32]: "8"
+        - generic [ref=e33]:
+          - generic [ref=e34]: Razón de la petición
+          - textbox "Razón de la petición" [ref=e35]: Soporte y pruebas con usuario post producción - TIC PETER GOMEZ
+        - button "Guardar configuración" [ref=e36] [cursor=pointer]:
+          - generic [ref=e37]: Guardar configuración
+          - generic [ref=e38]: →

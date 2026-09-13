@@ -1,12 +1,308 @@
-﻿<Window x:Class="PamAutomation.App.MainWindow"
+<Window x:Class="PamAutomation.App.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
-        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
-        xmlns:local="clr-namespace:PamAutomation.App"
-        mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
+        Title="{Binding ApplicationDisplayName}"
+        Width="1050"
+        Height="660"
+        MinWidth="800"
+        MinHeight="540"
+        WindowState="Maximized"
+        WindowStartupLocation="CenterScreen"
+        Background="{StaticResource AppBackgroundBrush}"
+        FontFamily="Segoe UI"
+        TextOptions.TextFormattingMode="Display">
     <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
 
+        <Grid Grid.Row="0" Margin="30,20,30,0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+            <Grid MaxWidth="1320">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Orientation="Horizontal">
+                    <Border Width="48"
+                            Height="48"
+                            Background="{StaticResource NavyBrush}"
+                            CornerRadius="16"
+                            Effect="{StaticResource SoftShadowEffect}">
+                        <TextBlock HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   Foreground="White"
+                                   FontSize="19"
+                                   FontWeight="Bold"
+                                   Text="P" />
+                    </Border>
+                    <StackPanel Margin="14,0,0,0" VerticalAlignment="Center">
+                        <TextBlock Foreground="{StaticResource TextPrimaryBrush}"
+                                   FontSize="20"
+                                   FontWeight="Bold"
+                                   Text="{Binding ApplicationDisplayName}" />
+                        <TextBlock Margin="0,3,0,0"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   FontSize="13"
+                                   Text="BeyondInsight Password Safe" />
+                    </StackPanel>
+                </StackPanel>
+
+                <StackPanel Grid.Column="1"
+                            Orientation="Horizontal"
+                            VerticalAlignment="Center">
+                    <Button x:Name="ExportDiagnosticsButton"
+                            Width="165"
+                            Height="40"
+                            Margin="0,0,12,0"
+                            AutomationProperties.Name="Exportar diagnóstico"
+                            Command="{Binding ExportDiagnosticsCommand}"
+                            Content="Exportar diagnóstico"
+                            IsEnabled="{Binding CanExportDiagnostics}"
+                            Style="{StaticResource SecondaryButtonStyle}" />
+                    <Button x:Name="AccessPamButton"
+                            Width="135"
+                            Height="40"
+                            Margin="0,0,12,0"
+                            AutomationProperties.Name="Acceder a PAM"
+                            Command="{Binding AccessPamCommand}"
+                            Content="Acceder a PAM"
+                            Style="{StaticResource SecondaryButtonStyle}"
+                            ToolTip="Abre BeyondInsight e inicia sesión con las credenciales PAM configuradas." />
+                    <ToggleButton VerticalAlignment="Center"
+                                  AutomationProperties.Name="Seleccionar acción final"
+                                  Command="{Binding ToggleFinalActionCommand}"
+                                  IsChecked="{Binding SendEmailAtEnd, Mode=OneWay}"
+                                  IsEnabled="{Binding AreControlsEnabled}"
+                                  Style="{StaticResource OutlookActionToggleStyle}" />
+                </StackPanel>
+            </Grid>
+
+            <Border Grid.Row="1"
+                    Margin="0,14,0,0"
+                    BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="0,0,0,1" />
+        </Grid>
+
+        <Grid Grid.Row="1" Margin="30,18,30,30">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <Border x:Name="UpdateNotificationBanner"
+                    Grid.Row="0"
+                    MaxWidth="920"
+                    Margin="0,0,0,14"
+                    Padding="16,10"
+                    Background="#FFF6DA"
+                    BorderBrush="#E4B028"
+                    BorderThickness="1"
+                    CornerRadius="12"
+                    AutomationProperties.Name="Actualización disponible">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Visibility" Value="Collapsed" />
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsUpdateAvailable}" Value="True">
+                                <Setter Property="Visibility" Value="Visible" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock VerticalAlignment="Center"
+                               Foreground="{StaticResource TextPrimaryBrush}"
+                               FontWeight="SemiBold"
+                               Text="{Binding UpdateNotificationMessage}"
+                               TextWrapping="Wrap" />
+                    <Button Grid.Column="1"
+                            Width="28"
+                            Height="28"
+                            Margin="14,0,0,0"
+                            Padding="0"
+                            AutomationProperties.Name="Cerrar aviso de actualización"
+                            Command="{Binding DismissUpdateCommand}"
+                            Content="×"
+                            FontSize="18"
+                            Style="{StaticResource SecondaryButtonStyle}" />
+                </Grid>
+            </Border>
+
+            <StackPanel Grid.Row="1"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center">
+                <Button Width="500"
+                        AutomationProperties.Name="Iniciar automatización PAM"
+                        Command="{Binding StartAutomationCommand}"
+                        Content="Iniciar automatización"
+                        IsEnabled="{Binding CanStartAutomation}"
+                        Style="{StaticResource HeroButtonStyle}" />
+
+                <Button Margin="0,14,0,0"
+                        MinWidth="250"
+                        HorizontalAlignment="Center"
+                        AutomationProperties.Name="Iniciar prueba segura"
+                        Command="{Binding StartTestCommand}"
+                        Content="Iniciar prueba">
+                    <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource TestButtonStyle}">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsTestActionVisible}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
+
+                <ProgressBar Width="500"
+                             Margin="0,14,0,0"
+                             IsIndeterminate="True">
+                    <ProgressBar.Style>
+                        <Style TargetType="ProgressBar" BasedOn="{StaticResource RunProgressBarStyle}">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsBusy}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </ProgressBar.Style>
+                </ProgressBar>
+
+                <Border x:Name="StartAutomationWarningBanner"
+                        Width="500"
+                        Margin="0,12,0,0"
+                        Padding="12,10"
+                        Background="#FFF7E8"
+                        BorderBrush="#F0B44D"
+                        BorderThickness="1"
+                        CornerRadius="10"
+                        AutomationProperties.Name="Motivo por el que no se puede iniciar la automatización">
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsStartAutomationWarningVisible}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
+                    <TextBlock Foreground="#8A4B08"
+                               FontSize="13"
+                               FontWeight="SemiBold"
+                               Text="{Binding StartAutomationWarningMessage}"
+                               TextAlignment="Center"
+                               TextWrapping="Wrap" />
+                </Border>
+
+                <TextBlock Width="500"
+                           Margin="0,12,0,0"
+                           HorizontalAlignment="Center"
+                           Foreground="{StaticResource TextSecondaryBrush}"
+                           FontSize="13"
+                           Text="{Binding StatusMessage}"
+                           TextAlignment="Center"
+                           TextWrapping="Wrap" />
+
+                <Button x:Name="ShowAutomationResultButton"
+                        MinWidth="230"
+                        Margin="0,14,0,0"
+                        HorizontalAlignment="Center"
+                        AutomationProperties.Name="Ver resultado de la automatización"
+                        Command="{Binding ShowResultCommand}"
+                        Content="Ver resultado de la automatización">
+                    <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding HasResult}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
+            </StackPanel>
+
+                <UniformGrid Grid.Row="2"
+                             MaxWidth="920"
+                             Margin="0,20,0,0"
+                             HorizontalAlignment="Stretch"
+                             Columns="3">
+                <Button Margin="0,0,10,0"
+                        AutomationProperties.Name="Configurar credenciales PAM"
+                        Command="{Binding ConfigureCredentialsCommand}"
+                        Style="{StaticResource NavigationCardButtonStyle}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock VerticalAlignment="Center"
+                                   FontWeight="SemiBold"
+                                   Text="{Binding CredentialsActionText}" />
+                        <TextBlock Grid.Column="1"
+                                   Margin="14,0,0,0"
+                                   VerticalAlignment="Center"
+                                   FontSize="18"
+                                   Text="→" />
+                    </Grid>
+                </Button>
+
+                <Button Margin="10,0"
+                        AutomationProperties.Name="Configurar solicitud PAM"
+                        Command="{Binding ConfigureRequestCommand}"
+                        Style="{StaticResource NavigationCardButtonStyle}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock VerticalAlignment="Center"
+                                   FontWeight="SemiBold"
+                                   Text="{Binding RequestActionText}" />
+                        <TextBlock Grid.Column="1"
+                                   Margin="14,0,0,0"
+                                   VerticalAlignment="Center"
+                                   FontSize="18"
+                                   Text="→" />
+                    </Grid>
+                </Button>
+
+                <Button Margin="10,0,0,0"
+                        AutomationProperties.Name="Configurar envío de correo"
+                        Command="{Binding ConfigureMailCommand}"
+                        Style="{StaticResource NavigationCardButtonStyle}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock VerticalAlignment="Center"
+                                   FontWeight="SemiBold"
+                                   Text="{Binding MailActionText}" />
+                        <TextBlock Grid.Column="1"
+                                   Margin="14,0,0,0"
+                                   VerticalAlignment="Center"
+                                   FontSize="18"
+                                   Text="→" />
+                    </Grid>
+                </Button>
+            </UniformGrid>
+        </Grid>
     </Grid>
 </Window>

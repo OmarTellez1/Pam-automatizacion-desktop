@@ -1,0 +1,66 @@
+using System.Diagnostics;
+using PamAutomation.Core.Models.Configuration;
+
+namespace PamAutomation.Core.Execution;
+
+/// <summary>Contains the exact non-sensitive values displayed before a real run.</summary>
+[DebuggerDisplay("PAM preparation: {FavoriteCount} Favorites rows")]
+public sealed record PamExecutionPreparation
+{
+    /// <summary>Initializes the immutable snapshot used before a real PAM execution.</summary>
+    /// <param name="favoriteCount">Number of Favorites rows selected for submission.</param>
+    /// <param name="request">Validated request values.</param>
+    /// <param name="finalAction">Action requested after reconciliation.</param>
+    /// <param name="pendingRequestIdsBeforeSubmission">Request IDs already present in Pending.</param>
+    /// <param name="exactPendingDuplicateCount">Number of exact requests already present in Pending.</param>
+    public PamExecutionPreparation(
+        int favoriteCount,
+        RequestSettings request,
+        FinalAction finalAction,
+        IReadOnlyList<string>? pendingRequestIdsBeforeSubmission = null,
+        int exactPendingDuplicateCount = 0)
+    {
+        if (favoriteCount < 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(favoriteCount));
+        }
+
+        ArgumentNullException.ThrowIfNull(request);
+        if (exactPendingDuplicateCount < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(exactPendingDuplicateCount));
+        }
+
+        string[] baselineIds = pendingRequestIdsBeforeSubmission?.ToArray() ?? [];
+        if (baselineIds.Any(static id => string.IsNullOrWhiteSpace(id)) ||
+            baselineIds.Distinct(StringComparer.Ordinal).Count() != baselineIds.Length)
+        {
+            throw new ArgumentException(
+                "Los Request ID existentes en Pending deben ser completos y únicos.",
+                nameof(pendingRequestIdsBeforeSubmission));
+        }
+
+        FavoriteCount = favoriteCount;
+        Request = request with { };
+        FinalAction = finalAction;
+        PendingRequestIdsBeforeSubmission = Array.AsReadOnly(baselineIds);
+        ExactPendingDuplicateCount = exactPendingDuplicateCount;
+    }
+
+    public int FavoriteCount { get; }
+
+    public RequestSettings Request { get; }
+
+    public FinalAction FinalAction { get; }
+
+    /// <summary>Gets the Pending Request IDs observed before any submission.</summary>
+    public IReadOnlyList<string> PendingRequestIdsBeforeSubmission { get; }
+
+    /// <summary>Gets the number of existing Pending rows with the same account and request values.</summary>
+    public int ExactPendingDuplicateCount { get; }
+
+    /// <summary>Gets whether the user must explicitly decide if exact Pending rows should be repeated.</summary>
+    public bool HasExactPendingDuplicates => ExactPendingDuplicateCount > 0;
+
+    public override string ToString() => $"PAM preparation: {FavoriteCount} Favorites rows";
+}

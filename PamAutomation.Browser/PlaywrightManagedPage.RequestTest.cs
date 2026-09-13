@@ -1,0 +1,395 @@
+using System.Globalization;
+using Microsoft.Playwright;
+using PamAutomation.Core.Favorites;
+using PamAutomation.Core.Models.Configuration;
+using PamAutomation.Core.Requests;
+
+namespace PamAutomation.Browser;
+
+internal sealed partial class PlaywrightManagedPage
+{
+    private const int MaximumCalendarAdvances = 120;
+    private bool submissionBlockInstalled;
+    private int blockedSubmissionAttempts;
+
+    public async Task ValidateAndDiscardRequestFormAsync(
+        PamFavoriteAccount account,
+        RequestSettings settings,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(account);
+        ArgumentNullException.ThrowIfNull(settings);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        await EnsureSubmissionBlockedAsync(cancellationToken).ConfigureAwait(false);
+        int attemptsBefore = Volatile.Read(ref blockedSubmissionAttempts);
+        ILocator row = await FindFavoriteRowAsync(account, cancellationToken).ConfigureAwait(false);
+        await OpenRequestFormAsync(row, cancellationToken).ConfigureAwait(false);
+        await FillAndVerifyRequestFormAsync(
+            PamRequestFormData.FromSettings(settings),
+            cancellationToken).ConfigureAwait(false);
+        await DiscardRequestFormAsync(cancellationToken).ConfigureAwait(false);
+
+        if (Volatile.Read(ref blockedSubmissionAttempts) != attemptsBefore)
+        {
+            throw new InvalidOperationException("El modo de prueba bloqueó un intento inesperado de envío.");
+        }
+    }
+
+    private async Task EnsureSubmissionBlockedAsync(CancellationToken cancellationToken)
+    {
+        if (submissionBlockInstalled)
+        {
+            return;
+        }
+
+        await page.RouteAsync(PamRequestTestSelectors.SubmissionEndpointExpression(), async route =>
+        {
+            if (!string.Equals(route.Request.Method, "POST", StringComparison.OrdinalIgnoreCase))
+            {
+                await route.FallbackAsync().ConfigureAwait(false);
+                return;
+            }
+
+            Interlocked.Increment(ref blockedSubmissionAttempts);
+            await route.AbortAsync().ConfigureAwait(false);
+        }).WaitAsync(cancellationToken).ConfigureAwait(false);
+        submissionBlockInstalled = true;
+    }
+
+    private async Task<ILocator> FindFavoriteRowAsync(
+        PamFavoriteAccount expected,
+        CancellationToken cancellationToken)
+    {
+        await page.GotoAsync(PamFavoritesSelectors.AccountsUri.AbsoluteUri)
+            .WaitAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        ILocator browseByCategory = page.GetByText(PamFavoritesSelectors.BrowseByCategoryExpression());
+        await RequireUniqueVisibleAsync(browseByCategory, "Browse by Category", cancellationToken)
+            .ConfigureAwait(false);
+        ILocator favorites = page.GetByText(PamFavoritesSelectors.Favorites, new() { Exact = true });
+        await RequireUniqueVisibleAsync(favorites, PamFavoritesSelectors.Favorites, cancellationToken)
+            .ConfigureAwait(false);
+        await favorites.ClickAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
+
+        ILocator rows = page.Locator(PamFavoritesSelectors.Rows);
+        await rows.First.WaitForAsync(new()
+        {
+            State = WaitForSelectorState.Visible,
+            Timeout = (float)PortalTimeout.TotalMilliseconds,
+        }).WaitAsync(cancellationToken).ConfigureAwait(false);
+
+        ILocator pageInput = page.Locator(PamFavoritesSelectors.PageInput);
+        int paginatorCount = await pageInput.CountAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
+        int totalPages = 1;
+        if (paginatorCount == 1)
+        {
+            (int currentPage, totalPages) = await ReadPageInfoAsync(pageInput, cancellationToken)
+                .ConfigureAwait(false);
+            if (totalPages > MaximumFavoritePages)
+            {
+                throw new InvalidOperationException("Favorites excede el límite seguro de páginas.");
+            }
+
+            if (currentPage != 1)
+            {
+                ILocator firstPage = page.GetByRole(
+                    AriaRole.Button,
+                    new() { Name = PamFavoritesSelectors.FirstPage, Exact = true });
+                await RequireUniqueVisibleAsync(firstPage, PamFavoritesSelectors.FirstPage, cancellationToken)
+                    .ConfigureAwait(false);
+                await firstPage.ClickAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
+                await WaitForPageAsync(pageInput, 1, cancellationToken).ConfigureAwait(false);
+            }
+        }
+        else if (paginatorCount != 0)
+        {
+            throw new InvalidOperationException("Favorites presentó más de un paginador.");
+        }
+
+        for (int pageNumber = 1; pageNumber <= totalPages; pageNumber++)
+        {
+            await ReadStableCurrentPageAsync(rows, cancellationToken).ConfigureAwait(false);
+            ILocator? match = await FindMatchingRowOnCurrentPageAsync(rows, expected, cancellationToken)
+                .ConfigureAwait(false);
+            if (match is not null)
+            {
+                return match;
+            }
+
+            if (pageNumber < totalPages)
+            {
+                ILocator nextPage = page.GetByRole(
+                    AriaRole.Button,
+                    new() { Name = PamFavoritesSelectors.NextPage, Exact = true });
+                await RequireUniqueVisibleAsync(nextPage, PamFavoritesSelectors.NextPage, cancellationToken)
+                    .ConfigureAwait(false);
+                await nextPage.ClickAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
+                await WaitForPageAsync(pageInput, pageNumber + 1, cancellationToken).ConfigureAwait(false);
+            }
+        }
+
+        throw new InvalidOperationException("Una cuenta de Favorites cambió antes de abrir su formulario.");
+    }
+
+    private static async Task<ILocator?> FindMatchingRowOnCurrentPageAsync(
+        ILocator rows,
+        PamFavoriteAccount expected,
+        CancellationToken cancellationToken)
+    {
+        ILocator? match = null;
+        int count = await rows.CountAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
+        for (int index = 0; index < count; index++)
+        {
+            ILocator row = rows.Nth(index);
+            var observed = new PamFavoriteAccount(
+                await ReadCellAsync(row, PamFavoritesSelectors.SystemCell, cancellationToken).ConfigureAwait(false),
+                await ReadCellAsync(row, PamFavoritesSelectors.ApplicationCell, cancellationToken).ConfigureAwait(false),
+                await ReadCellAsync(row, PamFavoritesSelectors.AccountCell, cancellationToken).ConfigureAwait(false));
+            if (observed != expected)
+            {
+                continue;
+            }
+
+            if (match is not null)
+            {
+                throw new InvalidOperationException("Favorites presentó una identidad duplicada durante la prueba.");
+            }
+
+            match = row;
+        }
+
+        return match;
+    }
+
+    private async Task OpenRequestFormAsync(ILocator row, CancellationToken cancellationToken)
+    {
+        ILocator access = row.GetByText(PamRequestTestSelectors.Access, new() { Exact = true });
+        await RequireUniqueVisibleAsync(access, PamRequestTestSelectors.Access, cancellationToken)
+            .ConfigureAwait(false);
+        await access.ClickAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
+
+        ILocator submitTab = page.GetByRole(
+            AriaRole.Tab,
+            new() { Name = PamRequestTestSelectors.SubmitRequest, Exact = true });
+        await RequireUniqueVisibleAsync(submitTab, "pestaña Submit Request", cancellationToken)
+            .ConfigureAwait(false);
+        await submitTab.ClickAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
+        await RequireUniqueVisibleAsync(
+            page.GetByText(PamRequestTestSelectors.FormHeading, new() { Exact = true }),
+            PamRequestTestSelectors.FormHeading,
+            cancellationToken).ConfigureAwait(false);
+
+        RequestFormLocators fields = GetRequestFormLocators();
+        await RequireUniqueVisibleAsync(fields.StartDate, PamRequestTestSelectors.StartDate, cancellationToken)
+            .ConfigureAwait(false);
+        await RequireUniqueVisibleAsync(fields.StartTime, PamRequestTestSelectors.StartTime, cancellationToken)
+            .ConfigureAwait(false);
+        await RequireUniqueVisibleAsync(fields.Hours, PamRequestTestSelectors.Hours, cancellationToken)
+            .ConfigureAwait(false);
+        await RequireUniqueVisibleAsync(fields.Reason, PamRequestTestSelectors.Reason, cancellationToken)
+            .ConfigureAwait(false);
+        await RequireUniqueVisibleAsync(fields.ApplicationSession, PamRequestTestSelectors.ApplicationSession, cancellationToken)
+            .ConfigureAwait(false);
+
+        bool ready = await WaitUntilAsync(
+            async () => string.Equals(
+                await fields.ApplicationSession.GetAttributeAsync("aria-checked").ConfigureAwait(false),
+                "true",
+                StringComparison.OrdinalIgnoreCase),
+            cancellationToken).ConfigureAwait(false);
+        if (!ready)
+        {
+            throw new InvalidOperationException("El formulario no inicializó Application Session.");
+        }
+    }
+
+    private async Task FillAndVerifyRequestFormAsync(
+        PamRequestFormData form,
+        CancellationToken cancellationToken)
+    {
+        RequestFormLocators fields = GetRequestFormLocators();
+        await Task.Delay(TimeSpan.FromMilliseconds(500), cancellationToken).ConfigureAwait(false);
+        await SelectStartDateAsync(fields.StartDate, form.StartDate, cancellationToken)
+            .ConfigureAwait(false);
+        string expectedTime = form.StartTime.ToString("HH:mm", CultureInfo.InvariantCulture);
+        await fields.StartTime.FillAsync(expectedTime)
+            .WaitAsync(cancellationToken)
+            .ConfigureAwait(false);
+        await Task.Delay(TimeSpan.FromMilliseconds(250), cancellationToken).ConfigureAwait(false);
+        if (!string.Equals(
+            await fields.StartTime.InputValueAsync().ConfigureAwait(false),
+            expectedTime,
+            StringComparison.Ordinal))
+        {
+            await fields.StartTime.FillAsync(expectedTime)
+                .WaitAsync(cancellationToken)
+                .ConfigureAwait(false);
+        }
+        await fields.Days.FillAsync(form.DurationDays.ToString(CultureInfo.InvariantCulture))
+            .WaitAsync(cancellationToken)
+            .ConfigureAwait(false);
+        await fields.Hours.FillAsync(form.DurationHours.ToString(CultureInfo.InvariantCulture))
+            .WaitAsync(cancellationToken)
+            .ConfigureAwait(false);
+        await fields.Minutes.FillAsync(form.DurationMinutes.ToString(CultureInfo.InvariantCulture))
+            .WaitAsync(cancellationToken)
+            .ConfigureAwait(false);
+        await fields.Reason.FillAsync(form.Reason).WaitAsync(cancellationToken).ConfigureAwait(false);
+        await Task.Delay(TimeSpan.FromMilliseconds(750), cancellationToken).ConfigureAwait(false);
+
+        await VerifyRequestFormAsync(form, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task VerifyRequestFormAsync(
+        PamRequestFormData form,
+        CancellationToken cancellationToken)
+    {
+        RequestFormLocators fields = GetRequestFormLocators();
+        string expectedDate = form.StartDate.ToString("MMMM dd, yyyy", CultureInfo.InvariantCulture);
+        string expectedTime = form.StartTime.ToString("HH:mm", CultureInfo.InvariantCulture);
+        var mismatches = new List<string>();
+        AddMismatch(
+            mismatches,
+            PamRequestTestSelectors.StartDate,
+            await fields.StartDate.InputValueAsync().ConfigureAwait(false),
+            expectedDate);
+        AddMismatch(
+            mismatches,
+            PamRequestTestSelectors.StartTime,
+            await fields.StartTime.InputValueAsync().ConfigureAwait(false),
+            expectedTime);
+        AddMismatch(
+            mismatches,
+            PamRequestTestSelectors.Days,
+            await fields.Days.InputValueAsync().ConfigureAwait(false),
+            form.DurationDays.ToString(CultureInfo.InvariantCulture));
+        AddMismatch(
+            mismatches,
+            PamRequestTestSelectors.Hours,
+            await fields.Hours.InputValueAsync().ConfigureAwait(false),
+            form.DurationHours.ToString(CultureInfo.InvariantCulture));
+        AddMismatch(
+            mismatches,
+            PamRequestTestSelectors.Minutes,
+            await fields.Minutes.InputValueAsync().ConfigureAwait(false),
+            form.DurationMinutes.ToString(CultureInfo.InvariantCulture));
+        AddMismatch(
+            mismatches,
+            PamRequestTestSelectors.Reason,
+            await fields.Reason.InputValueAsync().ConfigureAwait(false),
+            form.Reason);
+        AddMismatch(
+            mismatches,
+            PamRequestTestSelectors.ApplicationSession,
+            await fields.ApplicationSession.GetAttributeAsync("aria-checked").ConfigureAwait(false),
+            "true",
+            StringComparison.OrdinalIgnoreCase);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (mismatches.Count > 0)
+        {
+            throw new InvalidOperationException(
+                $"El formulario no conservó estos campos: {string.Join(", ", mismatches)}; el envío permanece bloqueado.");
+        }
+    }
+
+    private static void AddMismatch(
+        ICollection<string> mismatches,
+        string fieldName,
+        string? actual,
+        string expected,
+        StringComparison comparison = StringComparison.Ordinal)
+    {
+        if (!string.Equals(actual, expected, comparison))
+        {
+            mismatches.Add(fieldName);
+        }
+    }
+
+    private async Task SelectStartDateAsync(
+        ILocator startDate,
+        DateOnly targetDate,
+        CancellationToken cancellationToken)
+    {
+        ILocator calendar = page.Locator(PamRequestTestSelectors.OpenCalendar);
+        bool calendarIsOpen = await IsAnyVisibleAsync(calendar).ConfigureAwait(false);
+        for (int attempt = 0; !calendarIsOpen && attempt < 4; attempt++)
+        {
+            await startDate.ClickAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
+            for (int sample = 0; sample < 8; sample++)
+            {
+                await Task.Delay(TimeSpan.FromMilliseconds(125), cancellationToken).ConfigureAwait(false);
+                if (await IsAnyVisibleAsync(calendar).ConfigureAwait(false))
+                {
+                    calendarIsOpen = true;
+                    break;
+                }
+            }
+        }
+
+        if (!calendarIsOpen)
+        {
+            throw new InvalidOperationException("El calendario PAM no se abrió después de cuatro intentos seguros.");
+        }
+
+        string targetLabel = targetDate.ToString("MMMM d, yyyy", CultureInfo.InvariantCulture);
+        for (int advance = 0; advance <= MaximumCalendarAdvances; advance++)
+        {
+            ILocator targetDay = calendar.Locator(
+                $".flatpickr-day[aria-label=\"{targetLabel}\"]:not(.flatpickr-disabled)");
+            if (await targetDay.CountAsync().WaitAsync(cancellationToken).ConfigureAwait(false) == 1 &&
+                await targetDay.IsVisibleAsync().WaitAsync(cancellationToken).ConfigureAwait(false))
+            {
+                await targetDay.ClickAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
+                return;
+            }
+
+            ILocator nextMonth = calendar.Locator(PamRequestTestSelectors.NextMonth);
+            await RequireUniqueVisibleAsync(nextMonth, "siguiente mes", cancellationToken).ConfigureAwait(false);
+            await nextMonth.ClickAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        throw new InvalidOperationException("La fecha configurada excede el alcance seguro del calendario PAM.");
+    }
+
+    private async Task DiscardRequestFormAsync(CancellationToken cancellationToken)
+    {
+        ILocator cancel = page.GetByRole(
+            AriaRole.Button,
+            new() { Name = PamRequestTestSelectors.Cancel, Exact = true });
+        await RequireUniqueVisibleAsync(cancel, PamRequestTestSelectors.Cancel, cancellationToken)
+            .ConfigureAwait(false);
+        await cancel.ClickAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
+
+        ILocator discard = page.GetByRole(
+            AriaRole.Button,
+            new() { Name = PamRequestTestSelectors.DiscardChanges, Exact = true });
+        await RequireUniqueVisibleAsync(discard, PamRequestTestSelectors.DiscardChanges, cancellationToken)
+            .ConfigureAwait(false);
+        await discard.ClickAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
+        await cancel.WaitForAsync(new()
+        {
+            State = WaitForSelectorState.Hidden,
+            Timeout = (float)PortalTimeout.TotalMilliseconds,
+        }).WaitAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private RequestFormLocators GetRequestFormLocators() => new(
+        page.GetByLabel(PamRequestTestSelectors.StartDate, new() { Exact = true }),
+        page.GetByLabel(PamRequestTestSelectors.StartTime, new() { Exact = true }),
+        page.GetByLabel(PamRequestTestSelectors.Days, new() { Exact = true }),
+        page.GetByLabel(PamRequestTestSelectors.Hours, new() { Exact = true }),
+        page.GetByLabel(PamRequestTestSelectors.Minutes, new() { Exact = true }),
+        page.GetByLabel(PamRequestTestSelectors.Reason, new() { Exact = true }),
+        page.GetByRole(AriaRole.Switch, new() { Name = PamRequestTestSelectors.ApplicationSession, Exact = true }));
+
+    private sealed record RequestFormLocators(
+        ILocator StartDate,
+        ILocator StartTime,
+        ILocator Days,
+        ILocator Hours,
+        ILocator Minutes,
+        ILocator Reason,
+        ILocator ApplicationSession);
+}

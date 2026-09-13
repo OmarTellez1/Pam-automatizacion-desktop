@@ -1,0 +1,86 @@
+- main [ref=e2]:
+  - generic [ref=e3]:
+    - link "Volver al inicio de Accesos PAM" [ref=e4] [cursor=pointer]:
+      - /url: /
+      - generic [ref=e5]: P
+      - generic [ref=e6]:
+        - strong [ref=e7]: Accesos PAM
+        - generic [ref=e8]: BeyondInsight Password Safe
+    - link "← Volver al inicio" [ref=e9] [cursor=pointer]:
+      - /url: /
+  - region "Configurar envío de correo" [ref=e10]:
+    - heading "Configurar envío de correo" [level=1] [ref=e11]
+    - note [ref=e12]:
+      - text: Para que el envío automático funcione, debes tener Outlook clásico (la versión antigua) instalado y tu cuenta iniciada. La cuenta remitente se configura y verifica en
+      - link "Configurar credenciales" [ref=e13] [cursor=pointer]:
+        - /url: /credenciales
+      - text: . El nuevo Outlook no es compatible.
+    - region "Formulario de configuración de correo" [ref=e14]:
+      - generic [ref=e15]:
+        - generic [ref=e16]:
+          - generic [ref=e17]: Para
+          - textbox "Para" [ref=e18]:
+            - /placeholder: correo1@empresa.com;correo2@empresa.com
+            - text: pgomezc@claro.com.ec
+          - paragraph [ref=e19]: Separe varias direcciones con punto y coma (;).
+        - generic [ref=e20]:
+          - generic [ref=e21]: CC
+          - textbox "CC" [ref=e22]:
+            - /placeholder: copia1@empresa.com;copia2@empresa.com
+            - text: solorzanor@hitss.com;cobenaj@hitss.com;tellezoe@hitss.com;cruzxr@hitss.com
+          - paragraph [ref=e23]: Este campo es opcional. Separe varias direcciones con punto y coma (;).
+        - generic [ref=e24]:
+          - generic [ref=e25]: Asunto
+          - textbox "Asunto" [ref=e26]: ACCESOS AL PAM
+        - generic [ref=e27]:
+          - generic [ref=e28]:
+            - generic [ref=e29]: Contenido
+            - 'button "Insertar {{REQUEST_IDS}}" [ref=e30] [cursor=pointer]'
+          - textbox "Contenido del correo" [ref=e31]:
+            - generic [ref=e32]: Buenos días Peter,
+            - generic [ref=e35]:
+              - paragraph [ref=e36]: "Su gentil ayuda con los accesos al pam:"
+              - generic [ref=e38]:
+                - generic [ref=e41]: 
+                - table [ref=e42]:
+                  - rowgroup [ref=e43]:
+                    - 'row "Solicitudes de PAM {{REQUEST_IDS}}" [ref=e44]':
+                      - cell "Solicitudes de PAM" [ref=e45]:
+                        - paragraph [ref=e46]:
+                          - generic [ref=e47]: Solicitudes de PAM
+                      - 'cell "{{REQUEST_IDS}}" [ref=e48]':
+                        - paragraph [ref=e49]: "{{REQUEST_IDS}}"
+                    - row "Motivo del acceso Motor de crédito masivo" [ref=e50]:
+                      - cell "Motivo del acceso" [ref=e51]:
+                        - paragraph [ref=e52]:
+                          - generic [ref=e53]: Motivo del acceso
+                      - cell "Motor de crédito masivo" [ref=e54]:
+                        - paragraph [ref=e55]: Motor de crédito masivo
+              - paragraph [ref=e56]
+              - paragraph [ref=e57]: Saludos cordiales.
+              - paragraph [ref=e58]
+              - paragraph
+              - paragraph [ref=e59]:
+                - generic [ref=e61]: OMAR ENRIQUE TÉLLEZ SANABRIA
+              - paragraph [ref=e62]:
+                - generic [ref=e63]: INGENIERO DE PROYECTOS | ECUADOR
+              - paragraph [ref=e64]
+              - paragraph [ref=e66]:
+                - generic [ref=e67]: "F:"
+                - text: (+593) 964119706
+              - paragraph [ref=e68]:
+                - generic [ref=e69]: "E:"
+                - text: tellezoe
+                - link "@hitss.com" [ref=e71]:
+                  - /url: mailto:cobenaj@hitss.com
+              - paragraph [ref=e72]
+              - paragraph [ref=e73]:
+                - generic [ref=e74]: ¡Acelera tu transformación!
+              - paragraph [ref=e75]
+              - paragraph [ref=e77]:
+                - img [ref=e80]
+              - paragraph
+          - paragraph [ref=e81]: "Incluya {{REQUEST_IDS}} exactamente una vez. Al finalizar, se reemplazará por los ID obtenidos de las cuentas favoritas. Puede pegar texto, tablas e imágenes."
+        - button "Guardar configuración" [ref=e82] [cursor=pointer]:
+          - generic [ref=e83]: Guardar configuración
+          - generic [ref=e84]: →

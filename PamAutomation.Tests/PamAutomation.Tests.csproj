@@ -1,0 +1,19 @@
+<Project Sdk="MSTest.Sdk/4.1.0">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Platforms>x64</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\PamAutomation.App\PamAutomation.App.csproj" />
+    <ProjectReference Include="..\PamAutomation.Core\PamAutomation.Core.csproj" />
+    <ProjectReference Include="..\PamAutomation.Infrastructure\PamAutomation.Infrastructure.csproj" />
+    <ProjectReference Include="..\PamAutomation.Browser\PamAutomation.Browser.csproj" />
+    <ProjectReference Include="..\PamAutomation.Outlook\PamAutomation.Outlook.csproj" />
+  </ItemGroup>
+
+</Project>
