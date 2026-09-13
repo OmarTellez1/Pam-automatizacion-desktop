@@ -225,6 +225,14 @@ El catálogo conserva internamente `System + Application + Account` como identid
 
 La colección guardará claves lógicas completas `System + Application + Account`, nunca índices del grid. `Favorites` continuará siendo la fuente de verdad: cada apertura o ejecución actualizará todas sus páginas y clasificará las filas guardadas como `Available`, `Missing` o `Ambiguous`. Las filas `New in Favorites` no se agregarán automáticamente ni se reemplazarán identidades por coincidencias aproximadas.
 
+La fase 20.2 permite crear y editar varias colecciones. Cada una tiene nombre, cualquier subconjunto no vacío del catálogo y su propia `RequestSettings` (`StartDate`, `StartTime`, `SessionHours` y `RequestReason`). Un toggle por colección selecciona cuál se utilizará y desactiva implícitamente cualquier selección anterior; solo puede existir una colección activa.
+
+El estado de colecciones mantiene además `UseCollectionsForAutomation`. Su toggle está en la pantalla principal: desactivado conserva el comportamiento histórico de solicitar todos los `Favorites` con la configuración general; activado exige una colección activa y usa exclusivamente sus identidades y su configuración propia. La confirmación inicial muestra esos valores efectivos.
+
+Antes del preflight de `Pending`, la ejecución con colección vuelve a leer todas las páginas de `Favorites` y resuelve cada clave exacta. Antes del primer envío, `PamRequestRunAuthorization` vuelve a aplicar la misma selección sobre la lectura realizada dentro de la sesión de envío. Si falta una identidad, cambia el total o no coincide la configuración confirmada, no se pulsa `Submit Request`. La reconciliación posterior en `Pending` continúa limitada a las cuentas realmente enviadas.
+
+Las colecciones se guardan separadamente en `%LOCALAPPDATA%\PamAutomation\config\favorite-collections.dat` mediante DPAPI `CurrentUser`, `schemaVersion = 1` y reemplazo atómico. Al actualizar el catálogo se eliminan de cada colección únicamente las claves exactas ausentes; si la colección activa queda vacía, se desactivan tanto su selección como el modo global de colecciones.
+
 La referencia visual aportada establece una futura entrada nativa WPF con día, mes, descripción completa de fecha, hora de 12 horas y selector `AM/PM`, duración operativa en horas y razón. La conversión temporal se realizará en el dominio y el adaptador comprobará el valor normalizado por PAM. El recorrido confirmado, sus selectores e invariantes se mantienen en `PAM_NAVIGATION.md`.
 
 El conflicto `PSPortal.Requests.Policies.RemoteAppAccesssAlreadyAvailable` se registra y permite continuar. Otros errores deben detener el proceso.

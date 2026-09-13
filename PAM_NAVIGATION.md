@@ -2,7 +2,7 @@
 
 ## Propósito
 
-Este documento conserva el conocimiento operativo obtenido al automatizar el portal PAM y define las consideraciones de una característica futura de colecciones. Las colecciones no existen en la aplicación anterior y no forman parte de la migración inicial; se implementarán después de completar y validar las fases actuales.
+Este documento conserva el conocimiento operativo obtenido al automatizar el portal PAM y los contratos de las colecciones locales incorporadas después de la migración inicial. Las colecciones no existen en la aplicación anterior ni son una función nativa del portal.
 
 No deben incluirse aquí credenciales, códigos TOTP, cookies, tokens, Request ID reales ni identidades reales observadas en el portal.
 
@@ -165,6 +165,10 @@ El catálogo previo de fase 20.1 se guarda aparte como `favorite-catalog.dat`, t
 `Directory`, `Description`, `Account Status`, `IP Address` y `Platform` se consideran metadata viva para presentación y reconciliación. No deben duplicarse de forma permanente dentro de la colección salvo que una necesidad funcional futura lo justifique; en particular, `IP Address` no forma parte de la clave actual.
 
 La eliminación deberá ser explícita y recuperable durante la sesión de edición cuando resulte práctico. Los resultados y Request ID producidos al ejecutar una colección seguirán únicamente en memoria conforme a las reglas generales del proyecto.
+
+La fase 20.2 materializa el editor con nombre, checklist `Application - IP Address`, fecha, hora `hh:mm AM/PM`, duración en horas y razón. La ventana principal de Colecciones muestra cada definición y un toggle exclusivo para escoger una sola colección candidata. El toggle separado de la portada activa o desactiva el uso de esa candidata; al estar desactivado, el flujo continúa usando todas las filas actuales de `Favorites`.
+
+La ejecución nunca utiliza los índices ni una copia ciega del catálogo. Resuelve `System + Application + Account` contra una lectura viva antes del preflight de `Pending` y nuevamente en el límite irreversible de envío. Una ausencia o diferencia cancela antes de crear solicitudes y pide actualizar `Favorites`.
 
 ## Validación futura mínima
 

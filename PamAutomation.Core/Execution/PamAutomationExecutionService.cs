@@ -53,30 +53,59 @@ public sealed class PamAutomationExecutionService : IPamAutomationExecutionServi
         AppSettings settings,
         DateTimeOffset ecuadorNow,
         CancellationToken cancellationToken = default)
+        => await PrepareRealCoreAsync(credentials, settings, null, ecuadorNow, cancellationToken)
+            .ConfigureAwait(false);
+
+    /// <inheritdoc />
+    public async Task<PamExecutionPreparation> PrepareCollectionRealAsync(
+        PamCredentials credentials,
+        AppSettings settings,
+        IReadOnlyList<FavoriteAccountKey> selectedAccounts,
+        DateTimeOffset ecuadorNow,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(selectedAccounts);
+        if (selectedAccounts.Count == 0)
+        {
+            throw new FavoriteCollectionException("La colección activa no contiene solicitudes favoritas.");
+        }
+
+        return await PrepareRealCoreAsync(credentials, settings, selectedAccounts, ecuadorNow, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private async Task<PamExecutionPreparation> PrepareRealCoreAsync(
+        PamCredentials credentials,
+        AppSettings settings,
+        IReadOnlyList<FavoriteAccountKey>? selectedAccounts,
+        DateTimeOffset ecuadorNow,
+        CancellationToken cancellationToken)
     {
         ValidateInputs(credentials, settings, ecuadorNow);
         logger.LogInformation("Real execution preparation started with Favorites read.");
         IReadOnlyList<PamFavoriteAccount> accounts = await favoritesService
             .ReadAllAsync(credentials, cancellationToken)
             .ConfigureAwait(false);
+        IReadOnlyList<PamFavoriteAccount> executionAccounts = SelectExecutionAccounts(accounts, selectedAccounts);
         logger.LogInformation("Pending preflight read started before real submissions.");
         IReadOnlyList<PamPendingRequest> pendingBeforeSubmission = await pendingService
             .ReadAllAsync(credentials, cancellationToken)
             .ConfigureAwait(false);
         PamRequestFormData form = PamRequestFormData.FromSettings(settings.Request);
         int duplicateCount = pendingService
-            .FindExactMatches(pendingBeforeSubmission, accounts, form)
+            .FindExactMatches(pendingBeforeSubmission, executionAccounts, form)
             .Count;
         logger.LogInformation(
             "Real execution preparation completed. FavoriteCount={FavoriteCount}, ExactPendingDuplicateCount={ExactPendingDuplicateCount}.",
-            accounts.Count,
+            executionAccounts.Count,
             duplicateCount);
         return new PamExecutionPreparation(
-            accounts.Count,
+            executionAccounts.Count,
             settings.Request,
             settings.FinalAction,
             pendingBeforeSubmission.Select(static request => request.RequestId).ToArray(),
-            duplicateCount);
+            duplicateCount,
+            selectedAccounts);
     }
 
     public async Task<PamExecutionResult> ExecuteRealAsync(
@@ -93,7 +122,8 @@ public sealed class PamAutomationExecutionService : IPamAutomationExecutionServi
 
         PamRequestRunAuthorization authorization = PamRequestRunAuthorization.Confirm(
             preparation.FavoriteCount,
-            preparation.Request);
+            preparation.Request,
+            preparation.SelectedAccounts);
         PamRequestRunResult run = await submissionService.ExecuteAsync(
             credentials,
             preparation.Request,
@@ -178,6 +208,39 @@ public sealed class PamAutomationExecutionService : IPamAutomationExecutionServi
         {
             throw new InvalidOperationException("La configuración de la aplicación no es válida.");
         }
+    }
+
+    private static IReadOnlyList<PamFavoriteAccount> SelectExecutionAccounts(
+        IReadOnlyList<PamFavoriteAccount> liveAccounts,
+        IReadOnlyList<FavoriteAccountKey>? selectedAccounts)
+    {
+        if (selectedAccounts is null) return liveAccounts;
+
+        Dictionary<FavoriteAccountKey, PamFavoriteAccount> byKey;
+        try
+        {
+            byKey = liveAccounts.ToDictionary(FavoriteAccountKey.From);
+        }
+        catch (ArgumentException exception)
+        {
+            throw new FavoriteCollectionException(
+                "Favorites devolvió identidades repetidas y la colección no puede ejecutarse de forma segura.",
+                exception);
+        }
+
+        var selected = new List<PamFavoriteAccount>(selectedAccounts.Count);
+        foreach (FavoriteAccountKey key in selectedAccounts)
+        {
+            if (!byKey.TryGetValue(key, out PamFavoriteAccount? account))
+            {
+                throw new FavoriteCollectionException(
+                    "Una o más solicitudes de la colección ya no existen en Favorites. Actualiza las solicitudes favoritas antes de continuar.");
+            }
+
+            selected.Add(account);
+        }
+
+        return selected;
     }
 
     private DateTimeOffset GetEcuadorNow() => timeProvider.GetUtcNow().ToOffset(TimeSpan.FromHours(-5));

@@ -1,141 +1,159 @@
 <Window x:Class="PamAutomation.App.Views.FavoritesCatalogWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Colecciones"
-        Width="680"
-        Height="620"
-        MinWidth="560"
-        MinHeight="480"
-        WindowStartupLocation="CenterOwner"
-        Background="{StaticResource AppBackgroundBrush}"
-        FontFamily="Segoe UI"
-        Loaded="Window_Loaded"
-        Closed="Window_Closed">
+        Title="Colecciones" Width="940" Height="650" MinWidth="780" MinHeight="540"
+        WindowStartupLocation="CenterOwner" Background="{StaticResource AppBackgroundBrush}"
+        FontFamily="Segoe UI" Loaded="Window_Loaded" Closed="Window_Closed">
     <Grid Margin="24">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
-
         <StackPanel Margin="0,0,0,14">
-            <TextBlock Style="{StaticResource PageTitleTextStyle}" Text="Colecciones" />
-            <TextBlock Margin="0,6,0,0"
-                       Style="{StaticResource BodyTextStyle}"
-                       Text="Obtén tus solicitudes favoritas para preparar colecciones personalizadas." />
+            <TextBlock Style="{StaticResource PageTitleTextStyle}" Text="Colecciones"/>
+            <TextBlock Margin="0,6,0,0" Style="{StaticResource BodyTextStyle}"
+                       Text="Crea grupos de solicitudes favoritas con su propia fecha, hora, duración y razón."/>
         </StackPanel>
 
-        <Border Grid.Row="1" Style="{StaticResource CardStyle}" Padding="18">
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto" />
-                    <RowDefinition Height="*" />
-                    <RowDefinition Height="Auto" />
-                </Grid.RowDefinitions>
-
-                <TextBlock FontSize="16"
-                           FontWeight="SemiBold"
-                           Text="Solicitudes favoritas" />
-
-                <Grid Grid.Row="1" Margin="0,14,0,14">
-                    <Border x:Name="EmptyFavoritesState"
-                            Padding="20"
-                            Background="{StaticResource NeutralSurfaceBrush}"
-                            CornerRadius="10">
-                        <Border.Style>
-                            <Style TargetType="Border">
-                                <Setter Property="Visibility" Value="Collapsed" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsEmpty}" Value="True">
-                                        <Setter Property="Visibility" Value="Visible" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Border.Style>
-                        <TextBlock HorizontalAlignment="Center"
-                                   VerticalAlignment="Center"
-                                   Foreground="{StaticResource TextSecondaryBrush}"
-                                   Text="Todavía no hay solicitudes favoritas guardadas."
-                                   TextAlignment="Center"
-                                   TextWrapping="Wrap" />
-                    </Border>
-
-                    <ListBox x:Name="FavoritesList"
-                             ItemsSource="{Binding Favorites}"
-                             BorderBrush="{StaticResource BorderBrush}"
-                             BorderThickness="1"
-                             AutomationProperties.Name="Solicitudes favoritas obtenidas">
-                        <ListBox.Style>
-                            <Style TargetType="ListBox">
-                                <Setter Property="Visibility" Value="Visible" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsEmpty}" Value="True">
-                                        <Setter Property="Visibility" Value="Collapsed" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </ListBox.Style>
-                        <ListBox.ItemTemplate>
-                            <DataTemplate>
-                                <TextBlock Padding="10,7"
-                                           FontSize="14"
-                                           Text="{Binding DisplayName}"
-                                           TextWrapping="Wrap" />
-                            </DataTemplate>
-                        </ListBox.ItemTemplate>
-                    </ListBox>
+        <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="1.05*"/><ColumnDefinition Width="18"/><ColumnDefinition Width="0.95*"/>
+            </Grid.ColumnDefinitions>
+            <Border Style="{StaticResource CardStyle}" Padding="18">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <Grid>
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                        <TextBlock VerticalAlignment="Center" FontSize="16" FontWeight="SemiBold" Text="Mis colecciones"/>
+                        <Button x:Name="CreateCollectionButton" Grid.Column="1" MinWidth="125" MinHeight="36"
+                                Content="Crear colección" Click="CreateCollection_Click"
+                                IsEnabled="{Binding CanCreateCollection}" Style="{StaticResource PrimaryButtonStyle}"/>
+                    </Grid>
+                    <Grid Grid.Row="1" Margin="0,14,0,0">
+                        <Border Padding="20" Background="{StaticResource NeutralSurfaceBrush}" CornerRadius="10">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding HasCollections}" Value="False">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center"
+                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       Text="Todavía no has creado colecciones. Obtén Favorites y pulsa Crear colección."
+                                       TextAlignment="Center" TextWrapping="Wrap"/>
+                        </Border>
+                        <ListBox x:Name="CollectionsList" ItemsSource="{Binding Collections}" BorderThickness="0"
+                                 AutomationProperties.Name="Colecciones guardadas">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Margin="0,0,0,8" Padding="10" BorderBrush="{StaticResource BorderBrush}"
+                                            BorderThickness="1" CornerRadius="8">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                            <StackPanel>
+                                                <TextBlock FontWeight="SemiBold" Text="{Binding Name}"/>
+                                                <TextBlock Margin="0,3,0,0" FontSize="12"
+                                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                                           Text="{Binding Summary}" TextWrapping="Wrap"/>
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="1" Margin="10,0,0,0" Orientation="Horizontal">
+                                                <Button MinWidth="58" Margin="0,0,8,0" Content="Editar"
+                                                        Click="EditCollection_Click" Style="{StaticResource SecondaryButtonStyle}"/>
+                                                <ToggleButton Width="48" Height="26"
+                                                              AutomationProperties.Name="Usar esta colección para la automatización"
+                                                              IsChecked="{Binding IsActive, Mode=OneWay}"
+                                                              IsEnabled="{Binding CanActivate}"
+                                                              Click="ActiveCollectionToggle_Click"
+                                                              Style="{StaticResource MailToggleStyle}"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </Grid>
+                    <TextBlock Grid.Row="2" Margin="0,10,0,0" FontSize="12"
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               Text="Solo una colección puede quedar seleccionada. El toggle principal decide si se utiliza."
+                               TextWrapping="Wrap"/>
                 </Grid>
+            </Border>
 
-                <StackPanel Grid.Row="2">
-                    <Border Padding="10,8" CornerRadius="8">
-                        <Border.Style>
-                            <Style TargetType="Border">
-                                <Setter Property="Background" Value="{StaticResource NeutralSurfaceBrush}" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding HasError}" Value="True">
-                                        <Setter Property="Background" Value="#FFFFEBEE" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </Border.Style>
-                        <TextBlock Foreground="{StaticResource TextSecondaryBrush}"
-                                   Text="{Binding StatusMessage}"
-                                   TextAlignment="Center"
-                                   TextWrapping="Wrap" />
-                    </Border>
+            <Border Grid.Column="2" Style="{StaticResource CardStyle}" Padding="18">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <TextBlock FontSize="16" FontWeight="SemiBold" Text="Solicitudes favoritas"/>
+                    <Grid Grid.Row="1" Margin="0,14,0,14">
+                        <Border x:Name="EmptyFavoritesState" Padding="20"
+                                Background="{StaticResource NeutralSurfaceBrush}" CornerRadius="10">
+                            <Border.Style>
+                                <Style TargetType="Border">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsEmpty}" Value="True">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Border.Style>
+                            <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center"
+                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       Text="Todavía no hay solicitudes favoritas guardadas."
+                                       TextAlignment="Center" TextWrapping="Wrap"/>
+                        </Border>
+                        <ListBox x:Name="FavoritesList" ItemsSource="{Binding Favorites}"
+                                 BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                 AutomationProperties.Name="Solicitudes favoritas obtenidas">
+                            <ListBox.Style>
+                                <Style TargetType="ListBox">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsEmpty}" Value="True">
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ListBox.Style>
+                            <ListBox.ItemTemplate>
+                                <DataTemplate><TextBlock Padding="10,7" FontSize="13" Text="{Binding DisplayName}" TextWrapping="Wrap"/></DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </Grid>
+                    <StackPanel Grid.Row="2">
+                        <ProgressBar Height="4" IsIndeterminate="True">
+                            <ProgressBar.Style>
+                                <Style TargetType="ProgressBar" BasedOn="{StaticResource RunProgressBarStyle}">
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsLoading}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ProgressBar.Style>
+                        </ProgressBar>
+                        <Button x:Name="RefreshFavoritesButton" MinHeight="44" Margin="0,10,0,0"
+                                AutomationProperties.Name="Obtener o actualizar solicitudes favoritas"
+                                Command="{Binding RefreshCommand}" Content="{Binding RefreshButtonText}"
+                                Style="{StaticResource PrimaryButtonStyle}"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
 
-                    <ProgressBar Height="4"
-                                 Margin="0,10,0,0"
-                                 IsIndeterminate="True">
-                        <ProgressBar.Style>
-                            <Style TargetType="ProgressBar" BasedOn="{StaticResource RunProgressBarStyle}">
-                                <Setter Property="Visibility" Value="Collapsed" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsLoading}" Value="True">
-                                        <Setter Property="Visibility" Value="Visible" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </ProgressBar.Style>
-                    </ProgressBar>
-
-                    <Button x:Name="RefreshFavoritesButton"
-                            MinHeight="46"
-                            Margin="0,12,0,0"
-                            AutomationProperties.Name="Obtener o actualizar solicitudes favoritas"
-                            Command="{Binding RefreshCommand}"
-                            Content="{Binding RefreshButtonText}"
-                            Style="{StaticResource PrimaryButtonStyle}" />
-                </StackPanel>
-            </Grid>
-        </Border>
-
-        <Button Grid.Row="2"
-                MinWidth="110"
-                Margin="0,14,0,0"
-                HorizontalAlignment="Right"
-                Content="Cerrar"
-                IsCancel="True"
-                Style="{StaticResource SecondaryButtonStyle}" />
+        <Grid Grid.Row="2" Margin="0,14,0,0">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+            <Border Padding="10,8" Background="{StaticResource NeutralSurfaceBrush}" CornerRadius="8">
+                <TextBlock Foreground="{StaticResource TextSecondaryBrush}" Text="{Binding StatusMessage}"
+                           TextAlignment="Center" TextWrapping="Wrap"/>
+            </Border>
+            <Button Grid.Column="1" MinWidth="110" Margin="14,0,0,0" Content="Cerrar" IsCancel="True"
+                    Style="{StaticResource SecondaryButtonStyle}"/>
+        </Grid>
     </Grid>
 </Window>

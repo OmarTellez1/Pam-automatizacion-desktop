@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using PamAutomation.Core.Favorites;
 using PamAutomation.Core.Models.Configuration;
 
 namespace PamAutomation.Core.Execution;
@@ -18,7 +19,8 @@ public sealed record PamExecutionPreparation
         RequestSettings request,
         FinalAction finalAction,
         IReadOnlyList<string>? pendingRequestIdsBeforeSubmission = null,
-        int exactPendingDuplicateCount = 0)
+        int exactPendingDuplicateCount = 0,
+        IReadOnlyList<FavoriteAccountKey>? selectedAccounts = null)
     {
         if (favoriteCount < 1)
         {
@@ -40,11 +42,22 @@ public sealed record PamExecutionPreparation
                 nameof(pendingRequestIdsBeforeSubmission));
         }
 
+        FavoriteAccountKey[] selected = selectedAccounts?.ToArray() ?? [];
+        if (selected.Any(static account => account is null) ||
+            selected.Distinct().Count() != selected.Length ||
+            (selected.Length > 0 && selected.Length != favoriteCount))
+        {
+            throw new ArgumentException(
+                "La selección de Favorites debe ser completa, única y coincidir con el total confirmado.",
+                nameof(selectedAccounts));
+        }
+
         FavoriteCount = favoriteCount;
         Request = request with { };
         FinalAction = finalAction;
         PendingRequestIdsBeforeSubmission = Array.AsReadOnly(baselineIds);
         ExactPendingDuplicateCount = exactPendingDuplicateCount;
+        SelectedAccounts = Array.AsReadOnly(selected);
     }
 
     public int FavoriteCount { get; }
@@ -58,6 +71,9 @@ public sealed record PamExecutionPreparation
 
     /// <summary>Gets the number of existing Pending rows with the same account and request values.</summary>
     public int ExactPendingDuplicateCount { get; }
+
+    /// <summary>Gets the exact collection identities authorized for this run; empty means all Favorites.</summary>
+    public IReadOnlyList<FavoriteAccountKey> SelectedAccounts { get; }
 
     /// <summary>Gets whether the user must explicitly decide if exact Pending rows should be repeated.</summary>
     public bool HasExactPendingDuplicates => ExactPendingDuplicateCount > 0;

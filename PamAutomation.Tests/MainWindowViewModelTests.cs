@@ -10,6 +10,7 @@ using PamAutomation.Core.Interfaces.Configuration;
 using PamAutomation.Core.Interfaces.Credentials;
 using PamAutomation.Core.Interfaces.Diagnostics;
 using PamAutomation.Core.Interfaces.Execution;
+using PamAutomation.Core.Interfaces.Favorites;
 using PamAutomation.Core.Interfaces.Outlook;
 using PamAutomation.Core.Interfaces.Updates;
 using PamAutomation.Core.Models.Configuration;
@@ -497,6 +498,61 @@ public sealed class MainWindowViewModelTests
     }
 
     [TestMethod]
+    public async Task ToggleCollectionsMode_ActiveCollection_UsesItsOwnRequestAndSelection()
+    {
+        var now = new DateTimeOffset(2026, 9, 10, 16, 0, 0, TimeSpan.FromHours(-5));
+        AppSettings globalSettings = CreateSettingsForCollectionTest("Configuración global", new TimeOnly(17, 0));
+        var collection = new FavoriteCollection(
+            Guid.NewGuid(),
+            "Accesos Peter",
+            globalSettings.Request with { StartTime = new TimeOnly(18, 0), RequestReason = "Configuración de colección" },
+            [new FavoriteAccountKey("system", "application", "account")]);
+        var collectionService = new FakeFavoriteCollectionService(
+            new FavoriteCollectionsState([collection], collection.Id, false));
+        var execution = new FakeExecutionService(now);
+        var viewModel = new MainWindowViewModel(
+            execution,
+            new FakeSettingsStore(globalSettings),
+            new FakeCredentialStore(),
+            new FakeDialogs(confirm: true),
+            new AppSettingsValidator(new RequestSettingsValidator()),
+            new FixedTimeProvider(now.ToUniversalTime()),
+            favoriteCollectionService: collectionService);
+        await viewModel.InitializeAsync();
+
+        await viewModel.ToggleCollectionsModeCommand.ExecuteAsync(null);
+        await viewModel.StartAutomationCommand.ExecuteAsync(null);
+
+        Assert.IsTrue(viewModel.UseCollectionsForAutomation);
+        Assert.Contains("Accesos Peter", viewModel.CollectionAutomationModeText);
+        Assert.AreEqual(1, execution.CollectionPreparationCount);
+        Assert.AreEqual("Configuración de colección", execution.LastPreparedSettings?.Request.RequestReason);
+        Assert.HasCount(1, execution.LastSelectedAccounts);
+    }
+
+    [TestMethod]
+    public async Task ToggleCollectionsMode_NoActiveCollection_RemainsDisabled()
+    {
+        var now = new DateTimeOffset(2026, 9, 10, 16, 0, 0, TimeSpan.FromHours(-5));
+        var dialogs = new FakeDialogs(confirm: true);
+        var viewModel = new MainWindowViewModel(
+            new FakeExecutionService(now),
+            new FakeSettingsStore(CreateSettingsForCollectionTest("Global", new TimeOnly(17, 0))),
+            new FakeCredentialStore(),
+            dialogs,
+            new AppSettingsValidator(new RequestSettingsValidator()),
+            new FixedTimeProvider(now.ToUniversalTime()),
+            favoriteCollectionService: new FakeFavoriteCollectionService(new FavoriteCollectionsState()));
+        await viewModel.InitializeAsync();
+
+        await viewModel.ToggleCollectionsModeCommand.ExecuteAsync(null);
+
+        Assert.IsFalse(viewModel.UseCollectionsForAutomation);
+        Assert.Contains("Selecciona primero", viewModel.StatusMessage);
+        Assert.AreEqual(viewModel.StatusMessage, dialogs.LastError);
+    }
+
+    [TestMethod]
     public async Task TestEmail_WhenFinalConfirmationIsRejected_DoesNotSend()
     {
         TestContext context = CreateIntegratedViewModel(confirm: false, configureTestEmail: true);
@@ -549,6 +605,17 @@ public sealed class MainWindowViewModelTests
             IsRequestConfigured = true
         };
     }
+
+    private static AppSettings CreateSettingsForCollectionTest(string reason, TimeOnly startTime) => new()
+    {
+        Request = new RequestSettings
+        {
+            StartDate = new DateOnly(2026, 9, 10),
+            StartTime = startTime,
+            SessionHours = 1,
+            RequestReason = reason
+        }
+    };
 
     private static TestContext CreateIntegratedViewModel(
         bool confirm,
@@ -716,7 +783,10 @@ public sealed class MainWindowViewModelTests
             RepeatedPendingConfirmationCount++;
             return ConfirmRepeatedRequests;
         }
-        public bool ConfirmAutomationStart(AppSettings settings, MailSettings? mailSettings)
+        public bool ConfirmAutomationStart(
+            AppSettings settings,
+            MailSettings? mailSettings,
+            string? collectionName = null)
         {
             AutomationStartConfirmationCount++;
             AutomationStartConfirmationAction?.Invoke();
@@ -783,6 +853,40 @@ public sealed class MainWindowViewModelTests
         }
     }
 
+    private sealed class FakeFavoriteCollectionService(FavoriteCollectionsState initial) : IFavoriteCollectionService
+    {
+        private FavoriteCollectionsState state = initial;
+
+        public Task<FavoriteCollectionsState> LoadAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(state);
+
+        public Task<FavoriteCollectionsState> SaveCollectionAsync(
+            FavoriteCollection collection,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<FavoriteCollectionsState> SetActiveCollectionAsync(
+            Guid? collectionId,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
+        public Task<FavoriteCollectionsState> SetAutomationModeAsync(
+            bool useCollections,
+            CancellationToken cancellationToken = default)
+        {
+            if (useCollections && state.ActiveCollection is null)
+            {
+                return Task.FromException<FavoriteCollectionsState>(new FavoriteCollectionException(
+                    "Selecciona primero una colección dentro de Colecciones para usarla en la automatización."));
+            }
+
+            state = new FavoriteCollectionsState(state.Collections, state.ActiveCollectionId, useCollections);
+            return Task.FromResult(state);
+        }
+
+        public Task<FavoriteCollectionsState> ReconcileAsync(
+            FavoriteCatalogSnapshot catalog,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    }
+
     private sealed class FakeExecutionService(DateTimeOffset now) : IPamAutomationExecutionService
     {
         public int RealExecutionCount { get; private set; }
@@ -792,6 +896,9 @@ public sealed class MainWindowViewModelTests
         public string[] LastEmailIds { get; private set; } = [];
         public bool LastEmailWasTest { get; private set; }
         public int PendingDuplicateCount { get; set; }
+        public int CollectionPreparationCount { get; private set; }
+        public AppSettings? LastPreparedSettings { get; private set; }
+        public IReadOnlyList<FavoriteAccountKey> LastSelectedAccounts { get; private set; } = [];
 
         public Task<PamExecutionPreparation> PrepareRealAsync(PamCredentials credentials, AppSettings settings,
             DateTimeOffset ecuadorNow, CancellationToken cancellationToken = default)
@@ -803,6 +910,26 @@ public sealed class MainWindowViewModelTests
                 settings.FinalAction,
                 PendingDuplicateCount > 0 ? ["7001"] : [],
                 PendingDuplicateCount));
+        }
+
+        public Task<PamExecutionPreparation> PrepareCollectionRealAsync(
+            PamCredentials credentials,
+            AppSettings settings,
+            IReadOnlyList<FavoriteAccountKey> selectedAccounts,
+            DateTimeOffset ecuadorNow,
+            CancellationToken cancellationToken = default)
+        {
+            PreparationCount++;
+            CollectionPreparationCount++;
+            LastPreparedSettings = settings;
+            LastSelectedAccounts = selectedAccounts.ToArray();
+            return Task.FromResult(new PamExecutionPreparation(
+                selectedAccounts.Count,
+                settings.Request,
+                settings.FinalAction,
+                PendingDuplicateCount > 0 ? ["7001"] : [],
+                PendingDuplicateCount,
+                selectedAccounts));
         }
 
         public Task<PamExecutionResult> ExecuteRealAsync(PamCredentials credentials,

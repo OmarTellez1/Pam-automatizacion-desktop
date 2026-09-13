@@ -15,6 +15,7 @@ public sealed class WpfConfigurationDialogService : IConfigurationDialogService
     private readonly ILogger<CredentialsWindow> credentialsWindowLogger;
     private readonly ILogger<MailSettingsWindow> mailSettingsWindowLogger;
     private readonly IFavoriteCatalogService? favoriteCatalogService;
+    private readonly IFavoriteCollectionService? favoriteCollectionService;
     private readonly ILogger<FavoritesCatalogViewModel> favoritesCatalogLogger;
 
     public WpfConfigurationDialogService(
@@ -22,12 +23,14 @@ public sealed class WpfConfigurationDialogService : IConfigurationDialogService
         ILogger<CredentialsWindow>? credentialsWindowLogger = null,
         ILogger<MailSettingsWindow>? mailSettingsWindowLogger = null,
         IFavoriteCatalogService? favoriteCatalogService = null,
+        IFavoriteCollectionService? favoriteCollectionService = null,
         ILogger<FavoritesCatalogViewModel>? favoritesCatalogLogger = null)
     {
         this.credentialWorkflow = credentialWorkflow ?? throw new ArgumentNullException(nameof(credentialWorkflow));
         this.credentialsWindowLogger = credentialsWindowLogger ?? NullLogger<CredentialsWindow>.Instance;
         this.mailSettingsWindowLogger = mailSettingsWindowLogger ?? NullLogger<MailSettingsWindow>.Instance;
         this.favoriteCatalogService = favoriteCatalogService;
+        this.favoriteCollectionService = favoriteCollectionService;
         this.favoritesCatalogLogger = favoritesCatalogLogger ?? NullLogger<FavoritesCatalogViewModel>.Instance;
     }
 
@@ -67,7 +70,10 @@ public sealed class WpfConfigurationDialogService : IConfigurationDialogService
             throw new InvalidOperationException("El catálogo de solicitudes favoritas no está disponible.");
         }
 
-        var viewModel = new FavoritesCatalogViewModel(favoriteCatalogService, favoritesCatalogLogger);
+        var viewModel = new FavoritesCatalogViewModel(
+            favoriteCatalogService,
+            favoriteCollectionService,
+            favoritesCatalogLogger);
         var dialog = new FavoritesCatalogWindow(viewModel) { Owner = Application.Current.MainWindow };
         dialog.ShowDialog();
     }

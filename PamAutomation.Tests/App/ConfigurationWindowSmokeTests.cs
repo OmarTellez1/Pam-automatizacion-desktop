@@ -37,6 +37,7 @@ public sealed class ConfigurationWindowSmokeTests
             Assert.IsNotNull(window.FindName("ExportDiagnosticsButton"));
             Assert.IsNotNull(window.FindName("AccessPamButton"));
             Assert.IsNotNull(window.FindName("CollectionsButton"));
+            Assert.IsNotNull(window.FindName("UseCollectionsToggle"));
             var updateBanner = Assert.IsInstanceOfType<Border>(window.FindName("UpdateNotificationBanner"));
             var startWarning = Assert.IsInstanceOfType<Border>(window.FindName("StartAutomationWarningBanner"));
             var resultButton = Assert.IsInstanceOfType<Button>(window.FindName("ShowAutomationResultButton"));
@@ -129,9 +130,41 @@ public sealed class ConfigurationWindowSmokeTests
             var emptyState = Assert.IsInstanceOfType<Border>(window.FindName("EmptyFavoritesState"));
             var list = Assert.IsInstanceOfType<ListBox>(window.FindName("FavoritesList"));
             var refresh = Assert.IsInstanceOfType<Button>(window.FindName("RefreshFavoritesButton"));
+            Assert.IsNotNull(window.FindName("CreateCollectionButton"));
+            Assert.IsNotNull(window.FindName("CollectionsList"));
             Assert.AreEqual(Visibility.Visible, emptyState.Visibility);
             Assert.AreEqual(Visibility.Collapsed, list.Visibility);
             Assert.AreEqual("Obtener solicitudes favoritas", refresh.Content);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [STATestMethod]
+    public void FavoriteCollectionEditor_RendersSelectionAndRequestFields()
+    {
+        EnsureApplicationResources();
+        var favorites = new[]
+        {
+            new FavoriteCatalogEntry("system", "NOSQLBOOSTER", "account", "10.31.32.25")
+        };
+        var window = new FavoriteCollectionEditorWindow(
+            favorites,
+            null,
+            new DateTimeOffset(2026, 9, 13, 8, 0, 0, TimeSpan.FromHours(-5)));
+
+        try
+        {
+            window.Show();
+            Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+
+            Assert.IsNotNull(window.FindName("CollectionNameBox"));
+            Assert.IsNotNull(window.FindName("FavoriteSelectionList"));
+            Assert.IsNotNull(window.FindName("StartDatePicker"));
+            Assert.IsNotNull(window.FindName("ReasonBox"));
+            Assert.IsNotNull(window.FindName("SaveCollectionButton"));
         }
         finally
         {

@@ -284,6 +284,18 @@ El snapshot se guarda en `%LOCALAPPDATA%\PamAutomation\config\favorite-catalog.d
 
 La lectura continúa siendo no destructiva: no abre formularios, no consulta `Pending`, no crea solicitudes y no ejecuta Outlook. La primera validación desde la interfaz alcanzó `Favorites`, pero agotó el tiempo de estabilización porque el selector nuevo supuso `IPAddress`; una inspección real limitada a los nombres técnicos de columna confirmó que el portal representa el encabezado visible `IP Address` como `data-column-id="SystemIP"`. El lector usa ahora ese contrato real y conserva como causa interna el nombre seguro de cualquier columna ausente. Tras la corrección pasaron la compilación `Release | x64`, las 350 pruebas ordinarias y una prueba real explícita de solo lectura que exigió valores no vacíos para `System`, `Application`, `Account` e `IP Address`. **Fase completada y validada.**
 
+## Fase 20.2 — Creación, edición y selección de colecciones
+
+La ventana `Colecciones` muestra varias definiciones guardadas y permite crear o editar cada una. El editor reúne nombre, selección múltiple de `Favorites` mediante `Application - IP Address`, fecha, hora `hh:mm AM/PM`, duración y razón propias. Un toggle por fila selecciona de manera exclusiva una colección para automatización; seleccionar otra sustituye la anterior y desactivar la activa limpia la selección.
+
+Las definiciones se guardan en `favorite-collections.dat` bajo la configuración privada del usuario con DPAPI `CurrentUser`, `schemaVersion = 1` y escritura atómica. Al actualizar Favorites se retiran automáticamente las claves exactas ausentes; las nuevas no se agregan solas. Una colección vacía queda inactiva y deshabilita el modo de colecciones. **Fase completada.**
+
+## Fase 20.3 — Ejecución restringida a la colección activa
+
+La portada incorpora `Modo de automatización`: apagado ejecuta todas las filas actuales de `Favorites` con la configuración general; encendido exige una colección activa y utiliza solamente sus identidades y su `RequestSettings`. La selección se valida contra una lectura viva antes de `Pending` y vuelve a comprobarse dentro de la sesión de envío mediante la autorización de un solo uso. Cualquier identidad retirada o cambio de total detiene el flujo antes de `Submit Request`; la reconciliación posterior continúa usando únicamente las cuentas enviadas.
+
+La compilación `Release | x64` y las 363 pruebas ordinarias pasaron. Las pruebas cubren persistencia DPAPI, exclusividad, reconciliación, cambio de modo, configuración efectiva, confirmación explícita del alcance y filtrado exacto en el límite de envío. No se crearon solicitudes ni se envió correo durante la validación. **Implementación completada; prueba real de creación de solicitudes con una colección pendiente de autorización futura.**
+
 ## Fases pendientes
 
 La clasificación siguiente se refiere únicamente a dependencias entre fases pendientes:
@@ -295,8 +307,7 @@ La clasificación siguiente se refiere únicamente a dependencias entre fases pe
 | Fase | Clasificación | Dependencias pendientes | Alcance y posibilidad de paralelismo |
 |---|---|---|---|
 | 19 — Pruebas finales administradas | **Independiente** | Ninguna fase pendiente. | Es la validación final del producto publicado en el entorno Windows objetivo. |
-| 20.2 — Crear y editar colecciones | **Dependiente** | Fase 20.1 completada. | Permitirá seleccionar subconjuntos editables del catálogo, nombrarlos y persistirlos; las claves retiradas de `Favorites` se eliminarán automáticamente y las nuevas no se incorporarán sin decisión del usuario. |
-| 20.3+ — Ejecutar colecciones | **Dependiente** | Fases 19 y 20.2 completadas. | Volverá a leer `Favorites` antes de enviar, procesará solo el subconjunto autorizado y reconciliará los resultados en `Pending` después del envío. |
+| 20.4+ — Administración ampliada de colecciones | **Dependiente** | Fases 20.2 y 20.3 implementadas. | Podrá añadir eliminación recuperable, duplicación, sobrescrituras por fila u otras mejoras que el usuario confirme; no son necesarias para crear, editar, seleccionar y ejecutar una colección. |
 
 ## Mapa recomendado de trabajo paralelo
 
@@ -305,14 +316,12 @@ Fases 6 a 18 completadas ──► Fase 19
 
 Fases 21–21.10 completadas de forma independiente
 
-Fase 20.1 completada ──► Fase 20.2
-
-Fase 19 + Fase 20.2 ──► Fase 20.3+ (ejecución de colecciones)
+Fases 20.1 y 20.2 completadas ──► Fase 20.3 implementada ──► validación real futura
 ```
 
 La fase 18 quedó completada tras validar el manifiesto GitHub real. El coordinador solo podrá paralelizar una parte futura si vuelve a demostrar independencia, contratos congelados y ausencia de archivos compartidos.
 
-La fase 20 registra una ampliación solicitada para después de terminar la migración. La fase 20.1 ya implementa el catálogo local protegido; las colecciones nombradas, su edición y su ejecución permanecen separadas en 20.2 y 20.3+. Su diseño, navegación, reconciliación y seguridad se detallan en `PAM_NAVIGATION.md`; ninguna de estas fases hereda autorización para crear solicitudes reales.
+La fase 20 registra la ampliación solicitada después de la migración. Las fases 20.1 y 20.2 implementan el catálogo protegido y las colecciones nombradas editables; la fase 20.3 implementa su ejecución restringida. Su diseño, navegación, reconciliación y seguridad se detallan en `PAM_NAVIGATION.md`; ninguna de estas fases hereda autorización para crear solicitudes reales.
 
 Esta clasificación es una guía de planificación, no una autorización automática para crear subagentes. Antes de cada oleada, el coordinador debe inspeccionar el diff y la estructura real; si el trabajo resultó pequeño o apareció solapamiento, debe conservarlo en el agente principal o ejecutarlo secuencialmente.
 

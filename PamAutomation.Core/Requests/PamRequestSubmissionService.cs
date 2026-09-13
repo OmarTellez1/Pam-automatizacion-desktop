@@ -63,10 +63,10 @@ public sealed class PamRequestSubmissionService
         var results = new List<PamRequestAccountResult>();
         try
         {
-            IReadOnlyList<PamFavoriteAccount> accounts = await favoritesService
+            IReadOnlyList<PamFavoriteAccount> observedAccounts = await favoritesService
                 .ReadAllAsync(session, cancellationToken)
                 .ConfigureAwait(false);
-            if (!authorization.TryConsume(accounts.Count, settings))
+            if (!authorization.TryConsume(observedAccounts, settings, out IReadOnlyList<PamFavoriteAccount> accounts))
             {
                 throw new PamRequestSubmissionException(
                     PamRequestSubmissionErrorCode.AuthorizationMismatch);

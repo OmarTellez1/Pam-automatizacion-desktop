@@ -43,6 +43,41 @@ public sealed class PamRequestSubmissionServiceTests
     }
 
     [TestMethod]
+    public async Task ExecuteAsync_CollectionAuthorization_SubmitsOnlyExactSelectedAccount()
+    {
+        var harness = new SubmissionHarness([PamRequestPortalOutcome.Submitted()]);
+        var selected = new FavoriteAccountKey("system-b", "application-b", "account-b");
+
+        PamRequestRunResult result = await harness.Service.ExecuteAsync(
+            CreateCredentials(),
+            CreateSettings(),
+            EcuadorNow,
+            PamRequestRunAuthorization.Confirm(1, CreateSettings(), [selected]));
+
+        Assert.HasCount(1, result.Accounts);
+        Assert.HasCount(1, harness.SubmissionPortal.Accounts);
+        Assert.AreEqual("application-b", harness.SubmissionPortal.Accounts[0].ApplicationName);
+    }
+
+    [TestMethod]
+    public async Task ExecuteAsync_CollectionAccountRemoved_SubmitsNothing()
+    {
+        var harness = new SubmissionHarness([]);
+        var missing = new FavoriteAccountKey("missing", "application", "account");
+
+        PamRequestSubmissionException exception = await Assert.ThrowsExactlyAsync<PamRequestSubmissionException>(() =>
+            harness.Service.ExecuteAsync(
+                CreateCredentials(),
+                CreateSettings(),
+                EcuadorNow,
+                PamRequestRunAuthorization.Confirm(1, CreateSettings(), [missing])));
+
+        Assert.AreEqual(PamRequestSubmissionErrorCode.AuthorizationMismatch, exception.ErrorCode);
+        Assert.AreEqual(0, harness.SubmissionFactory.CreateCalls);
+        Assert.IsEmpty(harness.SubmissionPortal.Accounts);
+    }
+
+    [TestMethod]
     public async Task ExecuteAsync_KnownOutcomes_ReportsApplicationProgressInOrder()
     {
         var harness = new SubmissionHarness(
@@ -307,12 +342,14 @@ public sealed class PamRequestSubmissionServiceTests
     {
         private int index;
         public List<PamRequestFormData> Forms { get; } = [];
+        public List<PamFavoriteAccount> Accounts { get; } = [];
 
         public Task<PamRequestPortalOutcome> SubmitAsync(
             PamFavoriteAccount account,
             PamRequestFormData form,
             CancellationToken cancellationToken)
         {
+            Accounts.Add(account);
             Forms.Add(form);
             return Task.FromResult(outcomes[index++]);
         }

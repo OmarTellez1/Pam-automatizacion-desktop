@@ -100,6 +100,8 @@ namespace PamAutomation.App
                 credentialStore,
                 new DpapiFavoriteCatalogStore(),
                 TimeProvider.System);
+            var favoriteCollections = new FavoriteCollectionService(
+                new DpapiFavoriteCollectionStore());
             var execution = new PamAutomationExecutionService(
                 favorites,
                 new PamRequestSubmissionService(
@@ -130,6 +132,7 @@ namespace PamAutomation.App
                     loggerFactory.CreateLogger<CredentialsWindow>(),
                     loggerFactory.CreateLogger<MailSettingsWindow>(),
                     favoriteCatalog,
+                    favoriteCollections,
                     loggerFactory.CreateLogger<FavoritesCatalogViewModel>()),
                 mailSettingsStore,
                 new MailSettingsValidator(),
@@ -138,7 +141,8 @@ namespace PamAutomation.App
                 diagnosticExportService,
                 updateService,
                 typeof(App).Assembly.GetName().Version,
-                interactiveAccess);
+                interactiveAccess,
+                favoriteCollections);
             var window = new MainWindow { DataContext = viewModel };
             MainWindow = window;
             window.Show();

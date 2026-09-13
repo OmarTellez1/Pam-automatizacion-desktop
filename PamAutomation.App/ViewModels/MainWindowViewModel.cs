@@ -12,6 +12,7 @@ using PamAutomation.Core.Interfaces.Configuration;
 using PamAutomation.Core.Interfaces.Credentials;
 using PamAutomation.Core.Interfaces.Diagnostics;
 using PamAutomation.Core.Interfaces.Execution;
+using PamAutomation.Core.Interfaces.Favorites;
 using PamAutomation.Core.Interfaces.Outlook;
 using PamAutomation.Core.Interfaces.Updates;
 using PamAutomation.Core.Models.Configuration;
@@ -38,18 +39,21 @@ public sealed partial class MainWindowViewModel : ObservableObject
     private readonly IDiagnosticExportService? diagnosticExportService;
     private readonly IApplicationUpdateService? updateService;
     private readonly IPamInteractiveAccessService? interactiveAccessService;
+    private readonly IFavoriteCollectionService? favoriteCollectionService;
     private readonly Version applicationVersion;
     private AppSettings settings = new();
     private MailSettings? mailSettings;
     private string outlookSmtpAddress = string.Empty;
     private readonly SemaphoreSlim settingsSaveGate = new(1, 1);
     private PamExecutionResult? lastExecutionResult;
+    private FavoriteCollectionsState favoriteCollectionsState = new();
 
     [ObservableProperty] private bool areCredentialsConfigured;
     [ObservableProperty] private bool isRequestConfigured;
     [ObservableProperty] private bool isMailConfigured;
     [ObservableProperty] private bool isTestModeEnabled;
     [ObservableProperty] private bool sendEmailAtEnd;
+    [ObservableProperty] private bool useCollectionsForAutomation;
     [ObservableProperty] private bool isRunning;
     [ObservableProperty] private bool isExportingDiagnostics;
     [ObservableProperty] private bool isAccessingPam;
@@ -82,7 +86,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
         IDiagnosticExportService? diagnosticExportService = null,
         IApplicationUpdateService? updateService = null,
         Version? applicationVersion = null,
-        IPamInteractiveAccessService? interactiveAccessService = null)
+        IPamInteractiveAccessService? interactiveAccessService = null,
+        IFavoriteCollectionService? favoriteCollectionService = null)
     {
         this.executionService = executionService;
         this.settingsStore = settingsStore;
@@ -98,16 +103,18 @@ public sealed partial class MainWindowViewModel : ObservableObject
         this.diagnosticExportService = diagnosticExportService;
         this.updateService = updateService;
         this.interactiveAccessService = interactiveAccessService;
+        this.favoriteCollectionService = favoriteCollectionService;
         this.applicationVersion = applicationVersion ??
             typeof(MainWindowViewModel).Assembly.GetName().Version ?? new Version(0, 0, 1, 0);
 
         ConfigureCredentialsCommand = new AsyncRelayCommand(ConfigureCredentialsAsync, () => AreControlsEnabled);
         ConfigureRequestCommand = new AsyncRelayCommand(ConfigureRequestAsync, () => AreControlsEnabled);
         ConfigureMailCommand = new AsyncRelayCommand(ConfigureMailAsync, () => AreControlsEnabled);
-        OpenCollectionsCommand = new RelayCommand(OpenCollections, () => AreControlsEnabled && configurationDialogs is not null);
+        OpenCollectionsCommand = new AsyncRelayCommand(OpenCollectionsAsync, () => AreControlsEnabled && configurationDialogs is not null);
         StartTestCommand = new AsyncRelayCommand(StartTestAsync, () => IsTestActionEnabled);
         StartAutomationCommand = new AsyncRelayCommand(StartAutomationAsync, () => CanStartAutomation);
         ToggleFinalActionCommand = new AsyncRelayCommand(ToggleFinalActionAsync, () => AreControlsEnabled);
+        ToggleCollectionsModeCommand = new AsyncRelayCommand(ToggleCollectionsModeAsync, () => AreControlsEnabled);
         ExportDiagnosticsCommand = new AsyncRelayCommand(ExportDiagnosticsAsync, () => CanExportDiagnostics);
         AccessPamCommand = new AsyncRelayCommand(AccessPamAsync, () => CanAccessPam);
         ShowResultCommand = new RelayCommand(ShowResult, () => CanShowResult);
@@ -117,10 +124,11 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public IAsyncRelayCommand ConfigureCredentialsCommand { get; }
     public IRelayCommand ConfigureRequestCommand { get; }
     public IRelayCommand ConfigureMailCommand { get; }
-    public IRelayCommand OpenCollectionsCommand { get; }
+    public IAsyncRelayCommand OpenCollectionsCommand { get; }
     public IAsyncRelayCommand StartTestCommand { get; }
     public IAsyncRelayCommand StartAutomationCommand { get; }
     public IAsyncRelayCommand ToggleFinalActionCommand { get; }
+    public IAsyncRelayCommand ToggleCollectionsModeCommand { get; }
     public IAsyncRelayCommand ExportDiagnosticsCommand { get; }
     public IAsyncRelayCommand AccessPamCommand { get; }
     public IRelayCommand ShowResultCommand { get; }
@@ -132,7 +140,11 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public bool CanAccessPam => interactiveAccessService is not null && credentialStore is not null &&
                                 AreCredentialsConfigured && !IsAccessingPam && !IsExportingDiagnostics;
     public bool CanShowResult => dialogs is not null && HasResult && AreControlsEnabled;
-    public bool IsConfigurationComplete => AreCredentialsConfigured && IsRequestConfigured && (!SendEmailAtEnd || IsMailConfigured);
+    public bool IsEffectiveRequestConfigured => !UseCollectionsForAutomation
+        ? IsRequestConfigured
+        : favoriteCollectionsState.ActiveCollection is not null &&
+          settingsValidator.Validate(GetEffectiveSettings(), GetEcuadorNow()).IsValid;
+    public bool IsConfigurationComplete => AreCredentialsConfigured && IsEffectiveRequestConfigured && (!SendEmailAtEnd || IsMailConfigured);
     public bool CanStartAutomation => AreControlsEnabled && IsConfigurationComplete;
     public bool IsTestActionVisible => IsTestModeEnabled && IsConfigurationComplete;
     public bool IsTestActionEnabled => AreControlsEnabled && IsTestActionVisible;
@@ -142,6 +154,9 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public string CredentialsActionText => AreCredentialsConfigured ? "Editar credenciales" : "Configurar credenciales";
     public string RequestActionText => IsRequestConfigured ? "Editar solicitud" : "Configurar solicitud";
     public string MailActionText => IsMailConfigured ? "Editar envío de correo" : "Configurar envío de correo";
+    public string CollectionAutomationModeText => UseCollectionsForAutomation
+        ? $"Usar colección: {favoriteCollectionsState.ActiveCollection?.Name ?? "sin selección"}"
+        : "Usar todos los favoritos";
 
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
@@ -158,6 +173,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
             IsRequestConfigured = settingsValidator.Validate(settings, GetEcuadorNow()).IsValid;
             IsTestModeEnabled = settings.TestModeEnabled;
             SendEmailAtEnd = settings.FinalAction == FinalAction.SendEmail;
+            await ReloadFavoriteCollectionsAsync(cancellationToken);
             mailSettings = mailSettingsStore is null ? null : await mailSettingsStore.LoadAsync(cancellationToken);
             if (mailSettings is not null) mailSettings = mailSettingsValidator.ValidateAndNormalize(mailSettings);
             OutlookAccountSettings? outlookAccount = outlookAccountSettingsStore is null
@@ -226,6 +242,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         };
         RefreshPresentationState();
     }
+    partial void OnUseCollectionsForAutomationChanged(bool value) => RefreshPresentationState();
     partial void OnIsRunningChanged(bool value) => RefreshPresentationState();
     partial void OnIsExportingDiagnosticsChanged(bool value) => RefreshPresentationState();
     partial void OnIsAccessingPamChanged(bool value) => RefreshPresentationState();
@@ -303,17 +320,21 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     private async Task StartAutomationAsync()
     {
-        if (!ValidateRequestAtExecutionBoundary(confirmationWasShown: false)) return;
+        AppSettings executionSettings = GetEffectiveSettings();
+        if (!ValidateRequestAtExecutionBoundary(executionSettings, confirmationWasShown: false)) return;
         if (!TryGetExecutionDependencies(out PamCredentials? credentials)) return;
 
-        if (!dialogs!.ConfirmAutomationStart(settings, mailSettings))
+        string? activeCollectionName = UseCollectionsForAutomation
+            ? favoriteCollectionsState.ActiveCollection?.Name
+            : null;
+        if (!dialogs!.ConfirmAutomationStart(executionSettings, mailSettings, activeCollectionName))
         {
             logger.LogInformation("Real PAM execution was cancelled before preparation.");
             StatusMessage = "Ejecución cancelada. No se inició ninguna validación ni se creó ninguna solicitud.";
             return;
         }
 
-        if (!ValidateRequestAtExecutionBoundary(confirmationWasShown: true)) return;
+        if (!ValidateRequestAtExecutionBoundary(executionSettings, confirmationWasShown: true)) return;
 
         IsRunning = true;
         logger.LogInformation("Real PAM execution started.");
@@ -321,8 +342,16 @@ public sealed partial class MainWindowViewModel : ObservableObject
         StatusMessage = "Validando Favorites y Pending en segundo plano…";
         try
         {
-            PamExecutionPreparation preparation = await executionService!.PrepareRealAsync(
-                credentials!, settings, GetEcuadorNow());
+            FavoriteCollection? activeCollection = UseCollectionsForAutomation
+                ? favoriteCollectionsState.ActiveCollection
+                : null;
+            PamExecutionPreparation preparation = activeCollection is null
+                ? await executionService!.PrepareRealAsync(credentials!, executionSettings, GetEcuadorNow())
+                : await executionService!.PrepareCollectionRealAsync(
+                    credentials!,
+                    executionSettings,
+                    activeCollection.Accounts,
+                    GetEcuadorNow());
             if (preparation.HasExactPendingDuplicates &&
                 !dialogs!.ConfirmRepeatedPendingRequests(preparation))
             {
@@ -430,7 +459,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         }
     }
 
-    private void OpenCollections()
+    private async Task OpenCollectionsAsync()
     {
         if (configurationDialogs is null)
         {
@@ -442,6 +471,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         {
             logger.LogInformation("Collections dialog opened.");
             configurationDialogs.OpenFavoriteCollections();
+            await ReloadFavoriteCollectionsAsync();
             logger.LogInformation("Collections dialog closed.");
         }
         catch (Exception exception)
@@ -554,25 +584,29 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     internal void RefreshTimeSensitiveState()
     {
-        bool wasRequestConfigured = IsRequestConfigured;
-        ConfigurationValidationResult validation = settingsValidator.Validate(settings, GetEcuadorNow());
-        IsRequestConfigured = validation.IsValid;
+        bool wasRequestConfigured = IsEffectiveRequestConfigured;
+        IsRequestConfigured = settingsValidator.Validate(settings, GetEcuadorNow()).IsValid;
+        ConfigurationValidationResult validation = settingsValidator.Validate(GetEffectiveSettings(), GetEcuadorNow());
         RefreshPresentationState();
 
-        if (wasRequestConfigured && !IsRequestConfigured && !IsRunning)
+        if (wasRequestConfigured && !validation.IsValid && !IsRunning)
         {
             StatusMessage = validation.Failures.Any(failure =>
                 failure.Code == ConfigurationValidationErrorCode.StartTimeTooClose)
-                ? "La solicitud quedó demasiado cerca de la hora actual. Configura un inicio con al menos 6 minutos de anticipación."
-                : "La fecha u hora de inicio configurada ya pasó. Abre Configurar solicitud para actualizarla.";
+                ? UseCollectionsForAutomation
+                    ? "La colección activa quedó demasiado cerca de la hora actual. Edítala con un inicio de al menos 6 minutos de anticipación."
+                    : "La solicitud quedó demasiado cerca de la hora actual. Configura un inicio con al menos 6 minutos de anticipación."
+                : UseCollectionsForAutomation
+                    ? "La fecha u hora de la colección activa ya pasó. Abre Colecciones para actualizarla."
+                    : "La fecha u hora de inicio configurada ya pasó. Abre Configurar solicitud para actualizarla.";
             logger.LogInformation("The configured request start time no longer satisfies the required lead time while the application remained open.");
         }
     }
 
-    private bool ValidateRequestAtExecutionBoundary(bool confirmationWasShown)
+    private bool ValidateRequestAtExecutionBoundary(AppSettings executionSettings, bool confirmationWasShown)
     {
-        ConfigurationValidationResult validation = settingsValidator.Validate(settings, GetEcuadorNow());
-        IsRequestConfigured = validation.IsValid;
+        ConfigurationValidationResult validation = settingsValidator.Validate(executionSettings, GetEcuadorNow());
+        if (!UseCollectionsForAutomation) IsRequestConfigured = validation.IsValid;
         RefreshPresentationState();
         if (validation.IsValid) return true;
 
@@ -674,7 +708,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     private static string GetSafeErrorMessage(Exception exception) => exception switch
     {
-        PamAuthenticationException or PamFavoritesException or PamRequestSubmissionException or
+        PamAuthenticationException or PamFavoritesException or FavoriteCollectionException or
+            PamRequestSubmissionException or
             PamPendingException or PamRequestTestException or OutlookValidationException or
             OutlookOperationException or OutlookAccountResolutionException => exception.Message,
         OperationCanceledException => "La operación fue cancelada.",
@@ -763,6 +798,55 @@ public sealed partial class MainWindowViewModel : ObservableObject
         }
     }
 
+    private async Task ToggleCollectionsModeAsync()
+    {
+        if (favoriteCollectionService is null)
+        {
+            StatusMessage = "La configuración de colecciones no está disponible.";
+            return;
+        }
+
+        try
+        {
+            FavoriteCollectionsState state = await favoriteCollectionService
+                .SetAutomationModeAsync(!UseCollectionsForAutomation);
+            ApplyFavoriteCollectionsState(state);
+            StatusMessage = UseCollectionsForAutomation
+                ? $"La automatización usará la colección «{state.ActiveCollection!.Name}»."
+                : "La automatización usará todas las solicitudes de Favorites.";
+        }
+        catch (FavoriteCollectionException exception)
+        {
+            OnPropertyChanged(nameof(UseCollectionsForAutomation));
+            StatusMessage = exception.Message;
+            dialogs?.ShowError(exception.Message);
+            logger.LogWarning(exception, "Collection automation mode change failed safely.");
+        }
+        catch (Exception exception)
+        {
+            PresentError(exception);
+        }
+    }
+
+    private async Task ReloadFavoriteCollectionsAsync(CancellationToken cancellationToken = default)
+    {
+        if (favoriteCollectionService is null) return;
+        FavoriteCollectionsState state = await favoriteCollectionService.LoadAsync(cancellationToken);
+        ApplyFavoriteCollectionsState(state);
+    }
+
+    private void ApplyFavoriteCollectionsState(FavoriteCollectionsState state)
+    {
+        favoriteCollectionsState = state;
+        UseCollectionsForAutomation = state.UseCollectionsForAutomation;
+        RefreshPresentationState();
+    }
+
+    private AppSettings GetEffectiveSettings() => UseCollectionsForAutomation &&
+        favoriteCollectionsState.ActiveCollection is FavoriteCollection collection
+            ? settings with { Request = collection.Request }
+            : settings;
+
     private async Task SaveSettingsAsync(AppSettings value)
     {
         if (settingsStore is null) return;
@@ -786,21 +870,32 @@ public sealed partial class MainWindowViewModel : ObservableObject
             return "El botón está desactivado porque faltan las credenciales PAM. Abre Editar credenciales para configurarlas.";
         }
 
-        if (!IsRequestConfigured)
+        if (UseCollectionsForAutomation && favoriteCollectionsState.ActiveCollection is null)
+        {
+            return "El modo Colecciones está activo, pero no hay una colección seleccionada. Abre Colecciones y activa una.";
+        }
+
+        if (!IsEffectiveRequestConfigured)
         {
             ConfigurationValidationFailure? failure = settingsValidator
-                .Validate(settings, GetEcuadorNow())
+                .Validate(GetEffectiveSettings(), GetEcuadorNow())
                 .Failures
                 .FirstOrDefault();
 
             return failure?.Code switch
             {
                 ConfigurationValidationErrorCode.StartDateInPast =>
-                    "El botón está desactivado porque la fecha de inicio configurada ya pasó. Abre Configurar solicitud y elige una fecha y hora futuras.",
+                    UseCollectionsForAutomation
+                        ? "El botón está desactivado porque la fecha de la colección activa ya pasó. Edita esa colección y elige una fecha y hora futuras."
+                        : "El botón está desactivado porque la fecha de inicio configurada ya pasó. Abre Configurar solicitud y elige una fecha y hora futuras.",
                 ConfigurationValidationErrorCode.StartTimeInPast =>
-                    "El botón está desactivado porque la hora de inicio configurada ya pasó. Abre Configurar solicitud y elige una fecha y hora futuras.",
+                    UseCollectionsForAutomation
+                        ? "El botón está desactivado porque la hora de la colección activa ya pasó. Edita esa colección y elige una hora futura."
+                        : "El botón está desactivado porque la hora de inicio configurada ya pasó. Abre Configurar solicitud y elige una fecha y hora futuras.",
                 ConfigurationValidationErrorCode.StartTimeTooClose =>
-                    "El botón está desactivado porque la hora de inicio está demasiado cerca. Configura una hora que esté al menos 6 minutos después de la hora actual de Ecuador.",
+                    UseCollectionsForAutomation
+                        ? "El botón está desactivado porque la hora de la colección activa está demasiado cerca. Edítala con un inicio de al menos 6 minutos después de la hora actual de Ecuador."
+                        : "El botón está desactivado porque la hora de inicio está demasiado cerca. Configura una hora que esté al menos 6 minutos después de la hora actual de Ecuador.",
                 _ when failure is not null =>
                     $"El botón está desactivado porque la solicitud no es válida: {failure.Message} Abre Configurar solicitud para corregirla.",
                 _ =>
@@ -824,6 +919,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(CanAccessPam));
         OnPropertyChanged(nameof(CanShowResult));
         OnPropertyChanged(nameof(IsConfigurationComplete));
+        OnPropertyChanged(nameof(IsEffectiveRequestConfigured));
         OnPropertyChanged(nameof(CanStartAutomation));
         OnPropertyChanged(nameof(IsTestActionVisible));
         OnPropertyChanged(nameof(IsTestActionEnabled));
@@ -833,6 +929,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(CredentialsActionText));
         OnPropertyChanged(nameof(RequestActionText));
         OnPropertyChanged(nameof(MailActionText));
+        OnPropertyChanged(nameof(CollectionAutomationModeText));
         ConfigureCredentialsCommand.NotifyCanExecuteChanged();
         ConfigureRequestCommand.NotifyCanExecuteChanged();
         ConfigureMailCommand.NotifyCanExecuteChanged();
@@ -840,6 +937,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         StartTestCommand.NotifyCanExecuteChanged();
         StartAutomationCommand.NotifyCanExecuteChanged();
         ToggleFinalActionCommand.NotifyCanExecuteChanged();
+        ToggleCollectionsModeCommand.NotifyCanExecuteChanged();
         ExportDiagnosticsCommand.NotifyCanExecuteChanged();
         AccessPamCommand.NotifyCanExecuteChanged();
         ShowResultCommand.NotifyCanExecuteChanged();

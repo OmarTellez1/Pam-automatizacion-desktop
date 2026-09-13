@@ -12,6 +12,7 @@ namespace PamAutomation.App.ViewModels;
 public sealed partial class FavoritesCatalogViewModel : ObservableObject
 {
     private readonly IFavoriteCatalogService catalogService;
+    private readonly IFavoriteCollectionService? collectionService;
     private readonly ILogger<FavoritesCatalogViewModel> logger;
     private bool initialized;
 
@@ -30,18 +31,27 @@ public sealed partial class FavoritesCatalogViewModel : ObservableObject
     [ObservableProperty]
     private bool hasError;
 
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasCollections))]
+    private int collectionCount;
+
     /// <summary>Initializes the Favorites catalog view model.</summary>
     public FavoritesCatalogViewModel(
         IFavoriteCatalogService catalogService,
+        IFavoriteCollectionService? collectionService = null,
         ILogger<FavoritesCatalogViewModel>? logger = null)
     {
         this.catalogService = catalogService ?? throw new ArgumentNullException(nameof(catalogService));
+        this.collectionService = collectionService;
         this.logger = logger ?? NullLogger<FavoritesCatalogViewModel>.Instance;
         RefreshCommand = new AsyncRelayCommand(RefreshAsync, () => CanRefresh);
     }
 
     /// <summary>Gets the current catalog rows.</summary>
     public ObservableCollection<FavoriteCatalogEntry> Favorites { get; } = [];
+
+    /// <summary>Gets every saved collection.</summary>
+    public ObservableCollection<FavoriteCollectionItemViewModel> Collections { get; } = [];
 
     /// <summary>Gets the command that obtains or refreshes all Favorites pages.</summary>
     public IAsyncRelayCommand RefreshCommand { get; }
@@ -51,6 +61,12 @@ public sealed partial class FavoritesCatalogViewModel : ObservableObject
 
     /// <summary>Gets whether the first-use empty state should be shown.</summary>
     public bool IsEmpty => !HasFavorites;
+
+    /// <summary>Gets whether at least one collection exists.</summary>
+    public bool HasCollections => CollectionCount > 0;
+
+    /// <summary>Gets whether a collection can be created from the current catalog.</summary>
+    public bool CanCreateCollection => HasFavorites && !IsLoading && collectionService is not null;
 
     /// <summary>Gets the action label according to whether a protected snapshot exists.</summary>
     public string RefreshButtonText => HasFavorites
@@ -70,7 +86,10 @@ public sealed partial class FavoritesCatalogViewModel : ObservableObject
             if (snapshot is null) return;
 
             ReplaceFavorites(snapshot);
-            StatusMessage = $"{Favorites.Count} solicitudes favoritas guardadas. Pulsa Actualizar para consultar nuevamente PAM.";
+            int removedSelections = await LoadAndReconcileCollectionsAsync(snapshot, cancellationToken);
+            StatusMessage = removedSelections > 0
+                ? $"{Favorites.Count} solicitudes favoritas guardadas. Se retiraron {removedSelections} selecciones que ya no existen."
+                : $"{Favorites.Count} solicitudes favoritas guardadas. Pulsa Actualizar para consultar nuevamente PAM.";
             logger.LogInformation("Protected Favorites catalog loaded. FavoriteCount={FavoriteCount}.", Favorites.Count);
         }
         catch (OperationCanceledException)
@@ -96,9 +115,16 @@ public sealed partial class FavoritesCatalogViewModel : ObservableObject
             bool wasEmpty = !HasFavorites;
             FavoriteCatalogRefreshResult result = await catalogService.RefreshAsync(cancellationToken);
             ReplaceFavorites(result.Snapshot);
+            int removedSelections = await LoadAndReconcileCollectionsAsync(
+                result.Snapshot,
+                cancellationToken);
             StatusMessage = wasEmpty
                 ? $"Se obtuvieron {Favorites.Count} solicitudes favoritas."
                 : $"Se actualizaron {Favorites.Count} solicitudes favoritas. Nuevas: {result.AddedCount}. Eliminadas: {result.RemovedCount}.";
+            if (removedSelections > 0)
+            {
+                StatusMessage += $" Se retiraron {removedSelections} selecciones de las colecciones.";
+            }
             logger.LogInformation(
                 "Favorites catalog refresh completed. FavoriteCount={FavoriteCount}, AddedCount={AddedCount}, RemovedCount={RemovedCount}.",
                 Favorites.Count,
@@ -137,7 +163,97 @@ public sealed partial class FavoritesCatalogViewModel : ObservableObject
         }
 
         HasFavorites = Favorites.Count > 0;
+        OnPropertyChanged(nameof(CanCreateCollection));
     }
 
-    partial void OnIsLoadingChanged(bool value) => RefreshCommand.NotifyCanExecuteChanged();
+    /// <summary>Creates or updates one collection and refreshes its presentation.</summary>
+    public async Task SaveCollectionAsync(
+        FavoriteCollection collection,
+        CancellationToken cancellationToken = default)
+    {
+        if (collectionService is null) throw new InvalidOperationException("El servicio de colecciones no está disponible.");
+        try
+        {
+            FavoriteCollectionsState state = await collectionService
+                .SaveCollectionAsync(collection, cancellationToken);
+            ReplaceCollections(state);
+            HasError = false;
+            StatusMessage = $"La colección «{collection.Name}» se guardó correctamente.";
+        }
+        catch (FavoriteCollectionException exception)
+        {
+            HasError = true;
+            StatusMessage = exception.Message;
+            logger.LogWarning(exception, "Favorite collection save failed safely.");
+        }
+        catch (Exception exception)
+        {
+            HasError = true;
+            StatusMessage = "No fue posible guardar la colección. Exporta el diagnóstico si el problema continúa.";
+            logger.LogError(exception, "Favorite collection save failed unexpectedly.");
+        }
+    }
+
+    /// <summary>Selects or clears the collection used when collection automation is enabled.</summary>
+    public async Task SetActiveCollectionAsync(
+        Guid collectionId,
+        bool isActive,
+        CancellationToken cancellationToken = default)
+    {
+        if (collectionService is null) throw new InvalidOperationException("El servicio de colecciones no está disponible.");
+        try
+        {
+            FavoriteCollectionsState state = await collectionService
+                .SetActiveCollectionAsync(isActive ? collectionId : null, cancellationToken);
+            ReplaceCollections(state);
+            HasError = false;
+            StatusMessage = isActive
+                ? "Colección seleccionada para la automatización. Activa también el modo Colecciones en la pantalla principal."
+                : "Ya no hay una colección seleccionada para la automatización.";
+        }
+        catch (FavoriteCollectionException exception)
+        {
+            HasError = true;
+            StatusMessage = exception.Message;
+            logger.LogWarning(exception, "Favorite collection activation failed safely.");
+        }
+        catch (Exception exception)
+        {
+            HasError = true;
+            StatusMessage = "No fue posible cambiar la colección activa. Exporta el diagnóstico si el problema continúa.";
+            logger.LogError(exception, "Favorite collection activation failed unexpectedly.");
+        }
+    }
+
+    private async Task<int> LoadAndReconcileCollectionsAsync(
+        FavoriteCatalogSnapshot snapshot,
+        CancellationToken cancellationToken)
+    {
+        if (collectionService is null) return 0;
+        FavoriteCollectionsState before = await collectionService.LoadAsync(cancellationToken);
+        FavoriteCollectionsState state = await collectionService.ReconcileAsync(snapshot, cancellationToken);
+        int removed = before.Collections.Sum(collection => collection.Accounts.Count) -
+            state.Collections.Sum(collection => collection.Accounts.Count);
+        ReplaceCollections(state);
+        return removed;
+    }
+
+    private void ReplaceCollections(FavoriteCollectionsState state)
+    {
+        Collections.Clear();
+        foreach (FavoriteCollection collection in state.Collections)
+        {
+            Collections.Add(new FavoriteCollectionItemViewModel(
+                collection,
+                state.ActiveCollectionId == collection.Id));
+        }
+
+        CollectionCount = Collections.Count;
+    }
+
+    partial void OnIsLoadingChanged(bool value)
+    {
+        RefreshCommand.NotifyCanExecuteChanged();
+        OnPropertyChanged(nameof(CanCreateCollection));
+    }
 }

@@ -26,6 +26,62 @@ public partial class FavoritesCatalogWindow : Window
         }
     }
 
+    private async void CreateCollection_Click(object sender, RoutedEventArgs e)
+    {
+        var viewModel = (FavoritesCatalogViewModel)DataContext;
+        var editor = new FavoriteCollectionEditorWindow(
+            viewModel.Favorites,
+            null,
+            DateTimeOffset.UtcNow.ToOffset(TimeSpan.FromHours(-5)))
+        {
+            Owner = this
+        };
+        if (editor.ShowDialog() == true && editor.Collection is not null)
+        {
+            await viewModel.SaveCollectionAsync(editor.Collection, lifetime.Token);
+        }
+    }
+
+    private async void EditCollection_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is not FavoriteCollectionItemViewModel item) return;
+        var viewModel = (FavoritesCatalogViewModel)DataContext;
+        var editor = new FavoriteCollectionEditorWindow(
+            viewModel.Favorites,
+            item.Collection,
+            DateTimeOffset.UtcNow.ToOffset(TimeSpan.FromHours(-5)))
+        {
+            Owner = this
+        };
+        if (editor.ShowDialog() == true && editor.Collection is not null)
+        {
+            await viewModel.SaveCollectionAsync(editor.Collection, lifetime.Token);
+        }
+    }
+
+    private async void ActiveCollectionToggle_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.Primitives.ToggleButton toggle ||
+            toggle.DataContext is not FavoriteCollectionItemViewModel item)
+        {
+            return;
+        }
+
+        toggle.IsEnabled = false;
+        try
+        {
+            await ((FavoritesCatalogViewModel)DataContext).SetActiveCollectionAsync(
+                item.Collection.Id,
+                toggle.IsChecked == true,
+                lifetime.Token);
+        }
+        finally
+        {
+            toggle.IsChecked = item.IsActive;
+            toggle.IsEnabled = true;
+        }
+    }
+
     private void Window_Closed(object? sender, EventArgs e)
     {
         ((FavoritesCatalogViewModel)DataContext).RefreshCommand.Cancel();

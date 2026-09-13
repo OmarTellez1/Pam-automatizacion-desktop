@@ -27,15 +27,18 @@ public sealed class WpfUserDialogService : IUserDialogService
             MessageBoxResult.No) == MessageBoxResult.Yes;
     }
 
-    public bool ConfirmAutomationStart(AppSettings settings, MailSettings? mailSettings)
+    public bool ConfirmAutomationStart(AppSettings settings, MailSettings? mailSettings, string? collectionName = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
-        string message = FormatAutomationStartMessage(settings, mailSettings);
+        string message = FormatAutomationStartMessage(settings, mailSettings, collectionName);
         return UrgentMessageBox.Show(message, "Iniciar automatización PAM", MessageBoxButton.YesNo,
             MessageBoxImage.Warning, MessageBoxResult.No) == MessageBoxResult.Yes;
     }
 
-    internal static string FormatAutomationStartMessage(AppSettings settings, MailSettings? mailSettings)
+    internal static string FormatAutomationStartMessage(
+        AppSettings settings,
+        MailSettings? mailSettings,
+        string? collectionName = null)
     {
         ArgumentNullException.ThrowIfNull(settings);
         RequestSettings request = settings.Request;
@@ -53,6 +56,9 @@ public sealed class WpfUserDialogService : IUserDialogService
             Environment.NewLine,
             "¿Deseas iniciar la automatización y crear solicitudes reales en PAM?",
             string.Empty,
+            string.IsNullOrWhiteSpace(collectionName)
+                ? "Alcance: Todos los Favorites"
+                : $"Colección: {collectionName}",
             $"Inicio: {request.StartDate:dd/MM/yyyy} {startTime}",
             $"Duración: {request.SessionHours.ToString(CultureInfo.InvariantCulture)} hora(s)",
             $"Razón: {request.RequestReason}",
