@@ -1,42 +1,173 @@
+using System.ComponentModel;
+using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.InteropServices;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using PamAutomation.Core.Outlook;
 
 namespace PamAutomation.Outlook.Interop;
 
 internal interface IOutlookComActivator
 {
+    object? TryGetRunningApplication();
+
     object CreateApplication();
+}
+
+internal interface IOutlookApplicationLauncher
+{
+    void Start();
+}
+
+internal interface IOutlookStartupWaiter
+{
+    void Wait();
 }
 
 internal sealed class OutlookComActivator : IOutlookComActivator
 {
     private const string OutlookApplicationProgId = "Outlook.Application";
+    private const int MonikerUnavailableHResult = unchecked((int)0x800401E3);
+
+    public object? TryGetRunningApplication()
+    {
+        Type applicationType = GetApplicationType();
+        Guid classId = applicationType.GUID;
+        try
+        {
+            return GetActiveObject(ref classId, IntPtr.Zero);
+        }
+        catch (COMException exception) when (exception.HResult == MonikerUnavailableHResult)
+        {
+            return null;
+        }
+    }
 
     public object CreateApplication()
     {
-        Type applicationType = Type.GetTypeFromProgID(OutlookApplicationProgId, throwOnError: true)
-            ?? throw new COMException("Outlook classic COM is not registered.");
+        Type applicationType = GetApplicationType();
         return Activator.CreateInstance(applicationType)
             ?? throw new COMException("Outlook classic COM activation returned no application instance.");
+    }
+
+    private static Type GetApplicationType() =>
+        Type.GetTypeFromProgID(OutlookApplicationProgId, throwOnError: true)
+        ?? throw new COMException("Outlook classic COM is not registered.");
+
+    [DllImport("oleaut32.dll", PreserveSig = false)]
+    [return: MarshalAs(UnmanagedType.Interface)]
+    private static extern object GetActiveObject(ref Guid classId, IntPtr reserved);
+}
+
+internal sealed class OutlookApplicationLauncher : IOutlookApplicationLauncher
+{
+    public void Start()
+    {
+        try
+        {
+            using Process? process = Process.Start(new ProcessStartInfo
+            {
+                FileName = "outlook.exe",
+                UseShellExecute = true
+            });
+            if (process is null)
+            {
+                throw new InvalidOperationException("Windows did not return an Outlook process.");
+            }
+        }
+        catch (Win32Exception exception)
+        {
+            throw new InvalidOperationException("Windows could not start registered Outlook classic.", exception);
+        }
+    }
+}
+
+internal sealed class OutlookStartupWaiter : IOutlookStartupWaiter
+{
+    private static readonly TimeSpan StartupDelay = TimeSpan.FromSeconds(3);
+
+    public void Wait() => Thread.Sleep(StartupDelay);
+}
+
+internal sealed class OutlookComUnavailableException : Exception
+{
+    private const int ServerExecutionFailureHResult = unchecked((int)0x80080005);
+
+    public OutlookComUnavailableException(Exception innerException)
+        : base("Outlook classic did not respond to controlled COM recovery.", innerException)
+    {
+        HResult = ServerExecutionFailureHResult;
     }
 }
 
 internal sealed class OutlookComApplicationFactory : IOutlookComApplicationFactory
 {
+    private const int ServerExecutionFailureHResult = unchecked((int)0x80080005);
     private readonly IOutlookComActivator activator;
+    private readonly IOutlookApplicationLauncher launcher;
+    private readonly IOutlookStartupWaiter startupWaiter;
+    private readonly ILogger logger;
 
-    public OutlookComApplicationFactory()
-        : this(new OutlookComActivator())
+    public OutlookComApplicationFactory(ILogger? logger = null)
+        : this(
+            new OutlookComActivator(),
+            new OutlookApplicationLauncher(),
+            new OutlookStartupWaiter(),
+            logger)
     {
     }
 
-    internal OutlookComApplicationFactory(IOutlookComActivator activator)
+    internal OutlookComApplicationFactory(
+        IOutlookComActivator activator,
+        IOutlookApplicationLauncher launcher,
+        IOutlookStartupWaiter startupWaiter,
+        ILogger? logger = null)
     {
         this.activator = activator ?? throw new ArgumentNullException(nameof(activator));
+        this.launcher = launcher ?? throw new ArgumentNullException(nameof(launcher));
+        this.startupWaiter = startupWaiter ?? throw new ArgumentNullException(nameof(startupWaiter));
+        this.logger = logger ?? NullLogger.Instance;
     }
 
-    public IOutlookComApplication Create() => new OutlookComApplication(activator.CreateApplication());
+    public IOutlookComApplication Create()
+    {
+        object? runningApplication = activator.TryGetRunningApplication();
+        if (runningApplication is not null)
+        {
+            logger.LogInformation("Outlook COM connection completed. Status={Status}.", "ExistingInstance");
+            return new OutlookComApplication(runningApplication);
+        }
+
+        try
+        {
+            return new OutlookComApplication(activator.CreateApplication());
+        }
+        catch (COMException exception) when (exception.HResult == ServerExecutionFailureHResult)
+        {
+            logger.LogWarning(exception, "Outlook COM recovery started at {Stage}.", "RegisteredApplicationLaunch");
+            return RecoverAfterServerExecutionFailure(exception);
+        }
+    }
+
+    private IOutlookComApplication RecoverAfterServerExecutionFailure(COMException originalException)
+    {
+        try
+        {
+            launcher.Start();
+            startupWaiter.Wait();
+
+            object application = activator.TryGetRunningApplication() ?? activator.CreateApplication();
+            logger.LogInformation("Outlook COM recovery completed. Status={Status}.", "Recovered");
+            return new OutlookComApplication(application);
+        }
+        catch (Exception recoveryException)
+        {
+            logger.LogError(recoveryException, "Outlook COM recovery failed at {Stage}.", "RecoveryRetry");
+            throw new OutlookComUnavailableException(
+                new AggregateException(originalException, recoveryException));
+        }
+    }
 }
 
 internal sealed class OutlookComApplication : IOutlookComApplication

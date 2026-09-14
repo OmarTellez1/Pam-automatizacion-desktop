@@ -111,6 +111,15 @@ public sealed class CredentialConfigurationWorkflow : ICredentialConfigurationWo
         {
             throw;
         }
+        catch (OutlookOperationException exception)
+            when (exception.ErrorCode == OutlookOperationErrorCode.ApplicationUnavailable)
+        {
+            logger.LogError(exception, "Outlook account configuration failed at {Stage}.", "OutlookApplicationUnavailable");
+            return ConfigurationOperationResult.Failure(
+                "Outlook clásico está instalado, pero no respondió. Cierra completamente Outlook desde el Administrador de tareas, " +
+                "ábrelo normalmente, espera a que cargue la bandeja de entrada y vuelve a intentarlo. " +
+                "PAM Automation y Outlook deben usar el mismo nivel de permisos.");
+        }
         catch (Exception exception)
         {
             logger.LogError(exception, "Outlook account configuration failed at {Stage}.", stage);

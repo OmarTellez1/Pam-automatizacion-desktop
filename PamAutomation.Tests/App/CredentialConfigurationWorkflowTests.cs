@@ -80,6 +80,26 @@ public sealed class CredentialConfigurationWorkflowTests
     }
 
     [TestMethod]
+    public async Task SaveAndVerifyOutlookAsync_OutlookUnavailable_ReturnsSpecificRecoveryInstructions()
+    {
+        var outlookStore = new FakeOutlookAccountStore();
+        var outlook = new FakeOutlookClient
+        {
+            ValidationFailure = new OutlookOperationException(
+                OutlookOperationErrorCode.ApplicationUnavailable,
+                new InvalidOperationException("Synthetic failure."))
+        };
+        var workflow = CreateWorkflow(outlookStore: outlookStore, outlook: outlook);
+
+        ConfigurationOperationResult result = await workflow.SaveAndVerifyOutlookAsync("sender@example.test");
+
+        Assert.IsFalse(result.IsSuccess);
+        Assert.Contains("Administrador de tareas", result.Message);
+        Assert.Contains("mismo nivel de permisos", result.Message);
+        Assert.IsNull(outlookStore.Saved);
+    }
+
+    [TestMethod]
     public async Task SendOutlookTestAsync_ConfiguredAccount_SendsOnlyFromAndToSameAddress()
     {
         var outlook = new FakeOutlookClient();
@@ -176,6 +196,7 @@ public sealed class CredentialConfigurationWorkflowTests
         public string? ValidatedAddress { get; private set; }
         public OutlookSendRequest? SentRequest { get; private set; }
         public OutlookDeliveryResult DeliveryResult { get; init; } = OutlookDeliveryResult.SubmittedUnconfirmed();
+        public Exception? ValidationFailure { get; init; }
 
         public Task<OutlookAccount> ResolveAccountAsync(string smtpAddress, CancellationToken cancellationToken = default) =>
             Task.FromResult(new OutlookAccount(smtpAddress));
@@ -184,7 +205,9 @@ public sealed class CredentialConfigurationWorkflowTests
         {
             events?.Add("validate");
             ValidatedAddress = smtpAddress;
-            return Task.CompletedTask;
+            return ValidationFailure is null
+                ? Task.CompletedTask
+                : Task.FromException(ValidationFailure);
         }
 
         public Task<OutlookExistingMessageStatus> FindExistingAsync(

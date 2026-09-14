@@ -16,7 +16,7 @@ public sealed class OutlookClassicClient : IOutlookClassicClient
 
     /// <summary>Initializes the production client for the locally installed Outlook classic application.</summary>
     public OutlookClassicClient(ILogger<OutlookClassicClient>? logger = null)
-        : this(new OutlookComApplicationFactory(), new StaExecutor(), logger)
+        : this(new OutlookComApplicationFactory(logger), new StaExecutor(), logger)
     {
     }
 
@@ -55,6 +55,11 @@ public sealed class OutlookClassicClient : IOutlookClassicClient
         {
             logger.LogError(exception, "Outlook classic account resolution failed.");
             throw;
+        }
+        catch (OutlookComUnavailableException exception)
+        {
+            logger.LogError(exception, "Outlook classic application was unavailable during account resolution.");
+            throw new OutlookOperationException(OutlookOperationErrorCode.ApplicationUnavailable, exception);
         }
         catch (Exception exception)
         {
@@ -119,6 +124,11 @@ public sealed class OutlookClassicClient : IOutlookClassicClient
         {
             logger.LogError(exception, "Outlook classic account validation failed at {Stage}.", stage);
             throw;
+        }
+        catch (OutlookComUnavailableException exception)
+        {
+            logger.LogError(exception, "Outlook classic application was unavailable at {Stage}.", stage);
+            throw new OutlookOperationException(OutlookOperationErrorCode.ApplicationUnavailable, exception);
         }
         catch (Exception exception)
         {

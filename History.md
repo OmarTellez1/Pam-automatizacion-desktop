@@ -609,5 +609,14 @@ Cada cambio relevante debe registrar qué se decidió, por qué, qué se verific
 - `Portable-x64` cambió a una publicación autocontenida multifichero sin trimming ni AOT. El usuario conserva la ausencia de prerrequisitos, pero debe extraer y mantener completa la carpeta distribuida.
 - `Publish-Portable.ps1` valida el EXE y sus metadatos, exige dependencias contiguas, crea `PAM-Automation-1.0.2-win-x64.zip` con carpeta base y calcula el SHA-256 del ZIP.
 - La portada muestra `Preparando PAM Automation…` y bloquea acciones durante la carga local. El diagnóstico registra etapas y milisegundos, y la comprobación remota de versiones se ejecuta después del arranque funcional.
-- La versión avanzó a `1.0.2`. Pasaron 44 pruebas específicas y las 377 pruebas ordinarias. El ZIP contiene 523 archivos, pesa 105.060.781 bytes y su SHA-256 es `12745DBB31F79187444D5C73351B7D8F1E4D42CF06B4E8DC186D334F5A47ACAB`.
+- La versión avanzó a `1.0.2`. Pasaron 44 pruebas específicas y las 377 pruebas ordinarias iniciales. El ZIP inicial contenía 523 archivos; posteriormente se regeneró con la recuperación de Outlook descrita debajo.
 - La prueba local visible mostró la ventana 1.0.2 receptiva en aproximadamente 4,9 segundos. La comparación 1.0.1 de archivo único continuó sin ventana durante el mismo intervalo y se cerró sin realizar acciones externas. No se abrió PAM ni Outlook y no se crearon solicitudes.
+
+## 14 de septiembre de 2026 — Recuperación de Outlook `0x80080005`
+
+- El diagnóstico de otro equipo confirmó que PAM, credenciales y Favorites funcionaban, pero dos verificaciones de Outlook fallaron antes de enumerar cuentas: `Activator.CreateInstance` agotó unos 31 segundos y devolvió `CO_E_SERVER_EXEC_FAILURE` en `ComApplicationCreate`.
+- Se descartó hardcodear `C:\ProgramData\Microsoft\Windows\Start Menu\Programs`: contiene accesos directos y el `ProgID` ya estaba registrado, por lo que no atacaba la causa observada.
+- `OutlookComApplicationFactory` consulta primero la Running Object Table. Solo ante `0x80080005` inicia `outlook.exe` mediante ShellExecute, espera tres segundos en su STA dedicado y reintenta una vez mediante instancia activa o activación COM.
+- La recuperación no finaliza Outlook, no usa una ruta fija y no cambia permisos. Si falla, `ApplicationUnavailable` llega a la interfaz como instrucciones para reiniciar Outlook completamente y ejecutar ambos programas con el mismo nivel de integridad.
+- La compilación `Release | x64`, 30 pruebas específicas y las 383 pruebas ordinarias pasaron. No se ejecutó una prueba real de Outlook ni se envió correo.
+- El paquete final `PAM-Automation-1.0.2-win-x64.zip` pesa 105.062.496 bytes y su SHA-256 es `5D141DD2EDDD0C5DB67F497819B39443ADD067BB0C32A0C2951383693E10758D`.

@@ -172,6 +172,8 @@ El usuario final debe descargar el ZIP, extraer la carpeta completa y ejecutar `
 
 La aplicación seguirá requiriendo deliberadamente Windows, Microsoft Edge instalado, conectividad al portal PAM y Outlook clásico instalado cuando se active el correo. Edge y Outlook no se incluirán dentro del ejecutable porque deben utilizar las instalaciones corporativas existentes.
 
+La integración con Outlook no depende de una ruta de Office. Intenta reutilizar la instancia clásica abierta y, si Windows informa `0x80080005`, abre una vez la aplicación registrada, espera su inicialización y reintenta COM. PAM Automation y Outlook deben ejecutarse en la misma sesión de Windows y con el mismo nivel de permisos.
+
 La automatización utilizará la opción 1: abrirá el Edge instalado mediante Playwright y creará un contexto temporal de automatización. No seleccionará, reutilizará ni modificará perfiles existentes, cookies, extensiones o sesiones del usuario. No utilizará LaunchPersistentContext, userDataDir ni conexión CDP a un navegador existente. La aplicación no debe mostrar una ventana de incógnito; el aislamiento es interno de Playwright.
 
 La automatización temporal ejecuta Edge en modo `headless`: autenticación, lectura de `Favorites`, formularios, envíos y reconciliación de `Pending` ocurren en segundo plano. El único navegador visible es el Edge normal abierto por `Acceder a PAM`, que sigue fuera del contexto temporal y permanece bajo control del usuario.

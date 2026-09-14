@@ -326,7 +326,15 @@ La publicación dejó de concentrar .NET, WPF, Playwright y las bibliotecas nati
 
 La ventana entra en un estado explícito `Preparando PAM Automation…`, mantiene sus acciones deshabilitadas hasta cargar la configuración y se recupera incluso si la inicialización falla. El diagnóstico seguro admite `ElapsedMilliseconds` y registra hitos de inicio sin datos privados. La consulta de actualización comienza después de que la configuración esté disponible y ya no define el final del arranque funcional.
 
-La versión avanzó a `1.0.2`. La compilación `Release | x64`, 44 pruebas específicas y las 377 pruebas ordinarias pasaron. El publicador produjo 523 archivos, un ZIP de 105.060.781 bytes y SHA-256 `12745DBB31F79187444D5C73351B7D8F1E4D42CF06B4E8DC186D334F5A47ACAB`. En una prueba local visible, la ventana 1.0.2 apareció receptiva en aproximadamente 4,9 segundos; la publicación 1.0.1 de archivo único todavía no había mostrado ventana dentro del intervalo comparativo. No se abrió PAM, no se crearon solicitudes y no se envió correo. **Fase completada; falta confirmar el arranque frío en el equipo corporativo afectado.**
+La versión avanzó a `1.0.2`. La compilación `Release | x64`, 44 pruebas específicas y las 377 pruebas ordinarias iniciales pasaron; tras incorporar la recuperación de Outlook, la suite final alcanzó 383 pruebas. El publicador produjo 523 archivos, un ZIP final de 105.062.496 bytes y SHA-256 `5D141DD2EDDD0C5DB67F497819B39443ADD067BB0C32A0C2951383693E10758D`. En una prueba local visible, la ventana 1.0.2 apareció receptiva en aproximadamente 4,9 segundos; la publicación 1.0.1 de archivo único todavía no había mostrado ventana dentro del intervalo comparativo. No se abrió PAM, no se crearon solicitudes y no se envió correo. **Fase completada; falta confirmar el arranque frío en el equipo corporativo afectado.**
+
+## Ajuste posterior a la fase 22 — Recuperación controlada de Outlook COM
+
+El diagnóstico `pam-automation-diagnostic-20260914-180710` confirmó dos fallos de aproximadamente 31 segundos en `ComApplicationCreate` con `HRESULT 0x80080005`; la cuenta SMTP nunca llegó a enumerarse. La ruta propuesta bajo `ProgramData\Microsoft\Windows\Start Menu` se descartó porque contiene accesos directos y no resuelve una falla del servidor COM.
+
+El adaptador intenta ahora conectar con la instancia de Outlook clásico ya abierta. Si no existe, conserva la activación por `ProgID`; únicamente ante `CO_E_SERVER_EXEC_FAILURE` inicia `outlook.exe` mediante el registro de aplicaciones de Windows, espera tres segundos en el hilo STA y reintenta una vez. La recuperación no hardcodea rutas, no mata procesos, no eleva permisos y produce `ApplicationUnavailable` con orientación específica si Outlook continúa sin responder.
+
+La compilación `Release | x64`, 30 pruebas específicas y las 383 pruebas ordinarias pasaron. Las pruebas cubren instancia activa, activación normal, recuperación, HRESULT no relacionado, agotamiento controlado y mensaje al usuario. No se abrió Outlook real ni se envió correo porque esta ejecución no tenía autorización explícita para una prueba COM real. **Ajuste implementado; validación real pendiente en el equipo que produjo el diagnóstico.**
 
 ## Fases pendientes
 

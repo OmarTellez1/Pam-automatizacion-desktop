@@ -3,6 +3,7 @@ using PamAutomation.Core.Interfaces.Outlook;
 using PamAutomation.Core.Outlook;
 using PamAutomation.Outlook;
 using PamAutomation.Outlook.Interop;
+using System.Runtime.InteropServices;
 
 namespace PamAutomation.Tests.Outlook;
 
@@ -128,6 +129,19 @@ public sealed class OutlookClassicClientTests
         Assert.AreEqual("No fue posible consultar las cuentas de Outlook.", exception.Message);
         Assert.IsInstanceOfType<InvalidOperationException>(exception.InnerException);
         Assert.IsTrue(harness.ApplicationDisposed);
+    }
+
+    [TestMethod]
+    public async Task ValidateAccountAsync_OutlookUnavailable_ThrowsSpecificSafeError()
+    {
+        var factory = new UnavailableOutlookFactory();
+        var client = new OutlookClassicClient(factory, new InlineStaExecutor());
+
+        OutlookOperationException exception = await Assert.ThrowsExactlyAsync<OutlookOperationException>(
+            () => client.ValidateAccountAsync("sender@example.test"));
+
+        Assert.AreEqual(OutlookOperationErrorCode.ApplicationUnavailable, exception.ErrorCode);
+        Assert.Contains("Windows no pudo conectarse", exception.Message);
     }
 
     [TestMethod]
@@ -298,6 +312,12 @@ public sealed class OutlookClassicClientTests
             cancellationToken.ThrowIfCancellationRequested();
             return Task.FromResult(operation());
         }
+    }
+
+    private sealed class UnavailableOutlookFactory : IOutlookComApplicationFactory
+    {
+        public IOutlookComApplication Create() =>
+            throw new OutlookComUnavailableException(new COMException("Synthetic failure."));
     }
 
     private sealed class OutlookHarness : IOutlookComApplicationFactory, IOutlookComApplication

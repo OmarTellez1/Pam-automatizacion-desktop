@@ -17,6 +17,8 @@ public sealed class OutlookOperationException : Exception
 
     private static string GetMessage(OutlookOperationErrorCode errorCode) => errorCode switch
     {
+        OutlookOperationErrorCode.ApplicationUnavailable =>
+            "Outlook clásico está instalado, pero Windows no pudo conectarse con la aplicación.",
         OutlookOperationErrorCode.DuplicateCheckFailed => "No fue posible comprobar correos anteriores de Outlook.",
         OutlookOperationErrorCode.AccountResolutionFailed => "No fue posible consultar las cuentas de Outlook.",
         OutlookOperationErrorCode.AccountValidationFailed => "No fue posible validar la cuenta de Outlook.",

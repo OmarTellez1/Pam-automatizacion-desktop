@@ -574,7 +574,7 @@ No debe conocer controles WPF, selectores PAM ni objetos COM de Outlook.
 Biblioteca para `net10.0-windows`. Referencia `PamAutomation.Core` e implementa Outlook clásico mediante COM tardío, sin una dependencia administrada en la PIA de Office:
 
 - `OutlookClassicClient.cs`: resolución exacta, validación descartable, búsqueda de duplicados y envío con estado comprobado cuando es observable.
-- `Interop/OutlookComApplicationFactory.cs`: activa el `ProgID` `Outlook.Application` y adapta dinámicamente `Application`, `Account` y `MailItem`; también encapsula consulta de carpetas, huella privada, adjuntos CID y liberación explícita.
+- `Interop/OutlookComApplicationFactory.cs`: conecta primero con una instancia activa mediante ROT, activa el `ProgID` `Outlook.Application` y recupera una vez `0x80080005` iniciando la aplicación registrada por Windows sin una ruta fija. También adapta dinámicamente `Application`, `Account` y `MailItem`, y encapsula consulta de carpetas, huella privada, adjuntos CID y liberación explícita.
 - `Interop/StaExecutor.cs`: ejecuta cada operación COM acotada en un hilo STA dedicado.
 - `Interop/OutlookComAbstractions.cs`: seam interno sustituido por pruebas sin abrir Outlook.
 
