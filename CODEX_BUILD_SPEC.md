@@ -524,11 +524,11 @@ Las pruebas COM reales deben:
 
 ## Empaquetado
 
-Publicar desde la terminal para Windows x64 como aplicación autocontenida mediante `dotnet publish`, con configuración `Release`, runtime `win-x64`, `self-contained = true`, archivo único y trimming deshabilitado. La restauración, compilación, ejecución, pruebas y publicación dependerán del SDK x64 de .NET 10 y de `dotnet` disponible en `PATH`; no crear scripts PowerShell ni otros envoltorios auxiliares.
+Publicar desde la terminal para Windows x64 como aplicación autocontenida multifichero mediante `dotnet publish`, con configuración `Release`, runtime `win-x64`, `self-contained = true` y trimming deshabilitado. Las dependencias permanecen preextraídas para reducir el trabajo anterior a la aparición de WPF. La restauración, compilación, ejecución, pruebas y publicación dependerán del SDK x64 de .NET 10 y de `dotnet` disponible en `PATH`. La excepción local documentada permite que `Publish-Portable.ps1` automatice exclusivamente este procedimiento de release.
 
 No activar trimming ni Native AOT durante la primera versión porque COM, reflexión y algunas dependencias pueden presentar incompatibilidades.
 
-La salida distribuible debe contener únicamente `PAM Automation.exe`. El usuario elige dónde guardarlo y no se requieren permisos de administrador. La configuración privada continúa bajo `%LOCALAPPDATA%\PamAutomation\config`; las credenciales permanecen en Windows Credential Manager y nunca se escriben junto al ejecutable.
+La salida distribuible es `PAM-Automation-<versión>-win-x64.zip`. Debe contener una sola carpeta base con `PAM Automation.exe` y todas sus dependencias autocontenidas. El usuario elige dónde extraerla, conserva la carpeta completa y no requiere permisos de administrador. La configuración privada continúa bajo `%LOCALAPPDATA%\PamAutomation\config`; las credenciales permanecen en Windows Credential Manager y nunca se escriben junto al ejecutable.
 
 La aplicación incorpora versión nativa de Windows y consulta al iniciar un manifiesto JSON público, pequeño y limitado. Si la versión publicada es superior, muestra un aviso descartable dentro de WPF. No descarga, sustituye ni elimina ejecutables: el usuario obtiene la nueva versión desde el repositorio compartido y elimina manualmente la anterior. Una falla de red, TLS, formato o disponibilidad nunca bloquea el inicio. La comparación usa versiones numéricas, no fechas de archivo.
 

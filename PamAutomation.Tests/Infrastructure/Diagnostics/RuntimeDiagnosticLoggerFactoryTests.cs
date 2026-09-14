@@ -48,6 +48,22 @@ public sealed class RuntimeDiagnosticLoggerFactoryTests
     }
 
     [TestMethod]
+    public void CaptureSnapshot_StartupTiming_KeepsSafeElapsedMilliseconds()
+    {
+        using var factory = new RuntimeDiagnosticLoggerFactory();
+        ILogger logger = factory.CreateLogger("PamAutomation.App.App");
+
+        logger.LogInformation(
+            "Startup reached {Stage}. Elapsed={ElapsedMilliseconds}ms.",
+            "MainWindowShown",
+            125L);
+
+        DiagnosticLogEvent captured = Assert.ContainsSingle(factory.CaptureSnapshot());
+        Assert.AreEqual("MainWindowShown", captured.Properties["Stage"]);
+        Assert.AreEqual("125", captured.Properties["ElapsedMilliseconds"]);
+    }
+
+    [TestMethod]
     public void CaptureSnapshot_Exception_OmitsMessageAndSourcePaths()
     {
         using var factory = new RuntimeDiagnosticLoggerFactory();

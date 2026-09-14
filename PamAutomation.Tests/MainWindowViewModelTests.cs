@@ -41,6 +41,32 @@ public sealed class MainWindowViewModelTests
     }
 
     [TestMethod]
+    public void BeginInitialization_DisablesActionsAndShowsLoadingState()
+    {
+        var viewModel = new MainWindowViewModel();
+
+        viewModel.BeginInitialization();
+
+        Assert.IsTrue(viewModel.IsInitializing);
+        Assert.IsTrue(viewModel.IsBusy);
+        Assert.IsFalse(viewModel.AreControlsEnabled);
+        Assert.AreEqual("Preparando PAM Automation…", viewModel.StatusMessage);
+    }
+
+    [TestMethod]
+    public async Task InitializeAsync_AfterLoadingState_RestoresActions()
+    {
+        var viewModel = new MainWindowViewModel();
+        viewModel.BeginInitialization();
+
+        await viewModel.InitializeAsync();
+
+        Assert.IsFalse(viewModel.IsInitializing);
+        Assert.IsFalse(viewModel.IsBusy);
+        Assert.IsTrue(viewModel.AreControlsEnabled);
+    }
+
+    [TestMethod]
     public async Task InitializeAsync_RequestStartTimeInPast_AdvancesAndPersistsFirstValidMinute()
     {
         var now = new DateTimeOffset(2026, 9, 11, 17, 30, 45, TimeSpan.FromHours(-5));

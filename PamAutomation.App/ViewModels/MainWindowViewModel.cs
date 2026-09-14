@@ -53,6 +53,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     [ObservableProperty] private bool isMailConfigured;
     [ObservableProperty] private bool isTestModeEnabled;
     [ObservableProperty] private bool sendEmailAtEnd;
+    [ObservableProperty] private bool isInitializing;
     [ObservableProperty] private bool isRunning;
     [ObservableProperty] private bool isExportingDiagnostics;
     [ObservableProperty] private bool isAccessingPam;
@@ -133,11 +134,11 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public IRelayCommand ShowResultCommand { get; }
     public IRelayCommand DismissUpdateCommand { get; }
     public string ApplicationDisplayName => $"PAM Automation V. {applicationVersion.ToString(3)}";
-    public bool AreControlsEnabled => !IsRunning && !IsExportingDiagnostics && !IsAccessingPam;
-    public bool IsBusy => IsRunning || IsAccessingPam;
+    public bool AreControlsEnabled => !IsInitializing && !IsRunning && !IsExportingDiagnostics && !IsAccessingPam;
+    public bool IsBusy => IsInitializing || IsRunning || IsAccessingPam;
     public bool CanExportDiagnostics => diagnosticExportService is not null && dialogs is not null && AreControlsEnabled;
     public bool CanAccessPam => interactiveAccessService is not null && credentialStore is not null &&
-                                AreCredentialsConfigured && !IsAccessingPam && !IsExportingDiagnostics;
+                                AreCredentialsConfigured && !IsInitializing && !IsAccessingPam && !IsExportingDiagnostics;
     public bool CanShowResult => dialogs is not null && HasResult && AreControlsEnabled;
     public bool IsEffectiveRequestConfigured => favoriteCollectionsState.ActiveCollection is not null &&
                                                 settingsValidator.Validate(GetEffectiveSettings(), GetEcuadorNow()).IsValid;
@@ -157,10 +158,18 @@ public sealed partial class MainWindowViewModel : ObservableObject
         ? $"Colección activa: {collection.Name}"
         : "Selecciona una colección para automatizar";
 
+    /// <summary>Places the main window in its safe loading state before it becomes visible.</summary>
+    public void BeginInitialization()
+    {
+        IsInitializing = true;
+        StatusMessage = "Preparando PAM Automation…";
+    }
+
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
         if (settingsStore is null || credentialStore is null)
         {
+            IsInitializing = false;
             return;
         }
 
@@ -212,6 +221,10 @@ public sealed partial class MainWindowViewModel : ObservableObject
         {
             PresentError(exception);
         }
+        finally
+        {
+            IsInitializing = false;
+        }
     }
 
     /// <summary>Checks for a newer portable release without blocking or failing application startup.</summary>
@@ -242,6 +255,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     }
 
     partial void OnAreCredentialsConfiguredChanged(bool value) => RefreshPresentationState();
+    partial void OnIsInitializingChanged(bool value) => RefreshPresentationState();
     partial void OnIsRequestConfiguredChanged(bool value) => RefreshPresentationState();
     partial void OnIsMailConfiguredChanged(bool value) => RefreshPresentationState();
     partial void OnIsTestModeEnabledChanged(bool value) => RefreshPresentationState();

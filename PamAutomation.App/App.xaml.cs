@@ -1,4 +1,5 @@
 using System.Net.Http;
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Threading;
 using Microsoft.Extensions.Logging;
@@ -42,6 +43,7 @@ namespace PamAutomation.App
 
         protected override async void OnStartup(StartupEventArgs e)
         {
+            var startupTimer = Stopwatch.StartNew();
             base.OnStartup(e);
 
             EventManager.RegisterClassHandler(
@@ -57,7 +59,10 @@ namespace PamAutomation.App
             DispatcherUnhandledException += LogDispatcherUnhandledException;
             AppDomain.CurrentDomain.UnhandledException += LogUnhandledException;
             TaskScheduler.UnobservedTaskException += LogUnobservedTaskException;
-            logger.LogInformation("Pam Automation application startup began.");
+            logger.LogInformation(
+                "Pam Automation application startup began at {Stage}. Elapsed={ElapsedMilliseconds}ms.",
+                "ManagedStartup",
+                startupTimer.ElapsedMilliseconds);
 
             var delay = new TaskAsyncDelay();
             var requestValidator = new RequestSettingsValidator();
@@ -148,12 +153,37 @@ namespace PamAutomation.App
                 typeof(App).Assembly.GetName().Version,
                 interactiveAccess,
                 favoriteCollections);
+            viewModel.BeginInitialization();
             var window = new MainWindow { DataContext = viewModel };
             MainWindow = window;
             window.Show();
+            logger.LogInformation(
+                "Pam Automation startup reached {Stage}. Elapsed={ElapsedMilliseconds}ms.",
+                "MainWindowShown",
+                startupTimer.ElapsedMilliseconds);
             await viewModel.InitializeAsync(applicationLifetime.Token);
-            await viewModel.CheckForUpdateAsync(applicationLifetime.Token);
-            logger.LogInformation("Pam Automation application startup completed.");
+            logger.LogInformation(
+                "Pam Automation startup reached {Stage}. Elapsed={ElapsedMilliseconds}ms.",
+                "ConfigurationReady",
+                startupTimer.ElapsedMilliseconds);
+            logger.LogInformation(
+                "Pam Automation application startup completed at {Stage}. Elapsed={ElapsedMilliseconds}ms.",
+                "ReadyForUser",
+                startupTimer.ElapsedMilliseconds);
+
+            _ = CheckForUpdateAfterStartupAsync(viewModel, applicationLifetime.Token);
+        }
+
+        private async Task CheckForUpdateAfterStartupAsync(
+            MainWindowViewModel viewModel,
+            CancellationToken cancellationToken)
+        {
+            var timer = Stopwatch.StartNew();
+            await viewModel.CheckForUpdateAsync(cancellationToken);
+            logger.LogInformation(
+                "Post-startup task reached {Stage}. Elapsed={ElapsedMilliseconds}ms.",
+                "UpdateCheckCompleted",
+                timer.ElapsedMilliseconds);
         }
 
         private static void ApplyWindowTitleBarAppearance(object sender, RoutedEventArgs e)

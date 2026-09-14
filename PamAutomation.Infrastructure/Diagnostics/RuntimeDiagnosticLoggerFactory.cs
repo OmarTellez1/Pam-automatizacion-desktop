@@ -16,7 +16,8 @@ public sealed partial class RuntimeDiagnosticLoggerFactory : ILoggerFactory, IDi
     private const int DefaultCapacity = 500;
     private static readonly HashSet<string> AllowedPropertyNames = new(StringComparer.Ordinal)
     {
-        "Mode", "Stage", "Status", "FinalAction", "Complete", "IsComplete", "IsTerminating", "Terminating"
+        "Mode", "Stage", "Status", "FinalAction", "Complete", "IsComplete", "IsTerminating", "Terminating",
+        "ElapsedMilliseconds"
     };
 
     private readonly object gate = new();

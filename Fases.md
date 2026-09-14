@@ -320,6 +320,14 @@ El monograma circular `PA` con transparencia exterior es el icono oficial de Win
 
 La metadata de producto, archivo, ensamblado e información avanzó de forma coherente a `1.0.1`; `Publish-Portable.ps1` queda listo para producir `artifacts\publish\final\PAM-Automation-1.0.1\PAM Automation.exe`. La compilación `Release | x64` y las 369 pruebas ordinarias pasaron, y se comprobó que Windows extrae un icono del binario y reporta `ProductVersion 1.0.1` y `FileVersion 1.0.1.0`. **Ajuste completado.**
 
+## Fase 22 — Arranque optimizado y paquete ZIP autocontenido
+
+La publicación dejó de concentrar .NET, WPF, Playwright y las bibliotecas nativas en un único EXE de aproximadamente 248 MB. `Portable-x64` produce ahora una carpeta autocontenida multifichero y `Publish-Portable.ps1` la empaqueta automáticamente como `PAM-Automation-1.0.2-win-x64.zip`, conservando la carpeta base. El usuario no necesita instalar .NET, pero debe extraer y mantener juntos todos los archivos. Esta decisión evita la extracción del bundle en cada arranque y reduce el trabajo previo a que WPF pueda aparecer.
+
+La ventana entra en un estado explícito `Preparando PAM Automation…`, mantiene sus acciones deshabilitadas hasta cargar la configuración y se recupera incluso si la inicialización falla. El diagnóstico seguro admite `ElapsedMilliseconds` y registra hitos de inicio sin datos privados. La consulta de actualización comienza después de que la configuración esté disponible y ya no define el final del arranque funcional.
+
+La versión avanzó a `1.0.2`. La compilación `Release | x64`, 44 pruebas específicas y las 377 pruebas ordinarias pasaron. El publicador produjo 523 archivos, un ZIP de 105.060.781 bytes y SHA-256 `12745DBB31F79187444D5C73351B7D8F1E4D42CF06B4E8DC186D334F5A47ACAB`. En una prueba local visible, la ventana 1.0.2 apareció receptiva en aproximadamente 4,9 segundos; la publicación 1.0.1 de archivo único todavía no había mostrado ventana dentro del intervalo comparativo. No se abrió PAM, no se crearon solicitudes y no se envió correo. **Fase completada; falta confirmar el arranque frío en el equipo corporativo afectado.**
+
 ## Fases pendientes
 
 La clasificación siguiente se refiere únicamente a dependencias entre fases pendientes:

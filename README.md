@@ -130,7 +130,7 @@ dotnet restore PamAutomation.slnx -p:Platform=x64
 dotnet build PamAutomation.slnx -c Release -p:Platform=x64 --no-restore
 dotnet run --project PamAutomation.Tests\PamAutomation.Tests.csproj -c Release -p:Platform=x64 --no-build
 dotnet run --project PamAutomation.App\PamAutomation.App.csproj -c Release -p:Platform=x64 --no-build
-dotnet publish PamAutomation.App\PamAutomation.App.csproj -c Release -p:Platform=x64 -p:PublishProfile=Portable-x64 -o artifacts\publish\final\PAM-Automation-1.0.1
+dotnet publish PamAutomation.App\PamAutomation.App.csproj -c Release -p:Platform=x64 -p:PublishProfile=Portable-x64 -o artifacts\publish\final\PAM-Automation-1.0.2
 ```
 
 `PamAutomation.Tests` usa el runner integrado de Microsoft Testing Platform. Mientras la solución no defina el runner MTP mediante `global.json`, las pruebas se ejecutan con `dotnet run` sobre el proyecto de pruebas y no con `dotnet test`.
@@ -145,14 +145,14 @@ No se requieren .NET MAUI, WinUI, C++, ASP.NET, Azure, Node.js, Python, Java, ru
 - Conectividad a la red o VPN de PAM.
 - Publicación autocontenida para no exigir .NET instalado en el equipo final.
 
-El entregable será `PAM Automation.exe`, un ejecutable portable Windows x64 autocontenido que el usuario guardará donde prefiera y reemplazará manualmente cuando descargue una nueva versión. Incluirá la lógica de la aplicación, WPF, Playwright .NET, TOTP, configuración, validaciones, resultados en memoria e integración con Outlook. No exigirá instalar .NET, Node.js, Python ni PowerShell en el equipo final.
+El entregable será `PAM-Automation-<versión>-win-x64.zip`. Contiene una carpeta portable Windows x64 autocontenida con `PAM Automation.exe` y todas sus dependencias preextraídas. El usuario puede guardarla donde prefiera, pero debe conservar juntos todos los archivos de la carpeta. No exige instalar .NET, Node.js, Python ni PowerShell en el equipo final.
 
-La versión estable configurada es `1.0.1` y aparece en el título de WPF y en las propiedades nativas del archivo. El ejecutable incorpora el icono oficial circular `PA`; la portada conserva su insignia azul redondeada original y muestra el monograma textual `PA`. Todas las ventanas usan una barra de título gris oscuro con texto y controles de alto contraste cuando Windows admite los atributos DWM modernos. Al iniciar, la aplicación intenta leer durante un máximo de ocho segundos el `latest.json` público de GitHub mediante su URL `raw`; si contiene una versión superior y la dirección exacta del repositorio esperado, muestra un aviso descartable. No descarga ni elimina archivos.
+La versión estable configurada es `1.0.2` y aparece en el título de WPF y en las propiedades nativas del archivo. El ejecutable incorpora el icono oficial circular `PA`; la portada conserva su insignia azul redondeada original y muestra el monograma textual `PA`. Todas las ventanas usan una barra de título gris oscuro con texto y controles de alto contraste cuando Windows admite los atributos DWM modernos. Al iniciar, la ventana presenta el estado `Preparando PAM Automation…`, carga la configuración protegida y queda utilizable sin esperar la consulta remota. La comprobación de `latest.json` se ejecuta después en segundo plano durante un máximo de ocho segundos; si contiene una versión superior y la dirección exacta del repositorio esperado, muestra un aviso descartable. No descarga ni elimina archivos.
 
 ### Publicar una nueva versión portable
 
-1. Actualizar `Version`, `AssemblyVersion`, `FileVersion` e `InformationalVersion` en `PamAutomation.App/PamAutomation.App.csproj`. Para `1.0.1`, las versiones de ensamblado y archivo son `1.0.1.0`.
-2. Desde la raíz, ejecutar el automatizador local excluido de Git. Este restaura, compila, ejecuta la suite ordinaria, publica y verifica los metadatos y el SHA-256:
+1. Actualizar `Version`, `AssemblyVersion`, `FileVersion` e `InformationalVersion` en `PamAutomation.App/PamAutomation.App.csproj`. Para `1.0.2`, las versiones de ensamblado y archivo son `1.0.2.0`.
+2. Desde la raíz, ejecutar el automatizador local excluido de Git. Este restaura, compila, ejecuta la suite ordinaria, publica, crea el ZIP y verifica los metadatos y el SHA-256:
 
    ```powershell
    .\Publish-Portable.ps1
@@ -164,9 +164,11 @@ La versión estable configurada es `1.0.1` y aparece en el título de WPF y en l
    .\Publish-Portable.ps1 -ReplaceExisting
    ```
 
-3. Recoger el único entregable desde `artifacts\publish\final\PAM-Automation-<versión>\PAM Automation.exe`.
-4. En GitHub, crear el tag y release `v<versión>`, adjuntar ese ejecutable como asset y publicar el release. El ejecutable autocontenido excede el límite de un archivo normal del repositorio, por lo que no debe añadirse al commit.
+3. Recoger `artifacts\publish\final\PAM-Automation-<versión>-win-x64.zip`; la carpeta contigua es únicamente la salida sin comprimir usada para validar y empaquetar.
+4. En GitHub, crear el tag y release `v<versión>`, adjuntar el ZIP como asset y publicar el release. No se debe subir la carpeta ni sus archivos individuales al repositorio.
 5. Solo después de publicar el asset, actualizar `latest.json` en `main` con la versión nueva, la fecha ISO y `repositoryUrl` igual a `https://github.com/OmarTellez1/Pam-automation-installer`. Este orden evita anunciar una versión que todavía no se puede descargar.
+
+El usuario final debe descargar el ZIP, extraer la carpeta completa y ejecutar `PAM Automation.exe` desde esa carpeta. No debe ejecutar el programa dentro del visor del ZIP ni mover solamente el `.exe`, porque las bibliotecas contiguas forman parte de la publicación autocontenida.
 
 La aplicación seguirá requiriendo deliberadamente Windows, Microsoft Edge instalado, conectividad al portal PAM y Outlook clásico instalado cuando se active el correo. Edge y Outlook no se incluirán dentro del ejecutable porque deben utilizar las instalaciones corporativas existentes.
 

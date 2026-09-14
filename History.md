@@ -602,3 +602,12 @@ Cada cambio relevante debe registrar qué se decidió, por qué, qué se verific
 - Al borrar la colección activa se selecciona automáticamente `All favorites`; una eliminación inactiva conserva la selección actual.
 - La persistencia continúa usando el documento DPAPI `schemaVersion = 2` y su escritura atómica.
 - La compilación `Release | x64` y las 374 pruebas ordinarias pasaron. No se contactó PAM, no se crearon solicitudes y no se envió correo.
+
+## 14 de septiembre de 2026 — Fase 22: optimización del arranque
+
+- Se identificó como principal cuello de botella previo a WPF la publicación autocontenida en un único EXE de aproximadamente 248 MB con extracción total de bibliotecas nativas y contenido.
+- `Portable-x64` cambió a una publicación autocontenida multifichero sin trimming ni AOT. El usuario conserva la ausencia de prerrequisitos, pero debe extraer y mantener completa la carpeta distribuida.
+- `Publish-Portable.ps1` valida el EXE y sus metadatos, exige dependencias contiguas, crea `PAM-Automation-1.0.2-win-x64.zip` con carpeta base y calcula el SHA-256 del ZIP.
+- La portada muestra `Preparando PAM Automation…` y bloquea acciones durante la carga local. El diagnóstico registra etapas y milisegundos, y la comprobación remota de versiones se ejecuta después del arranque funcional.
+- La versión avanzó a `1.0.2`. Pasaron 44 pruebas específicas y las 377 pruebas ordinarias. El ZIP contiene 523 archivos, pesa 105.060.781 bytes y su SHA-256 es `12745DBB31F79187444D5C73351B7D8F1E4D42CF06B4E8DC186D334F5A47ACAB`.
+- La prueba local visible mostró la ventana 1.0.2 receptiva en aproximadamente 4,9 segundos. La comparación 1.0.1 de archivo único continuó sin ventana durante el mismo intervalo y se cerró sin realizar acciones externas. No se abrió PAM ni Outlook y no se crearon solicitudes.

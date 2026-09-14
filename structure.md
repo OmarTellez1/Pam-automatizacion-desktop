@@ -831,8 +831,11 @@ Durante desarrollo podrán existir `results`, `logs`, `artifacts` y `temp` en la
 - `PamAutomation.Core/Interfaces/Updates/IApplicationUpdateService.cs`: contrato asíncrono y cancelable para consultar una versión publicada.
 - `PamAutomation.Core/Updates/ApplicationUpdateResult.cs`: resultado reducido a versión validada y disponibilidad.
 - `PamAutomation.Infrastructure/Updates/PublicManifestApplicationUpdateService.cs`: lectura HTTPS independiente del proveedor, limitada a 16 KiB, con JSON estricto, versión numérica y repositorio esperado.
-- `PamAutomation.App/Properties/PublishProfiles/Portable-x64.pubxml`: perfil `Release`, `win-x64`, autocontenido, archivo único, sin trimming, AOT, PDB ni archivos auxiliares; permite que Playwright extraiga su driver interno en `%TEMP%`.
-- `artifacts/publish/final/PAM-Automation-<versión>/PAM Automation.exe`: salida portable canónica generada e ignorada por Git; contiene .NET y el driver Windows de Playwright, pero no incluye Edge. Las carpetas históricas directamente bajo `artifacts/publish`, como `PAM-Automation-0.0.1` y `win-x64`, son salidas anteriores con símbolos y pueden eliminarse sin afectar el código ni la configuración.
+- `PamAutomation.App/Properties/PublishProfiles/Portable-x64.pubxml`: perfil `Release`, `win-x64`, autocontenido y multifichero, sin trimming, AOT, PDB ni extracción de bundle durante el arranque.
+- `MainWindowViewModel.BeginInitialization`: estado visual seguro que informa preparación y desactiva acciones hasta terminar la carga local.
+- `App.OnStartup`: registra hitos de rendimiento seguros y difiere la consulta de actualización hasta que la aplicación ya está utilizable.
+- `artifacts/publish/final/PAM-Automation-<versión>/`: salida portable autocontenida generada e ignorada por Git; contiene el EXE, .NET y el driver Windows de Playwright, pero no incluye Edge.
+- `artifacts/publish/final/PAM-Automation-<versión>-win-x64.zip`: único paquete de distribución. Conserva la carpeta base para impedir que el usuario separe el EXE de sus dependencias.
 
 El servicio de actualización depende solo de su interfaz de Core. El ViewModel muestra un banner descartable y desconoce HTTP o GitHub. La aplicación consulta la URL `raw` del manifiesto y exige que este apunte al repositorio GitHub configurado, sin relajar TLS.
 
