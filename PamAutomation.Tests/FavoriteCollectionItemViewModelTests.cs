@@ -19,5 +19,21 @@ public sealed class FavoriteCollectionItemViewModelTests
 
         Assert.Contains("1 solicitudes", viewModel.Summary);
         Assert.Contains("Motivo: Soporte", viewModel.Summary);
+        Assert.IsTrue(viewModel.CanDelete);
+    }
+
+    [TestMethod]
+    public void CanDelete_AllFavorites_IsFalse()
+    {
+        var collection = new FavoriteCollection(
+            Guid.NewGuid(),
+            FavoriteCollection.AllFavoritesName,
+            "Soporte",
+            [new FavoriteAccountKey("system", "application", "account")],
+            isAllFavorites: true);
+
+        var viewModel = new FavoriteCollectionItemViewModel(collection, isActive: true);
+
+        Assert.IsFalse(viewModel.CanDelete);
     }
 }

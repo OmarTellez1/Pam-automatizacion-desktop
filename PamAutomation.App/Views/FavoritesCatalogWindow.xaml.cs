@@ -1,4 +1,5 @@
 using System.Windows;
+using PamAutomation.App.Services;
 using PamAutomation.App.ViewModels;
 
 namespace PamAutomation.App.Views;
@@ -77,6 +78,40 @@ public partial class FavoritesCatalogWindow : Window
         {
             toggle.IsChecked = item.IsActive;
             toggle.IsEnabled = true;
+        }
+    }
+
+    private async void DeleteCollection_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.Button button ||
+            button.DataContext is not FavoriteCollectionItemViewModel item ||
+            !item.CanDelete)
+        {
+            return;
+        }
+
+        MessageBoxResult confirmation = UrgentMessageBox.Show(
+            $"¿Deseas eliminar la colección «{item.Name}»?\n\n" +
+            "Esta acción no elimina ni modifica tus Favorites en PAM.",
+            "Eliminar colección",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning,
+            MessageBoxResult.No);
+        if (confirmation != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        button.IsEnabled = false;
+        try
+        {
+            await ((FavoritesCatalogViewModel)DataContext).DeleteCollectionAsync(
+                item.Collection.Id,
+                lifetime.Token);
+        }
+        finally
+        {
+            button.IsEnabled = true;
         }
     }
 

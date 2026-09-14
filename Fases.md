@@ -302,6 +302,12 @@ Se eliminó el modo alternativo y el toggle global de la portada: toda automatiz
 
 `Editar solicitud` dejó de editar la razón y ahora solo configura fecha, hora y duración. En el límite de ejecución esos valores se combinan con el motivo de la colección activa; el envío continúa limitado por autorización de un uso a sus claves exactas. `favorite-collections.dat` usa `schemaVersion = 2` y migra el esquema anterior conservando nombres, motivos, selecciones y colección activa. La compilación `Release | x64` y las 368 pruebas ordinarias pasaron; no se contactó PAM, no se crearon solicitudes y no se envió correo. **Fase completada.**
 
+## Fase 20.5 — Eliminación protegida de colecciones personalizadas
+
+Cada colección creada por el usuario muestra un botón rojo con el icono nativo de papelera. El borrado requiere confirmación explícita y aclara que solo elimina la definición local, sin modificar `Favorites` en PAM. `All favorites` oculta el botón y Core rechaza además cualquier intento de eliminarla fuera de la interfaz.
+
+Si la colección eliminada estaba activa, la aplicación selecciona automáticamente `All favorites`; si estaba inactiva, conserva la selección existente. La operación utiliza el almacén DPAPI y la escritura atómica actuales sin cambiar `schemaVersion`. La compilación `Release | x64` y las 374 pruebas ordinarias pasaron; no se contactó PAM, no se crearon solicitudes y no se envió correo. **Fase completada.**
+
 ## Ajuste posterior a la fase 20 — Normalización temporal al iniciar
 
 Al inicializar la aplicación, una fecha y hora guardadas que ya estén en el pasado se reemplazan una sola vez por la primera hora válida de Ecuador: hora actual más 6 minutos, redondeada hacia arriba al minuto completo. El valor corregido se persiste para que `Editar solicitud` y la confirmación muestren la misma configuración. Las horas futuras no se reescriben y el refresco periódico posterior conserva su responsabilidad de deshabilitar y explicar, no de cambiar automáticamente la selección del usuario.
@@ -325,7 +331,7 @@ La clasificación siguiente se refiere únicamente a dependencias entre fases pe
 | Fase | Clasificación | Dependencias pendientes | Alcance y posibilidad de paralelismo |
 |---|---|---|---|
 | 19 — Pruebas finales administradas | **Independiente** | Ninguna fase pendiente. | Es la validación final del producto publicado en el entorno Windows objetivo. |
-| 20.5+ — Administración ampliada de colecciones | **Dependiente** | Fases 20.2–20.4 implementadas. | Podrá añadir eliminación recuperable, duplicación u otras mejoras que el usuario confirme; no son necesarias para crear, editar, seleccionar y ejecutar una colección. |
+| 20.6+ — Administración ampliada de colecciones | **Dependiente** | Fases 20.2–20.5 implementadas. | Podrá añadir duplicación u otras mejoras que el usuario confirme; no son necesarias para crear, editar, eliminar, seleccionar y ejecutar una colección. |
 
 ## Mapa recomendado de trabajo paralelo
 
@@ -334,12 +340,12 @@ Fases 6 a 18 completadas ──► Fase 19
 
 Fases 21–21.10 completadas de forma independiente
 
-Fases 20.1–20.4 completadas ──► validación real futura
+Fases 20.1–20.5 completadas ──► validación real futura
 ```
 
 La fase 18 quedó completada tras validar el manifiesto GitHub real. El coordinador solo podrá paralelizar una parte futura si vuelve a demostrar independencia, contratos congelados y ausencia de archivos compartidos.
 
-La fase 20 registra la ampliación solicitada después de la migración. Las fases 20.1–20.4 implementan el catálogo protegido, las colecciones nombradas, `All favorites` administrada y la colección activa como único alcance de ejecución. Su diseño, navegación, reconciliación y seguridad se detallan en `PAM_NAVIGATION.md`; ninguna de estas fases hereda autorización para crear solicitudes reales.
+La fase 20 registra la ampliación solicitada después de la migración. Las fases 20.1–20.5 implementan el catálogo protegido, las colecciones nombradas y eliminables, `All favorites` administrada y la colección activa como único alcance de ejecución. Su diseño, navegación, reconciliación y seguridad se detallan en `PAM_NAVIGATION.md`; ninguna de estas fases hereda autorización para crear solicitudes reales.
 
 Esta clasificación es una guía de planificación, no una autorización automática para crear subagentes. Antes de cada oleada, el coordinador debe inspeccionar el diff y la estructura real; si el trabajo resultó pequeño o apareció solapamiento, debe conservarlo en el agente principal o ejecutarlo secuencialmente.
 

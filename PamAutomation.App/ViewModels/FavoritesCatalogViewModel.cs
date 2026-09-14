@@ -225,6 +225,40 @@ public sealed partial class FavoritesCatalogViewModel : ObservableObject
         }
     }
 
+    /// <summary>Deletes one user-created collection and refreshes the protected state.</summary>
+    public async Task DeleteCollectionAsync(
+        Guid collectionId,
+        CancellationToken cancellationToken = default)
+    {
+        if (collectionService is null) throw new InvalidOperationException("El servicio de colecciones no está disponible.");
+        try
+        {
+            FavoriteCollectionsState state = await collectionService
+                .DeleteCollectionAsync(collectionId, cancellationToken);
+            ReplaceCollections(state);
+            HasError = false;
+            StatusMessage = "La colección se eliminó correctamente.";
+            logger.LogInformation("User-created favorite collection deleted. CollectionId={CollectionId}.", collectionId);
+        }
+        catch (OperationCanceledException)
+        {
+            StatusMessage = "La eliminación de la colección fue cancelada.";
+            logger.LogInformation("Favorite collection deletion was cancelled. CollectionId={CollectionId}.", collectionId);
+        }
+        catch (FavoriteCollectionException exception)
+        {
+            HasError = true;
+            StatusMessage = exception.Message;
+            logger.LogWarning(exception, "Favorite collection deletion failed safely. CollectionId={CollectionId}.", collectionId);
+        }
+        catch (Exception exception)
+        {
+            HasError = true;
+            StatusMessage = "No fue posible eliminar la colección. Exporta el diagnóstico si el problema continúa.";
+            logger.LogError(exception, "Favorite collection deletion failed unexpectedly. CollectionId={CollectionId}.", collectionId);
+        }
+    }
+
     private async Task<int> LoadAndReconcileCollectionsAsync(
         FavoriteCatalogSnapshot snapshot,
         CancellationToken cancellationToken)

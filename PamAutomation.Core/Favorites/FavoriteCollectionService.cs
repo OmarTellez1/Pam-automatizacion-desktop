@@ -80,6 +80,36 @@ public sealed class FavoriteCollectionService : IFavoriteCollectionService
         }, cancellationToken);
 
     /// <inheritdoc />
+    public Task<FavoriteCollectionsState> DeleteCollectionAsync(
+        Guid collectionId,
+        CancellationToken cancellationToken = default)
+    {
+        if (collectionId == Guid.Empty)
+        {
+            throw new FavoriteCollectionException("La colección que deseas eliminar no es válida.");
+        }
+
+        return UpdateAsync(state =>
+        {
+            FavoriteCollection collection = state.Collections
+                .FirstOrDefault(existing => existing.Id == collectionId)
+                ?? throw new FavoriteCollectionException("La colección que deseas eliminar ya no existe.");
+            if (collection.IsAllFavorites)
+            {
+                throw new FavoriteCollectionException("All favorites es una colección automática y no se puede eliminar.");
+            }
+
+            FavoriteCollection[] remaining = state.Collections
+                .Where(existing => existing.Id != collectionId)
+                .ToArray();
+            Guid? activeCollectionId = state.ActiveCollectionId == collectionId
+                ? remaining.FirstOrDefault(static existing => existing.IsAllFavorites)?.Id
+                : state.ActiveCollectionId;
+            return new FavoriteCollectionsState(remaining, activeCollectionId);
+        }, cancellationToken);
+    }
+
+    /// <inheritdoc />
     public Task<FavoriteCollectionsState> ReconcileAsync(
         FavoriteCatalogSnapshot catalog,
         CancellationToken cancellationToken = default)

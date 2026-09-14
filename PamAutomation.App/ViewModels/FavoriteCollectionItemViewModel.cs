@@ -27,4 +27,7 @@ public sealed partial class FavoriteCollectionItemViewModel : ObservableObject
 
     /// <summary>Gets whether this collection can be selected for automation.</summary>
     public bool CanActivate => Collection.Accounts.Count > 0;
+
+    /// <summary>Gets whether the user is allowed to delete this collection.</summary>
+    public bool CanDelete => !Collection.IsAllFavorites;
 }

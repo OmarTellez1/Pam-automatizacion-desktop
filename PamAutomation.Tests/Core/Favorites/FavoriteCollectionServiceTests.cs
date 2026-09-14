@@ -106,6 +106,51 @@ public sealed class FavoriteCollectionServiceTests
         Assert.Contains("ese nombre", exception.Message);
     }
 
+    [TestMethod]
+    public async Task DeleteCollectionAsync_InactiveCustom_RemovesItAndPreservesActiveCollection()
+    {
+        var service = new FavoriteCollectionService(new MemoryStore());
+        FavoriteCollectionsState initial = await service.ReconcileAsync(CreateCatalog("system-1"));
+        FavoriteCollection custom = CreateCollection("Operaciones", "system-1");
+        await service.SaveCollectionAsync(custom);
+
+        FavoriteCollectionsState state = await service.DeleteCollectionAsync(custom.Id);
+
+        Assert.HasCount(1, state.Collections);
+        Assert.IsTrue(state.Collections[0].IsAllFavorites);
+        Assert.AreEqual(initial.ActiveCollectionId, state.ActiveCollectionId);
+    }
+
+    [TestMethod]
+    public async Task DeleteCollectionAsync_ActiveCustom_FallsBackToAllFavorites()
+    {
+        var service = new FavoriteCollectionService(new MemoryStore());
+        FavoriteCollectionsState initial = await service.ReconcileAsync(CreateCatalog("system-1"));
+        FavoriteCollection custom = CreateCollection("Operaciones", "system-1");
+        await service.SaveCollectionAsync(custom);
+        await service.SetActiveCollectionAsync(custom.Id);
+
+        FavoriteCollectionsState state = await service.DeleteCollectionAsync(custom.Id);
+
+        Assert.AreEqual(initial.ActiveCollectionId, state.ActiveCollectionId);
+        Assert.IsTrue(state.ActiveCollection!.IsAllFavorites);
+        Assert.DoesNotContain(custom, state.Collections);
+    }
+
+    [TestMethod]
+    public async Task DeleteCollectionAsync_AllFavorites_IsRejected()
+    {
+        var service = new FavoriteCollectionService(new MemoryStore());
+        FavoriteCollectionsState initial = await service.ReconcileAsync(CreateCatalog("system-1"));
+
+        FavoriteCollectionException exception = await Assert.ThrowsExactlyAsync<FavoriteCollectionException>(
+            () => service.DeleteCollectionAsync(initial.ActiveCollectionId!.Value));
+
+        Assert.Contains("no se puede eliminar", exception.Message);
+        FavoriteCollectionsState preserved = await service.LoadAsync();
+        Assert.AreEqual(initial, preserved);
+    }
+
     private static FavoriteCollection CreateCollection(string name, string system) => new(
         Guid.NewGuid(),
         name,

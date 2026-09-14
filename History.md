@@ -593,3 +593,12 @@ Cada cambio relevante debe registrar qué se decidió, por qué, qué se verific
 - `WindowTitleBarAppearance` aplica centralmente a todas las ventanas el modo oscuro y, en Windows 11 o superior, fondo gris oscuro, borde coherente y texto claro mediante DWM. Un sistema sin esos atributos conserva el comportamiento nativo sin interrumpir la aplicación.
 - Las cuatro versiones del proyecto avanzaron a `1.0.1`/`1.0.1.0`. El publicador local queda preparado para generar la carpeta canónica `PAM-Automation-1.0.1`.
 - La compilación `Release | x64` y las 369 pruebas ordinarias pasaron. El ejecutable de desarrollo reportó `ProductVersion 1.0.1`, `FileVersion 1.0.1.0` y un icono Win32 extraíble.
+
+## 14 de septiembre de 2026 — Fase 20.5: eliminación de colecciones personalizadas
+
+- La lista de colecciones incorpora un botón rojo con el glifo de papelera de Windows únicamente para colecciones creadas por el usuario.
+- La eliminación presenta una confirmación urgente y explica que la acción no altera `Favorites` en PAM.
+- `FavoriteCollectionService` impide borrar `All favorites` aunque la operación se invoque sin pasar por la interfaz.
+- Al borrar la colección activa se selecciona automáticamente `All favorites`; una eliminación inactiva conserva la selección actual.
+- La persistencia continúa usando el documento DPAPI `schemaVersion = 2` y su escritura atómica.
+- La compilación `Release | x64` y las 374 pruebas ordinarias pasaron. No se contactó PAM, no se crearon solicitudes y no se envió correo.

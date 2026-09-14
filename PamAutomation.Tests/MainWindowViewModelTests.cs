@@ -911,6 +911,10 @@ public sealed class MainWindowViewModelTests
             Guid? collectionId,
             CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
+        public Task<FavoriteCollectionsState> DeleteCollectionAsync(
+            Guid collectionId,
+            CancellationToken cancellationToken = default) => throw new NotSupportedException();
+
         public Task<FavoriteCollectionsState> ReconcileAsync(
             FavoriteCatalogSnapshot catalog,
             CancellationToken cancellationToken = default) => throw new NotSupportedException();

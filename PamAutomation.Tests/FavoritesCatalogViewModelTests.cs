@@ -87,6 +87,30 @@ public sealed class FavoritesCatalogViewModelTests
         Assert.HasCount(1, viewModel.Favorites);
     }
 
+    [TestMethod]
+    public async Task DeleteCollectionAsync_CustomCollection_RemovesItFromPresentation()
+    {
+        var collectionService = new FavoriteCollectionService(new MemoryCollectionStore());
+        await collectionService.ReconcileAsync(Snapshot);
+        FavoriteCollection custom = new(
+            Guid.NewGuid(),
+            "Operaciones",
+            "Soporte",
+            [FavoriteAccountKey.From(Snapshot.Entries[0])]);
+        await collectionService.SaveCollectionAsync(custom);
+        var viewModel = new FavoritesCatalogViewModel(
+            new StubCatalogService(Snapshot),
+            collectionService);
+        await viewModel.InitializeAsync();
+
+        await viewModel.DeleteCollectionAsync(custom.Id);
+
+        Assert.HasCount(1, viewModel.Collections);
+        Assert.IsTrue(viewModel.Collections[0].Collection.IsAllFavorites);
+        Assert.AreEqual("La colección se eliminó correctamente.", viewModel.StatusMessage);
+        Assert.IsFalse(viewModel.HasError);
+    }
+
     private sealed class StubCatalogService(
         FavoriteCatalogSnapshot? loaded,
         FavoriteCatalogRefreshResult? refreshed = null,

@@ -18,6 +18,11 @@ public interface IFavoriteCollectionService
         Guid? collectionId,
         CancellationToken cancellationToken = default);
 
+    /// <summary>Deletes one user-created collection and preserves a valid automation selection.</summary>
+    Task<FavoriteCollectionsState> DeleteCollectionAsync(
+        Guid collectionId,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Synchronizes All favorites and removes missing keys from custom collections.</summary>
     Task<FavoriteCollectionsState> ReconcileAsync(
         FavoriteCatalogSnapshot catalog,
