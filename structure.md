@@ -227,6 +227,7 @@ PamAutomation\
 │   │   ├── OutlookAccountResolutionErrorCode.cs
 │   │   ├── OutlookAccountResolutionException.cs
 │   │   ├── OutlookDeliveryResult.cs
+│   │   ├── OutlookDeliveryConfirmationService.cs
 │   │   ├── OutlookDeliveryStatus.cs
 │   │   ├── OutlookExistingMessageStatus.cs
 │   │   ├── OutlookInlineImage.cs
@@ -830,6 +831,7 @@ Durante desarrollo podrán existir `results`, `logs`, `artifacts` y `temp` en la
 
 - `PamAutomation.Core/Interfaces/Updates/IApplicationUpdateService.cs`: contrato asíncrono y cancelable para consultar una versión publicada.
 - `PamAutomation.Core/Updates/ApplicationUpdateResult.cs`: resultado reducido a versión validada y disponibilidad.
+- `PamAutomation.Core/Outlook/OutlookDeliveryConfirmationService.cs`: observación posterior al envío, con espera asíncrona acotada y reintentos de lectura no destructivos; no reenvía ni modifica Bandeja de salida.
 - `PamAutomation.Infrastructure/Updates/PublicManifestApplicationUpdateService.cs`: lectura HTTPS independiente del proveedor, limitada a 16 KiB, con JSON estricto, versión numérica y repositorio esperado.
 - `PamAutomation.App/Properties/PublishProfiles/Portable-x64.pubxml`: perfil `Release`, `win-x64`, autocontenido y multifichero, sin trimming, AOT, PDB ni extracción de bundle durante el arranque.
 - `MainWindowViewModel.BeginInitialization`: estado visual seguro que informa preparación y desactiva acciones hasta terminar la carga local.

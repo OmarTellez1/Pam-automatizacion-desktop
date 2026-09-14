@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using PamAutomation.Core.Authentication;
 using PamAutomation.Core.Favorites;
 using PamAutomation.Core.Interfaces.Execution;
 using PamAutomation.Core.Interfaces.Outlook;
@@ -22,6 +23,7 @@ public sealed class PamAutomationExecutionService : IPamAutomationExecutionServi
     private readonly TimeProvider timeProvider;
     private readonly IOutlookClassicClient? outlookClient;
     private readonly MailSettingsValidator mailSettingsValidator;
+    private readonly OutlookDeliveryConfirmationService? outlookConfirmationService;
     private readonly ILogger<PamAutomationExecutionService> logger;
     private readonly SemaphoreSlim mailGate = new(1, 1);
     private readonly HashSet<string> attemptedMail = new(StringComparer.Ordinal);
@@ -46,6 +48,9 @@ public sealed class PamAutomationExecutionService : IPamAutomationExecutionServi
         this.outlookClient = outlookClient;
         this.mailSettingsValidator = mailSettingsValidator ?? new MailSettingsValidator();
         this.logger = logger ?? NullLogger<PamAutomationExecutionService>.Instance;
+        outlookConfirmationService = outlookClient is null
+            ? null
+            : new OutlookDeliveryConfirmationService(outlookClient, new TaskAsyncDelay(), this.logger);
     }
 
     public async Task<PamExecutionPreparation> PrepareRealAsync(
@@ -291,7 +296,7 @@ public sealed class PamAutomationExecutionService : IPamAutomationExecutionServi
                 {
                     OutlookExistingMessageStatus.Sent => OutlookDeliveryResult.DuplicateSentConfirmed(),
                     OutlookExistingMessageStatus.Draft => OutlookDeliveryResult.DuplicateDraft(),
-                    OutlookExistingMessageStatus.OutboxMovedToDraft => OutlookDeliveryResult.DuplicateOutboxMovedToDraft(),
+                    OutlookExistingMessageStatus.Outbox => OutlookDeliveryResult.DuplicateOutboxPending(),
                     _ => null
                 };
                 if (duplicate is not null)
@@ -308,27 +313,14 @@ public sealed class PamAutomationExecutionService : IPamAutomationExecutionServi
                 {
                     InlineImages = normalized.InlineImages
                 }, cancellationToken).ConfigureAwait(false);
-                OutlookExistingMessageStatus afterSend;
-                try
-                {
-                    afterSend = await outlookClient
-                        .FindExistingAsync(normalized.SmtpAddress, subject, requestIds, CancellationToken.None)
-                        .ConfigureAwait(false);
-                }
-                catch (Exception exception)
-                {
-                    logger.LogError(exception, "Post-send Outlook reconciliation failed.");
-                    return submitted.Status == OutlookDeliveryStatus.SubmittedUnconfirmed
-                        ? submitted
-                        : OutlookDeliveryResult.NotConfirmed();
-                }
-                return afterSend switch
-                {
-                    OutlookExistingMessageStatus.Sent => OutlookDeliveryResult.SentConfirmed(),
-                    OutlookExistingMessageStatus.OutboxMovedToDraft => OutlookDeliveryResult.OutboxMovedToDraft(),
-                    OutlookExistingMessageStatus.Draft => OutlookDeliveryResult.DuplicateDraft(),
-                    _ => submitted
-                };
+                return await outlookConfirmationService!
+                    .WaitForConfirmationAsync(
+                        normalized.SmtpAddress,
+                        subject,
+                        requestIds,
+                        submitted,
+                        CancellationToken.None)
+                    .ConfigureAwait(false);
             }
             catch (Exception exception)
             {

@@ -172,7 +172,7 @@ El usuario final debe descargar el ZIP, extraer la carpeta completa y ejecutar `
 
 La aplicación seguirá requiriendo deliberadamente Windows, Microsoft Edge instalado, conectividad al portal PAM y Outlook clásico instalado cuando se active el correo. Edge y Outlook no se incluirán dentro del ejecutable porque deben utilizar las instalaciones corporativas existentes.
 
-La integración con Outlook no depende de una ruta de Office. Intenta reutilizar la instancia clásica abierta y, si Windows informa `0x80080005`, abre una vez la aplicación registrada, espera su inicialización y reintenta COM. PAM Automation y Outlook deben ejecutarse en la misma sesión de Windows y con el mismo nivel de permisos.
+La integración con Outlook no depende de una ruta de Office. Intenta reutilizar la instancia clásica abierta y, si Windows informa `0x80080005`, abre una vez la aplicación registrada, espera su inicialización y reintenta COM. PAM Automation y Outlook deben ejecutarse en la misma sesión de Windows y con el mismo nivel de permisos. Después de entregar un correo a Outlook, la aplicación concede hasta 40 segundos para observar su paso a Enviados y tolera lecturas COM transitorias; nunca mueve por sí misma mensajes de Bandeja de salida ni repite un envío incierto.
 
 La automatización utilizará la opción 1: abrirá el Edge instalado mediante Playwright y creará un contexto temporal de automatización. No seleccionará, reutilizará ni modificará perfiles existentes, cookies, extensiones o sesiones del usuario. No utilizará LaunchPersistentContext, userDataDir ni conexión CDP a un navegador existente. La aplicación no debe mostrar una ventana de incógnito; el aislamiento es interno de Playwright.
 

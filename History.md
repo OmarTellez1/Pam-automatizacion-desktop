@@ -326,7 +326,7 @@ Cada cambio relevante debe registrar qué se decidió, por qué, qué se verific
 - Se completó `mail-settings.dat` con escritura atómica y cifrado DPAPI `CurrentUser`. Contiene remitente, destinatarios, asunto, XHTML saneado e imágenes PNG inline; las representaciones textuales permanecen redactadas.
 - El editor WPF usa `RichTextBox`/`FlowDocument` y admite negrita, cursiva, subrayado, listas, tablas e imágenes pegadas. Su convertidor realiza ida y vuelta con XHTML permitido y genera referencias `cid:`; Outlook materializa cada PNG en un temporal único, lo agrega y elimina el temporal en `finally`.
 - Guardar correo valida la cuenta mediante un mensaje descartado. El envío de prueba de Outlook y el correo del modo de prueba PAM son acciones distintas, con destinatarios y confirmaciones independientes según la especificación.
-- Se implementó protección contra duplicados en memoria y mediante una propiedad privada de Outlook con el asunto y conjunto exacto de Request ID. Se consultan Enviados, Bandeja de salida y Borradores antes y después de enviar; la Bandeja de salida se mueve a Borradores y los estados ambiguos no se marcan como confirmados.
+- Se implementó protección contra duplicados en memoria y mediante una propiedad privada de Outlook con el asunto y conjunto exacto de Request ID. Se consultan Enviados, Bandeja de salida y Borradores antes y después de enviar. El ajuste posterior del 14 de septiembre volvió la consulta no destructiva: Bandeja de salida ya no se modifica y los estados ambiguos no se marcan como confirmados.
 - Los fallos parciales de envío PAM conservan el conteo procesado y la interfaz lo presenta sin identidades ni detalles sensibles, indicando revisar `Pending` antes de reintentar.
 - La compilación final en `Release | x64` tuvo 0 errores y la suite ordinaria ejecutó 243 pruebas correctas. No se abrió PAM ni Outlook, no se creó ninguna solicitud y no se envió correo; se consumieron cero de las diez pruebas reales autorizadas. Computer Use no expuso superficies nativas en esta sesión, por lo que la revisión visual final queda para el usuario en Visual Studio.
 
@@ -620,3 +620,12 @@ Cada cambio relevante debe registrar qué se decidió, por qué, qué se verific
 - La recuperación no finaliza Outlook, no usa una ruta fija y no cambia permisos. Si falla, `ApplicationUnavailable` llega a la interfaz como instrucciones para reiniciar Outlook completamente y ejecutar ambos programas con el mismo nivel de integridad.
 - La compilación `Release | x64`, 30 pruebas específicas y las 383 pruebas ordinarias pasaron. No se ejecutó una prueba real de Outlook ni se envió correo.
 - El paquete final `PAM-Automation-1.0.2-win-x64.zip` pesa 105.062.496 bytes y su SHA-256 es `5D141DD2EDDD0C5DB67F497819B39443ADD067BB0C32A0C2951383693E10758D`.
+
+## 14 de septiembre de 2026 — Confirmación tolerante y no destructiva de Outlook
+
+- El diagnóstico `pam-automation-diagnostic-20260914-211847` confirmó que las 14 solicitudes y sus Request ID terminaron correctamente y que Outlook aceptó `Send()`.
+- La comprobación posterior comenzó demasiado pronto: encontró el mensaje todavía en Bandeja de salida y la lógica anterior lo movió a Borradores, interrumpiendo el procesamiento normal de Outlook.
+- La aplicación ahora espera cuatro segundos antes de cada observación y admite hasta diez lecturas. Un fallo transitorio de COM durante esas lecturas se reintenta de forma segura porque la operación es únicamente de consulta.
+- Bandeja de salida se conserva intacta y se comunica como correo pendiente; tampoco se crea un duplicado si una ejecución posterior encuentra allí la misma huella.
+- El envío no se repite automáticamente porque un fallo posterior a `Send()` no permite demostrar con seguridad que Outlook no recibió el mensaje.
+- La compilación `Release | x64`, 26 pruebas específicas iniciales y las 387 pruebas ordinarias finales pasaron. No se abrió Outlook real ni se envió correo.

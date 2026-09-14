@@ -100,7 +100,7 @@ La configuración de correo se completa mediante un editor nativo `RichTextBox`/
 
 Antes de guardar se valida la cuenta mediante un mensaje temporal descartado. La acción manual `Guardar y enviar prueba` exige confirmación y solo puede enviar desde y hacia la cuenta SMTP configurada. El correo del modo de prueba PAM exige otra confirmación inmediata, utiliza únicamente `tellezoe@hitss.com`, deja CC vacío, antepone `[PRUEBA]` y usa la lista simulada canónica. El modo real utiliza sus Request ID reconciliados.
 
-La protección de correo combina una huella en memoria con una propiedad privada de Outlook que representa el asunto y el conjunto exacto de Request ID. Antes y después de enviar se consultan Enviados, Bandeja de salida y Borradores; un duplicado no se vuelve a crear y un mensaje idéntico en Bandeja de salida se mueve a Borradores. El resultado muestra el estado de entrega sin afirmar confirmación cuando Outlook no puede demostrarla. Los fallos parciales de PAM muestran cuántas `Favorites` rows alcanzaron un resultado conocido y advierten revisar `Pending` antes de reintentar.
+La protección de correo combina una huella en memoria con una propiedad privada de Outlook que representa el asunto y el conjunto exacto de Request ID. Antes y después de enviar se consultan Enviados, Bandeja de salida y Borradores; un duplicado no se vuelve a crear. El ajuste posterior a la fase 22 hizo esa observación tolerante y no destructiva: un mensaje en Bandeja de salida permanece allí para que Outlook continúe procesándolo. El resultado muestra el estado de entrega sin afirmar confirmación cuando Outlook no puede demostrarla. Los fallos parciales de PAM muestran cuántas `Favorites` rows alcanzaron un resultado conocido y advierten revisar `Pending` antes de reintentar.
 
 La validación ordinaria compiló en `Release | x64`, ejecutó 243 pruebas correctas y arrancó la ventana WPF sin cierre inesperado. No se abrió PAM, no se envió correo y no se consumió ninguna de las diez pruebas reales autorizadas.
 
@@ -335,6 +335,14 @@ El diagnóstico `pam-automation-diagnostic-20260914-180710` confirmó dos fallos
 El adaptador intenta ahora conectar con la instancia de Outlook clásico ya abierta. Si no existe, conserva la activación por `ProgID`; únicamente ante `CO_E_SERVER_EXEC_FAILURE` inicia `outlook.exe` mediante el registro de aplicaciones de Windows, espera tres segundos en el hilo STA y reintenta una vez. La recuperación no hardcodea rutas, no mata procesos, no eleva permisos y produce `ApplicationUnavailable` con orientación específica si Outlook continúa sin responder.
 
 La compilación `Release | x64`, 30 pruebas específicas y las 383 pruebas ordinarias pasaron. Las pruebas cubren instancia activa, activación normal, recuperación, HRESULT no relacionado, agotamiento controlado y mensaje al usuario. No se abrió Outlook real ni se envió correo porque esta ejecución no tenía autorización explícita para una prueba COM real. **Ajuste implementado; validación real pendiente en el equipo que produjo el diagnóstico.**
+
+## Ajuste posterior a la fase 22 — Confirmación tolerante de correo
+
+El diagnóstico `pam-automation-diagnostic-20260914-211847` demostró que Outlook había aceptado el correo final, pero la aplicación consultó Bandeja de salida casi inmediatamente y movió el mensaje a Borradores. Esa acción podía impedir el envío precisamente en equipos o conexiones más lentos.
+
+La reconciliación posterior a `Send()` es ahora observacional: espera cuatro segundos y consulta hasta diez veces Enviados, Bandeja de salida y Borradores. Las lecturas COM transitorias se reintentan dentro de la misma ventana acotada. Un mensaje que continúa en Bandeja de salida se deja intacto y se informa como pendiente; la protección previa reconoce ese estado para no crear duplicados. Nunca se reintenta automáticamente `Send()` cuando su resultado externo es incierto.
+
+La compilación `Release | x64`, 26 pruebas específicas iniciales y la suite ordinaria completa final de 387 pruebas pasaron. No se abrió Outlook real ni se envió correo durante la validación automática. **Ajuste implementado; validación real pendiente en el equipo que presentó la intermitencia.**
 
 ## Fases pendientes
 

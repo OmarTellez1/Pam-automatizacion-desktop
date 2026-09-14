@@ -5,5 +5,6 @@ public enum OutlookExistingMessageStatus
     None,
     Sent,
     Draft,
-    OutboxMovedToDraft,
+    /// <summary>The message is still waiting for Outlook to transmit it.</summary>
+    Outbox,
 }

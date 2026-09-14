@@ -230,11 +230,11 @@ internal sealed class OutlookComApplication : IOutlookComApplication
         try
         {
             store = ResolveDeliveryStore(session, smtpAddress);
-            if (FolderContains(store, OutlookComConstants.FolderSentMail, subject, requestFingerprint, moveToDrafts: false))
+            if (FolderContains(store, OutlookComConstants.FolderSentMail, subject, requestFingerprint))
                 return OutlookExistingMessageStatus.Sent;
-            if (FolderContains(store, OutlookComConstants.FolderOutbox, subject, requestFingerprint, moveToDrafts: true))
-                return OutlookExistingMessageStatus.OutboxMovedToDraft;
-            if (FolderContains(store, OutlookComConstants.FolderDrafts, subject, requestFingerprint, moveToDrafts: false))
+            if (FolderContains(store, OutlookComConstants.FolderOutbox, subject, requestFingerprint))
+                return OutlookExistingMessageStatus.Outbox;
+            if (FolderContains(store, OutlookComConstants.FolderDrafts, subject, requestFingerprint))
                 return OutlookExistingMessageStatus.Draft;
             return OutlookExistingMessageStatus.None;
         }
@@ -298,11 +298,9 @@ internal sealed class OutlookComApplication : IOutlookComApplication
         object store,
         int folderKind,
         string subject,
-        string requestFingerprint,
-        bool moveToDrafts)
+        string requestFingerprint)
     {
         object? folder = null;
-        object? drafts = null;
         object? items = null;
         try
         {
@@ -337,13 +335,6 @@ internal sealed class OutlookComApplication : IOutlookComApplication
                         continue;
                     }
 
-                    if (moveToDrafts)
-                    {
-                        drafts = ((dynamic)store).GetDefaultFolder(OutlookComConstants.FolderDrafts);
-                        object moved = ((dynamic)candidate).Move(drafts);
-                        ComReference.Release(moved);
-                    }
-
                     return true;
                 }
                 finally
@@ -359,7 +350,6 @@ internal sealed class OutlookComApplication : IOutlookComApplication
         finally
         {
             ComReference.Release(items);
-            ComReference.Release(drafts);
             ComReference.Release(folder);
         }
     }

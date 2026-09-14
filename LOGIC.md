@@ -273,7 +273,9 @@ La interfaz utiliza `RichTextBox` y `FlowDocument` como modelo nativo de edició
 
 El documento y sus imágenes se guardan dentro de `mail-settings.dat` protegido con DPAPI CurrentUser. El editor convierte texto con formato, listas, tablas e imágenes pegadas a XHTML saneado. Cada imagen se normaliza a PNG y recibe un Content-ID; el adaptador COM crea un temporal único solo para `Attachments.Add`, configura el CID y lo elimina en el mismo bloque `finally`.
 
-Antes de enviar resultados se consulta el almacén asociado exactamente al `SmtpAddress` configurado por una propiedad privada que contiene el conjunto ordenado exacto de Request ID y se exige también el mismo asunto. La búsqueda recorre Enviados, Bandeja de salida y Borradores. La sesión actual conserva además una huella en memoria para impedir dos intentos concurrentes. Después de `Send()` se vuelve a consultar: Enviados confirma, Bandeja de salida se mueve a Borradores y cualquier estado no demostrado permanece `SubmittedUnconfirmed` o `NotConfirmed`.
+Antes de enviar resultados se consulta el almacén asociado exactamente al `SmtpAddress` configurado por una propiedad privada que contiene el conjunto ordenado exacto de Request ID y se exige también el mismo asunto. La búsqueda recorre Enviados, Bandeja de salida y Borradores. La sesión actual conserva además una huella en memoria para impedir dos intentos concurrentes.
+
+Después de `Send()` la aplicación espera y consulta de forma no destructiva hasta diez veces, con cuatro segundos entre lecturas. Los fallos transitorios de una lectura COM se toleran dentro de ese límite. Enviados confirma el resultado; Bandeja de salida se reporta como procesamiento pendiente y nunca se mueve automáticamente; Borradores indica que Outlook no completó el envío. Si Outlook todavía no expone el mensaje al terminar la ventana acotada, se conserva `SubmittedUnconfirmed` o `NotConfirmed` según el resultado original. El envío no se reintenta automáticamente porque repetir una operación cuyo estado externo es incierto podría crear correos duplicados.
 
 ## Seguridad
 
