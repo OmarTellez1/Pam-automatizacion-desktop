@@ -59,6 +59,18 @@ El cuerpo HTML final hereda Aptos 11 y usa Calibri y Segoe UI como respaldos com
 
 ## Persistencia y configuración
 
+### Identidades PAM de la fase 23
+
+La aplicación tendrá un único **usuario principal** y podrá registrar cuentas PAM secundarias. En el primer inicio sin identidad registrada será obligatorio elegir el nombre del principal antes de entrar a la portada. El rol principal será permanente y no eliminable; únicamente podrá cambiarse su nombre visible.
+
+Toda la configuración funcional continuará siendo única y pertenecerá al principal: credenciales para automatización, solicitudes, Favorites, colecciones, Outlook, destinatarios, contenido del correo y acción final. Los botones de edición actuales y `Iniciar automatización` nunca cambiarán de ámbito. Una cuenta secundaria almacenará exclusivamente nombre descriptivo y credenciales PAM completas y solo podrá utilizarse desde `Acceder a PAM`.
+
+Las fases 23.1 y 23.2 ya implementan el alta obligatoria del principal y la administración `Usuarios PAM`. Cada identidad tiene GUID; el principal conserva el destino estable existente y cada secundaria usa un destino propio en Credential Manager. Ningún secreto se persiste en el índice no sensible ni se muestra al volver a editar. El registro admite como máximo cinco identidades en total y se protege mediante DPAPI CurrentUser con escritura atómica.
+
+La selección de identidad para `Acceder a PAM` corresponde a la fase 23.3 y todavía no está conectada. Hasta implementarla, el flujo interactivo continúa usando las credenciales principales. Después de esa conexión, la elección durará únicamente durante la apertura interactiva y no cambiará las credenciales que utiliza la automatización. El acceso interactivo se habilitará si al menos una identidad seleccionable tiene credenciales completas, mientras que la automatización seguirá exigiendo específicamente las credenciales del principal.
+
+No habrá importación o exportación de perfiles, configuración por cuenta, intercambio de usuarios entre equipos ni automatización de solicitudes con una cuenta secundaria.
+
 La aplicación no utilizará archivos .env.
 
 Los secretos PAM se almacenarán en Windows Credential Manager, asociados al usuario actual de Windows. La aplicación recuperará estos valores únicamente cuando vaya a validar credenciales o iniciar una automatización:

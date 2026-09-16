@@ -11,6 +11,8 @@ using PamAutomation.Core.Models.Configuration;
 using PamAutomation.Core.Models.Credentials;
 using PamAutomation.Core.Favorites;
 using PamAutomation.Core.Interfaces.Favorites;
+using PamAutomation.Core.Interfaces.Accounts;
+using PamAutomation.Core.Accounts;
 
 namespace PamAutomation.Tests.App;
 
@@ -36,6 +38,7 @@ public sealed class ConfigurationWindowSmokeTests
 
             Assert.IsNotNull(window.FindName("ExportDiagnosticsButton"));
             Assert.IsNotNull(window.FindName("AccessPamButton"));
+            Assert.IsNotNull(window.FindName("PamAccountsButton"));
             Assert.IsNotNull(window.FindName("CollectionsButton"));
             Assert.IsNull(window.FindName("UseCollectionsToggle"));
             var brandBadge = Assert.IsInstanceOfType<Border>(window.FindName("BrandMonogramBadge"));
@@ -118,6 +121,37 @@ public sealed class ConfigurationWindowSmokeTests
             credentialsWindow.Close();
             requestWindow.Close();
             mailWindow.Close();
+        }
+    }
+
+    [STATestMethod]
+    public void PamAccountWindows_WithApplicationResources_LoadSuccessfully()
+    {
+        EnsureApplicationResources();
+        var principal = new PamAccountSummary(PamAccountId.New(), "Principal", true);
+        var accountsWindow = new PamAccountsWindow(new StaticPamAccountService(principal));
+        var setupWindow = new PamAccountNameWindow();
+        var secondaryWindow = new PamSecondaryAccountWindow();
+
+        try
+        {
+            accountsWindow.Show();
+            setupWindow.Show();
+            secondaryWindow.Show();
+            Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+
+            Assert.IsNotNull(accountsWindow.FindName("AccountsList"));
+            Assert.IsNotNull(accountsWindow.FindName("CreateSecondaryButton"));
+            Assert.IsNotNull(setupWindow.FindName("NameBox"));
+            Assert.IsNotNull(secondaryWindow.FindName("UsernameBox"));
+            Assert.IsNotNull(secondaryWindow.FindName("PasswordBox"));
+            Assert.IsNotNull(secondaryWindow.FindName("TotpSeedBox"));
+        }
+        finally
+        {
+            secondaryWindow.Close();
+            setupWindow.Close();
+            accountsWindow.Close();
         }
     }
 
@@ -340,6 +374,17 @@ public sealed class ConfigurationWindowSmokeTests
 
         public Task<FavoriteCatalogRefreshResult> RefreshAsync(CancellationToken cancellationToken = default) =>
             throw new NotSupportedException();
+    }
+
+    private sealed class StaticPamAccountService(PamAccountSummary principal) : IPamAccountService
+    {
+        public Task<IReadOnlyList<PamAccountStatus>> GetAccountsAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<PamAccountStatus>>([new PamAccountStatus(principal, true)]);
+        public Task<PamAccountSummary> CreatePrincipalAsync(string name, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<PamAccountSummary> RenameAsync(PamAccountId accountId, string name, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<PamAccountSummary> CreateSecondaryAsync(string name, PamCredentialUpdate credentials, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<PamAccountSummary> UpdateSecondaryAsync(PamAccountId accountId, string name, PamCredentialUpdate credentials, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task DeleteSecondaryAsync(PamAccountId accountId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 
     private sealed class PendingCredentialWorkflow : ICredentialConfigurationWorkflow

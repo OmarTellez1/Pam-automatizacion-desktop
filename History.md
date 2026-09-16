@@ -629,3 +629,22 @@ Cada cambio relevante debe registrar qué se decidió, por qué, qué se verific
 - Bandeja de salida se conserva intacta y se comunica como correo pendiente; tampoco se crea un duplicado si una ejecución posterior encuentra allí la misma huella.
 - El envío no se repite automáticamente porque un fallo posterior a `Send()` no permite demostrar con seguridad que Outlook no recibió el mensaje.
 - La compilación `Release | x64`, 26 pruebas específicas iniciales y las 387 pruebas ordinarias finales pasaron. No se abrió Outlook real ni se envió correo.
+
+## 15 de septiembre de 2026 — Redefinición de la fase 23: usuario principal y cuentas PAM
+
+- Se descartó el diseño de perfiles completos, configuración aislada e importación/exportación portable. La rama `mejorarRendimiento`, que conserva la recuperación y confirmación tolerante de Outlook, se eligió como base limpia.
+- La aplicación seguirá teniendo una sola configuración de solicitudes, Favorites, colecciones, Outlook y correo. Esa configuración y la automatización real pertenecen siempre al usuario principal.
+- En el primer inicio será obligatorio elegir el nombre del principal. Su rol no podrá eliminarse, cambiarse ni transferirse; su nombre visible sí será editable.
+- La portada incorporará `Usuarios PAM` para administrar el principal y cuentas secundarias. Cada secundaria tendrá nombre descriptivo y credenciales propias protegidas, pero solo podrá usarse con `Acceder a PAM`.
+- Al abrir PAM se elegirá la identidad por nombre. La selección no cambiará el propietario de la aplicación ni permitirá crear solicitudes con credenciales secundarias.
+- Se documentó la fase como cuatro entregas: identidad principal, administración y persistencia de cuentas, selección interactiva, y migración/aceptación. En este paso no se modificó código ni configuración local.
+
+## 15 de septiembre de 2026 — Fases 23.1 y 23.2: identidad principal y administración de cuentas PAM
+
+- Se añadió un registro de identidades no sensible, protegido con DPAPI CurrentUser, esquema explícito y escritura atómica en `pam-accounts.dat`.
+- El primer inicio ahora exige crear el nombre del usuario principal antes de mostrar la portada. Cancelar el alta cierra la aplicación; una instalación existente conserva sin cambios sus credenciales, configuración, correo y colecciones.
+- La portada incorpora `Usuarios PAM`. El principal puede renombrarse, pero no eliminarse ni cambiar de rol. Se pueden crear, editar y eliminar hasta cuatro cuentas secundarias, para un máximo total de cinco identidades.
+- Las credenciales principales continúan en `PamAutomation/PamCredentials/v1`. Cada secundaria utiliza un destino independiente derivado de su GUID; la interfaz nunca vuelve a mostrar secretos y conserva los campos vacíos durante una edición.
+- `PamAccountService` serializa mutaciones, valida las semillas TOTP y aplica rollback entre el índice y Credential Manager cuando una operación falla.
+- La fase 23.3 permanece pendiente: `Acceder a PAM` todavía usa el principal y aún no muestra el selector de identidad.
+- La compilación `Release | x64` y las 403 pruebas ordinarias pasaron. No se abrió PAM ni Outlook, no se crearon solicitudes y no se envió correo.

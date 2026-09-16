@@ -77,6 +77,14 @@
                             Content="Acceder a PAM"
                             Style="{StaticResource SecondaryButtonStyle}"
                             ToolTip="Abre BeyondInsight e inicia sesión con las credenciales PAM configuradas." />
+                    <Button x:Name="PamAccountsButton"
+                            Width="130"
+                            Height="40"
+                            Margin="0,0,12,0"
+                            AutomationProperties.Name="Administrar usuarios PAM"
+                            Command="{Binding OpenPamAccountsCommand}"
+                            Content="Usuarios PAM"
+                            Style="{StaticResource SecondaryButtonStyle}" />
                     <ToggleButton VerticalAlignment="Center"
                                   AutomationProperties.Name="Seleccionar acción final"
                                   Command="{Binding ToggleFinalActionCommand}"

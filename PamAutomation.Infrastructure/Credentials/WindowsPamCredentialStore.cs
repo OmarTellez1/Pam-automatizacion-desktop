@@ -16,19 +16,35 @@ public sealed class WindowsPamCredentialStore : IPamCredentialStore
     public const string CredentialTargetName = "PamAutomation/PamCredentials/v1";
 
     private readonly IWindowsCredentialApi credentialApi;
+    private readonly string credentialTargetName;
 
     /// <summary>
     /// Initializes a store backed by the Windows Credential Management API.
     /// </summary>
     public WindowsPamCredentialStore()
-        : this(new WindowsCredentialApi())
+        : this(new WindowsCredentialApi(), CredentialTargetName)
+    {
+    }
+
+    /// <summary>Initializes a store for an explicit application-owned Credential Manager target.</summary>
+    /// <param name="credentialTargetName">Stable target reserved for one PAM identity.</param>
+    public WindowsPamCredentialStore(string credentialTargetName)
+        : this(new WindowsCredentialApi(), credentialTargetName)
     {
     }
 
     internal WindowsPamCredentialStore(IWindowsCredentialApi credentialApi)
+        : this(credentialApi, CredentialTargetName)
+    {
+    }
+
+    internal WindowsPamCredentialStore(IWindowsCredentialApi credentialApi, string credentialTargetName)
     {
         this.credentialApi = credentialApi ??
             throw new ArgumentNullException(nameof(credentialApi));
+        if (string.IsNullOrWhiteSpace(credentialTargetName))
+            throw new ArgumentException("El destino de credenciales es obligatorio.", nameof(credentialTargetName));
+        this.credentialTargetName = credentialTargetName;
     }
 
     /// <inheritdoc/>
@@ -95,7 +111,7 @@ public sealed class WindowsPamCredentialStore : IPamCredentialStore
         try
         {
             credentialApi.Write(new CredentialManagerEntry(
-                CredentialTargetName,
+                credentialTargetName,
                 credentials.Username,
                 credentialBlob));
         }
@@ -117,7 +133,7 @@ public sealed class WindowsPamCredentialStore : IPamCredentialStore
     {
         try
         {
-            credentialApi.Delete(CredentialTargetName);
+            credentialApi.Delete(credentialTargetName);
         }
         catch (Win32Exception exception)
         {
@@ -132,7 +148,7 @@ public sealed class WindowsPamCredentialStore : IPamCredentialStore
     {
         try
         {
-            return credentialApi.Read(CredentialTargetName);
+            return credentialApi.Read(credentialTargetName);
         }
         catch (InvalidDataException exception)
         {

@@ -1,0 +1,44 @@
+<Window x:Class="PamAutomation.App.Views.PamAccountsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Usuarios PAM" Width="720" Height="570" MinWidth="620" MinHeight="480"
+        WindowStartupLocation="CenterOwner" Background="{StaticResource AppBackgroundBrush}" FontFamily="Segoe UI">
+    <Grid Margin="30,24">
+        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+        <TextBlock FontSize="26" FontWeight="Bold" Text="Usuarios PAM"/>
+        <TextBlock Grid.Row="1" Margin="0,7,0,18" Foreground="{StaticResource TextSecondaryBrush}"
+                   Text="El principal realiza la automatización completa. Los secundarios solo permiten abrir una sesión mediante Acceder a PAM."
+                   TextWrapping="Wrap"/>
+        <ListBox x:Name="AccountsList" Grid.Row="2" BorderThickness="0" Background="Transparent" ScrollViewer.VerticalScrollBarVisibility="Auto">
+            <ListBox.ItemTemplate>
+                <DataTemplate>
+                    <Border Margin="0,0,0,9" Padding="15,12" Background="White" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="10">
+                        <Grid>
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock FontSize="16" FontWeight="SemiBold" Text="{Binding Account.Name}"/>
+                                <TextBlock Margin="0,3,0,0" Foreground="{StaticResource TextSecondaryBrush}">
+                                    <Run Text="{Binding RoleText}"/><Run Text=" · "/><Run Text="{Binding CredentialText}"/>
+                                </TextBlock>
+                            </StackPanel>
+                            <Button Grid.Column="1" Width="90" Height="34" Margin="10,0,0,0" Content="Renombrar" Click="Rename_Click">
+                                <Button.Style><Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding Account.IsPrimary}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></Button.Style>
+                            </Button>
+                            <Button Grid.Column="2" Width="75" Height="34" Margin="8,0,0,0" Content="Editar" Click="Edit_Click">
+                                <Button.Style><Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}"><Setter Property="Visibility" Value="Visible"/><Style.Triggers><DataTrigger Binding="{Binding Account.IsPrimary}" Value="True"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></Button.Style>
+                            </Button>
+                            <Button Grid.Column="3" Width="75" Height="34" Margin="8,0,0,0" Content="Eliminar" Foreground="#B42318" Click="Delete_Click">
+                                <Button.Style><Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}"><Setter Property="Visibility" Value="Visible"/><Style.Triggers><DataTrigger Binding="{Binding Account.IsPrimary}" Value="True"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></Button.Style>
+                            </Button>
+                        </Grid>
+                    </Border>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+        <TextBlock x:Name="StatusText" Grid.Row="3" Margin="0,12,0,0" Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap"/>
+        <Grid Grid.Row="4" Margin="0,18,0,0">
+            <Button x:Name="CreateSecondaryButton" Width="180" Height="40" HorizontalAlignment="Left" Content="Crear usuario PAM" Click="Create_Click" Style="{StaticResource PrimaryButtonStyle}"/>
+            <Button Width="100" Height="40" HorizontalAlignment="Right" Content="Cerrar" IsCancel="True" Style="{StaticResource SecondaryButtonStyle}"/>
+        </Grid>
+    </Grid>
+</Window>

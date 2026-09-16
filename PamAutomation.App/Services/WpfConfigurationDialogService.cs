@@ -4,6 +4,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using PamAutomation.App.Views;
 using PamAutomation.App.ViewModels;
 using PamAutomation.Core.Interfaces.Favorites;
+using PamAutomation.Core.Interfaces.Accounts;
 using PamAutomation.Core.Models.Configuration;
 using PamAutomation.Core.Models.Credentials;
 
@@ -17,6 +18,8 @@ public sealed class WpfConfigurationDialogService : IConfigurationDialogService
     private readonly IFavoriteCatalogService? favoriteCatalogService;
     private readonly IFavoriteCollectionService? favoriteCollectionService;
     private readonly ILogger<FavoritesCatalogViewModel> favoritesCatalogLogger;
+    private readonly IPamAccountService? pamAccountService;
+    private readonly ILogger<PamAccountsWindow> pamAccountsWindowLogger;
 
     public WpfConfigurationDialogService(
         ICredentialConfigurationWorkflow credentialWorkflow,
@@ -24,7 +27,9 @@ public sealed class WpfConfigurationDialogService : IConfigurationDialogService
         ILogger<MailSettingsWindow>? mailSettingsWindowLogger = null,
         IFavoriteCatalogService? favoriteCatalogService = null,
         IFavoriteCollectionService? favoriteCollectionService = null,
-        ILogger<FavoritesCatalogViewModel>? favoritesCatalogLogger = null)
+        ILogger<FavoritesCatalogViewModel>? favoritesCatalogLogger = null,
+        IPamAccountService? pamAccountService = null,
+        ILogger<PamAccountsWindow>? pamAccountsWindowLogger = null)
     {
         this.credentialWorkflow = credentialWorkflow ?? throw new ArgumentNullException(nameof(credentialWorkflow));
         this.credentialsWindowLogger = credentialsWindowLogger ?? NullLogger<CredentialsWindow>.Instance;
@@ -32,6 +37,8 @@ public sealed class WpfConfigurationDialogService : IConfigurationDialogService
         this.favoriteCatalogService = favoriteCatalogService;
         this.favoriteCollectionService = favoriteCollectionService;
         this.favoritesCatalogLogger = favoritesCatalogLogger ?? NullLogger<FavoritesCatalogViewModel>.Instance;
+        this.pamAccountService = pamAccountService;
+        this.pamAccountsWindowLogger = pamAccountsWindowLogger ?? NullLogger<PamAccountsWindow>.Instance;
     }
 
     public Task<CredentialConfigurationState> EditCredentialsAsync(
@@ -75,6 +82,13 @@ public sealed class WpfConfigurationDialogService : IConfigurationDialogService
             favoriteCollectionService,
             favoritesCatalogLogger);
         var dialog = new FavoritesCatalogWindow(viewModel) { Owner = Application.Current.MainWindow };
+        dialog.ShowDialog();
+    }
+
+    public void OpenPamAccounts()
+    {
+        if (pamAccountService is null) throw new InvalidOperationException("La administración de usuarios PAM no está disponible.");
+        var dialog = new PamAccountsWindow(pamAccountService, pamAccountsWindowLogger) { Owner = Application.Current.MainWindow };
         dialog.ShowDialog();
     }
 }

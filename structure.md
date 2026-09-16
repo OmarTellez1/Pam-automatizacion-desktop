@@ -841,6 +841,25 @@ Durante desarrollo podrán existir `results`, `logs`, `artifacts` y `temp` en la
 
 El servicio de actualización depende solo de su interfaz de Core. El ViewModel muestra un banner descartable y desconoce HTTP o GitHub. La aplicación consulta la URL `raw` del manifiesto y exige que este apunte al repositorio GitHub configurado, sin relajar TLS.
 
+### Estructura de las fases 23.1 y 23.2
+
+La fase 23 no crea perfiles completos ni replica los almacenes de configuración. Las dos primeras entregas mantienen la configuración actual bajo `config` y añaden responsabilidades pequeñas para identidades PAM:
+
+- `PamAutomation.Core/Accounts`: `PamAccountId`, `PamAccountSummary`, `PamAccountRegistryState`, `PamAccountStatus` y las excepciones/códigos del dominio. Define GUID, nombre validado, rol principal/secundario, límite de cinco e invariantes de ciclo de vida.
+- `PamAutomation.Core/Interfaces/Accounts`: `IPamAccountRegistryStore` e `IPamAccountService` separan persistencia y operaciones de aplicación.
+- `PamAutomation.Infrastructure/Accounts/DpapiPamAccountRegistryStore.cs`: persiste el índice no sensible con esquema versionado, DPAPI CurrentUser y reemplazo atómico en `%LOCALAPPDATA%\PamAutomation\config\pam-accounts.dat`.
+- `PamAutomation.Infrastructure/Accounts/PamAccountService.cs`: coordina el índice con Windows Credential Manager, valida TOTP, aplica actualizaciones parciales y ejecuta rollback ante fallos.
+- `PamAutomation.Infrastructure/Credentials/WindowsPamCredentialStore.cs`: conserva su destino predeterminado para el principal y ahora admite destinos explícitos aislados para cuentas secundarias.
+- `PamAutomation.App/Views/PamAccountNameWindow.*`: creación obligatoria del principal en el primer inicio y edición posterior de su nombre.
+- `PamAutomation.App/Views/PamAccountsWindow.*`: administración `Usuarios PAM`, límite de cuentas y protección del rol principal.
+- `PamAutomation.App/Views/PamSecondaryAccountWindow.*`: alta y edición de una cuenta secundaria sin volver a mostrar secretos.
+- `PamAutomation.App/App.xaml.cs`: bloquea la portada hasta que exista principal y conserva intacta la configuración funcional existente.
+- `PamAutomation.Tests/Core/Accounts` y `PamAutomation.Tests/Infrastructure/Accounts`: dominio, DPAPI, aislamiento de destinos y rollback. `ConfigurationWindowSmokeTests` valida además la carga de las ventanas nuevas.
+
+El índice almacena únicamente GUID, nombre y rol. Las credenciales permanecen en destinos separados de Credential Manager: la cuenta principal reutiliza `PamAutomation/PamCredentials/v1` y las secundarias usan `PamAutomation/Accounts/<guid>/PamCredentials/v1`. La selección de estas identidades para `Acceder a PAM` se añadirá en 23.3; no forma parte todavía de esta estructura integrada.
+
+El diseño anterior de perfiles aislados y archivos `.pamprofile` queda descartado. No se moverán `app-settings.json`, correo, Outlook, Favorites o colecciones a ámbitos por identidad.
+
 ## Límites que deben conservarse
 
 - Solo C#, .NET 10, WPF y XAML para la aplicación.

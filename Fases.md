@@ -344,6 +344,54 @@ La reconciliación posterior a `Send()` es ahora observacional: espera cuatro se
 
 La compilación `Release | x64`, 26 pruebas específicas iniciales y la suite ordinaria completa final de 387 pruebas pasaron. No se abrió Outlook real ni se envió correo durante la validación automática. **Ajuste implementado; validación real pendiente en el equipo que presentó la intermitencia.**
 
+## Fase 23 — Usuario principal y cuentas secundarias de acceso PAM
+
+La fase 23 reemplaza por completo el diseño anterior de perfiles aislados y portables. La aplicación conservará una sola configuración funcional para automatización, solicitudes, colecciones y Outlook. Esa configuración pertenecerá al **usuario principal**. Las cuentas secundarias existirán exclusivamente para abrir una sesión interactiva mediante `Acceder a PAM`; no tendrán colecciones, configuración de solicitud, correo, Outlook, resultados ni capacidad para ejecutar solicitudes automáticas.
+
+El término **usuario principal** identifica al propietario funcional de la instalación. Su rol es permanente: no se puede eliminar, sustituir por una cuenta secundaria ni convertir en secundario. Su nombre visible sí podrá editarse. El término **cuenta PAM secundaria** identifica únicamente un nombre descriptivo y un juego propio de usuario, contraseña y semilla TOTP protegidos.
+
+### Fase 23.1 — Primer inicio e identidad principal
+
+En el primer inicio, si todavía no existe identidad principal, la aplicación deberá bloquear el acceso a la ventana principal hasta que el usuario elija un nombre válido. La creación no solicitará nuevamente las credenciales que ya se gestionan desde `Editar credenciales`; solo registrará el nombre y marcará de forma permanente esa identidad como principal.
+
+En los inicios posteriores no se volverá a mostrar este asistente. La ventana principal continuará cargando la configuración única existente. `Editar credenciales`, `Editar solicitud`, `Colecciones`, `Editar envío de correo`, el toggle de Outlook y `Iniciar automatización` siempre operarán sobre el usuario principal, sin importar qué cuenta se haya utilizado recientemente para abrir PAM.
+
+El nombre principal será obligatorio, normalizado, tendrá un límite explícito y no contendrá caracteres de control. Su registro no incluirá secretos y se guardará con esquema versionado y escritura atómica bajo `%LOCALAPPDATA%\PamAutomation\config`. La transición desde una instalación existente creará el usuario principal sin mover ni reinterpretar la configuración actual.
+
+La aplicación implementa este arranque mediante `EnsurePrincipalIdentityAsync`: antes de mostrar la portada carga el registro protegido y, si está vacío, abre un diálogo modal obligatorio para crear el principal. Cancelar ese diálogo cierra la aplicación de forma segura. El registro conserva únicamente GUID, nombre normalizado y rol; las credenciales, colecciones, correo y demás configuración existente permanecen en sus almacenes actuales. **Fase completada.**
+
+### Fase 23.2 — Administración de cuentas PAM
+
+La portada incorporará un botón `Usuarios PAM`. Abrirá una ventana que mostrará primero al usuario principal, claramente identificado. Desde esa fila solo podrá editarse el nombre visible; no habrá acción de eliminación ni cambio de rol. La misma ventana permitirá crear, editar y eliminar cuentas secundarias.
+
+Crear una cuenta secundaria solicitará un nombre descriptivo, usuario PAM, contraseña PAM y semilla TOTP. La primera configuración exigirá los cuatro valores. Al editar, los secretos vacíos conservarán su valor actual y nunca se rellenarán nuevamente en pantalla. Los nombres visibles no podrán repetirse sin distinguir mayúsculas y minúsculas. El borrado exigirá confirmación y eliminará únicamente el registro y la entrada exacta de Credential Manager de esa cuenta.
+
+Se conservará el límite previamente acordado de cinco identidades en total: un usuario principal y hasta cuatro cuentas secundarias. La interfaz explicará el límite antes de permitir otra creación.
+
+El índice no sensible de cuentas utilizará identificadores GUID; los nombres nunca se usarán como claves de almacenamiento. Cada juego de credenciales se guardará en Windows Credential Manager bajo un destino independiente derivado del GUID. Ningún usuario, contraseña, semilla TOTP o código generado se escribirá en archivos, logs, diagnósticos o mensajes de error. Las mutaciones del índice y Credential Manager deberán ser recuperables: un fallo no podrá dejar una cuenta visible sin credencial completa ni eliminar una credencial que el índice todavía necesite.
+
+Las credenciales que actualmente usa la automatización conservarán su destino y pasarán a representar al usuario principal. Las cuentas secundarias no podrán reemplazar ese destino ni suministrarse al servicio de creación de solicitudes.
+
+La portada ya incorpora `Usuarios PAM`. La ventana de administración permite renombrar al principal y crear, editar o eliminar hasta cuatro cuentas secundarias. La edición secundaria deja intactos los secretos cuyos campos se envían vacíos; el borrado exige confirmación. El índice se protege con DPAPI CurrentUser en `pam-accounts.dat`, usa escritura atómica y GUID estables. Cada secundaria utiliza un destino independiente de Credential Manager, mientras el principal reutiliza `PamAutomation/PamCredentials/v1`. El servicio valida la semilla TOTP y revierte el índice o la credencial cuando una mutación coordinada falla. **Fase completada.**
+
+### Fase 23.3 — Selección de cuenta al acceder a PAM
+
+Al pulsar `Acceder a PAM`, la aplicación mostrará siempre una selección breve para que el usuario confirme con qué identidad desea iniciar sesión, incluso cuando solo exista la principal. Cada opción se identificará únicamente por su nombre descriptivo y marcará cuál es el usuario principal; jamás mostrará el usuario técnico, contraseña o semilla.
+
+Después de elegir, el flujo interactivo actual recibirá exclusivamente las credenciales de esa identidad, generará su TOTP en memoria e iniciará sesión en el Edge normal del usuario. Se conservarán el zoom al 67 %, la posible intervención manual ante el certificado corporativo, la permanencia de la ventana de Edge y la independencia respecto del navegador oculto de solicitudes.
+
+Elegir una cuenta secundaria para `Acceder a PAM` no cambia el usuario activo de la aplicación ni afecta la siguiente automatización. `Iniciar automatización` utilizará siempre y únicamente las credenciales del usuario principal. La eliminación o edición de una cuenta secundaria no podrá cambiar la configuración de solicitudes, Favorites, colecciones u Outlook.
+
+La disponibilidad de ambas acciones se calculará por separado. `Iniciar automatización` permanecerá deshabilitado si el principal no tiene credenciales completas. `Acceder a PAM` podrá habilitarse cuando exista al menos una identidad con credenciales completas; una identidad todavía sin configurar aparecerá claramente como pendiente y no podrá seleccionarse para iniciar sesión.
+
+### Fase 23.4 — Migración, seguridad y aceptación
+
+La fase incorporará una migración idempotente desde la configuración actual: conservará las credenciales PAM existentes como credenciales del principal, solicitará únicamente el nombre faltante y no tocará correo, cuenta Outlook, plantillas, Favorites, colecciones ni configuración temporal. Un fallo mantendrá utilizable el estado anterior y permitirá reintentar.
+
+Las pruebas cubrirán primer inicio, cancelación obligatoria segura, nombre principal editable, imposibilidad de eliminar o degradar al principal, altas y modificaciones parciales de cuentas, nombres repetidos, eliminación con rollback, aislamiento por GUID y selección correcta en `Acceder a PAM`. También demostrarán que una cuenta secundaria nunca llega a la automatización de solicitudes y que los secretos no aparecen en archivos, interfaz, logs o diagnóstico.
+
+Quedan expresamente fuera de alcance la importación y exportación de perfiles o cuentas, el intercambio de credenciales entre computadoras, configuraciones distintas de correo o colecciones por cuenta y la selección de una cuenta secundaria para crear solicitudes. La fase se considerará completa solo después de compilar y aprobar la suite en `Release | x64` y validar visualmente los recorridos sin realizar solicitudes PAM ni enviar correos. **Estado: planificada.**
+
 ## Fases pendientes
 
 La clasificación siguiente se refiere únicamente a dependencias entre fases pendientes:
@@ -356,6 +404,8 @@ La clasificación siguiente se refiere únicamente a dependencias entre fases pe
 |---|---|---|---|
 | 19 — Pruebas finales administradas | **Independiente** | Ninguna fase pendiente. | Es la validación final del producto publicado en el entorno Windows objetivo. |
 | 20.6+ — Administración ampliada de colecciones | **Dependiente** | Fases 20.2–20.5 implementadas. | Podrá añadir duplicación u otras mejoras que el usuario confirme; no son necesarias para crear, editar, eliminar, seleccionar y ejecutar una colección. |
+| 23.3 — Selección de cuenta al acceder a PAM | **Dependiente** | Fases 23.1–23.2 completadas. | Conectará las identidades disponibles exclusivamente con el flujo interactivo `Acceder a PAM`. |
+| 23.4 — Migración, seguridad y aceptación | **Dependiente** | Fase 23.3. | Cerrará la migración, el aislamiento entre flujos y la aceptación visual de la fase. |
 
 ## Mapa recomendado de trabajo paralelo
 
@@ -365,11 +415,15 @@ Fases 6 a 18 completadas ──► Fase 19
 Fases 21–21.10 completadas de forma independiente
 
 Fases 20.1–20.5 completadas ──► validación real futura
+
+Fases 20–22 completadas ──► Fase 23.1 completada ──► 23.2 completada ──► 23.3 ──► 23.4
 ```
 
 La fase 18 quedó completada tras validar el manifiesto GitHub real. El coordinador solo podrá paralelizar una parte futura si vuelve a demostrar independencia, contratos congelados y ausencia de archivos compartidos.
 
 La fase 20 registra la ampliación solicitada después de la migración. Las fases 20.1–20.5 implementan el catálogo protegido, las colecciones nombradas y eliminables, `All favorites` administrada y la colección activa como único alcance de ejecución. Su diseño, navegación, reconciliación y seguridad se detallan en `PAM_NAVIGATION.md`; ninguna de estas fases hereda autorización para crear solicitudes reales.
+
+La fase 23 no reutiliza el diseño descartado de perfiles completos. Las fases 23.1 y 23.2 ya incorporan la identidad principal y la administración segura de cuentas. La configuración funcional sigue siendo única; conectar las identidades adicionales al botón interactivo `Acceder a PAM` corresponde a la fase 23.3.
 
 Esta clasificación es una guía de planificación, no una autorización automática para crear subagentes. Antes de cada oleada, el coordinador debe inspeccionar el diff y la estructura real; si el trabajo resultó pequeño o apareció solapamiento, debe conservarlo en el agente principal o ejecutarlo secuencialmente.
 

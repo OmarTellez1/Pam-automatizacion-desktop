@@ -11,4 +11,5 @@ public interface IConfigurationDialogService
     RequestConfigurationEdit? EditRequest(RequestSettings current, bool testModeEnabled, DateOnly ecuadorToday);
     MailConfigurationEdit? EditMail(MailSettings? current, string smtpAddress);
     void OpenFavoriteCollections();
+    void OpenPamAccounts();
 }

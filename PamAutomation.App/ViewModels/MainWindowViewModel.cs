@@ -113,6 +113,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
             () => AreControlsEnabled && favoriteCollectionsState.ActiveCollection is not null);
         ConfigureMailCommand = new AsyncRelayCommand(ConfigureMailAsync, () => AreControlsEnabled);
         OpenCollectionsCommand = new AsyncRelayCommand(OpenCollectionsAsync, () => AreControlsEnabled && configurationDialogs is not null);
+        OpenPamAccountsCommand = new RelayCommand(OpenPamAccounts, () => AreControlsEnabled && configurationDialogs is not null);
         StartTestCommand = new AsyncRelayCommand(StartTestAsync, () => IsTestActionEnabled);
         StartAutomationCommand = new AsyncRelayCommand(StartAutomationAsync, () => CanStartAutomation);
         ToggleFinalActionCommand = new AsyncRelayCommand(ToggleFinalActionAsync, () => AreControlsEnabled);
@@ -126,6 +127,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public IRelayCommand ConfigureRequestCommand { get; }
     public IRelayCommand ConfigureMailCommand { get; }
     public IAsyncRelayCommand OpenCollectionsCommand { get; }
+    public IRelayCommand OpenPamAccountsCommand { get; }
     public IAsyncRelayCommand StartTestCommand { get; }
     public IAsyncRelayCommand StartAutomationCommand { get; }
     public IAsyncRelayCommand ToggleFinalActionCommand { get; }
@@ -514,6 +516,16 @@ public sealed partial class MainWindowViewModel : ObservableObject
         {
             PresentError(exception);
         }
+    }
+
+    private void OpenPamAccounts()
+    {
+        try
+        {
+            configurationDialogs?.OpenPamAccounts();
+            StatusMessage = "Administración de usuarios PAM cerrada.";
+        }
+        catch (Exception exception) { PresentError(exception); }
     }
 
     private async Task StartTestAsync()
@@ -968,6 +980,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         ConfigureRequestCommand.NotifyCanExecuteChanged();
         ConfigureMailCommand.NotifyCanExecuteChanged();
         OpenCollectionsCommand.NotifyCanExecuteChanged();
+        OpenPamAccountsCommand.NotifyCanExecuteChanged();
         StartTestCommand.NotifyCanExecuteChanged();
         StartAutomationCommand.NotifyCanExecuteChanged();
         ToggleFinalActionCommand.NotifyCanExecuteChanged();

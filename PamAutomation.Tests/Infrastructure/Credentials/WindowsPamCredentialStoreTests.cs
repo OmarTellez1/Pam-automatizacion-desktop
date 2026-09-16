@@ -48,6 +48,18 @@ public sealed class WindowsPamCredentialStoreTests
     }
 
     [TestMethod]
+    public void Save_ExplicitTarget_UsesOnlyThatAccountTarget()
+    {
+        var credentialApi = new FakeWindowsCredentialApi();
+        const string target = "PamAutomation/Accounts/00000000000000000000000000000001/PamCredentials/v1";
+        var store = new WindowsPamCredentialStore(credentialApi, target);
+
+        store.Save(CreateCompleteUpdate());
+
+        Assert.AreEqual(target, credentialApi.StoredEntry?.TargetName);
+    }
+
+    [TestMethod]
     public void Save_BlankFields_PreservesExistingProtectedValues()
     {
         // Arrange

@@ -16,6 +16,9 @@ using PamAutomation.Core.Interfaces.Diagnostics;
 using PamAutomation.Core.Requests;
 using PamAutomation.Core.Totp;
 using PamAutomation.Core.Validation;
+using PamAutomation.Core.Accounts;
+using PamAutomation.Core.Interfaces.Accounts;
+using PamAutomation.Infrastructure.Accounts;
 using PamAutomation.Infrastructure.Configuration;
 using PamAutomation.Infrastructure.Credentials;
 using PamAutomation.Infrastructure.Diagnostics;
@@ -39,6 +42,7 @@ namespace PamAutomation.App
         private WpfUserDialogService? userDialogs;
         private readonly CancellationTokenSource applicationLifetime = new();
         private HttpClient? updateHttpClient;
+        private PamAccountService? pamAccountService;
         private bool handlingFatalDispatcherException;
 
         protected override async void OnStartup(StartupEventArgs e)
@@ -63,6 +67,12 @@ namespace PamAutomation.App
                 "Pam Automation application startup began at {Stage}. Elapsed={ElapsedMilliseconds}ms.",
                 "ManagedStartup",
                 startupTimer.ElapsedMilliseconds);
+
+            ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            pamAccountService = new PamAccountService(
+                new DpapiPamAccountRegistryStore(),
+                loggerFactory.CreateLogger<PamAccountService>());
+            if (!await EnsurePrincipalIdentityAsync(pamAccountService, applicationLifetime.Token)) return;
 
             var delay = new TaskAsyncDelay();
             var requestValidator = new RequestSettingsValidator();
@@ -143,7 +153,9 @@ namespace PamAutomation.App
                     loggerFactory.CreateLogger<MailSettingsWindow>(),
                     favoriteCatalog,
                     favoriteCollections,
-                    loggerFactory.CreateLogger<FavoritesCatalogViewModel>()),
+                    loggerFactory.CreateLogger<FavoritesCatalogViewModel>(),
+                    pamAccountService,
+                    loggerFactory.CreateLogger<PamAccountsWindow>()),
                 mailSettingsStore,
                 new MailSettingsValidator(),
                 outlookAccountStore,
@@ -156,6 +168,7 @@ namespace PamAutomation.App
             viewModel.BeginInitialization();
             var window = new MainWindow { DataContext = viewModel };
             MainWindow = window;
+            ShutdownMode = ShutdownMode.OnMainWindowClose;
             window.Show();
             logger.LogInformation(
                 "Pam Automation startup reached {Stage}. Elapsed={ElapsedMilliseconds}ms.",
@@ -172,6 +185,46 @@ namespace PamAutomation.App
                 startupTimer.ElapsedMilliseconds);
 
             _ = CheckForUpdateAfterStartupAsync(viewModel, applicationLifetime.Token);
+        }
+
+        private async Task<bool> EnsurePrincipalIdentityAsync(
+            IPamAccountService accountService,
+            CancellationToken cancellationToken)
+        {
+            try
+            {
+                IReadOnlyList<PamAccountStatus> accounts = await accountService.GetAccountsAsync(cancellationToken);
+                if (accounts.Count > 0) return true;
+
+                var setup = new PamAccountNameWindow();
+                if (setup.ShowDialog() != true)
+                {
+                    logger.LogInformation("First-run principal identity setup was cancelled.");
+                    Shutdown();
+                    return false;
+                }
+
+                await accountService.CreatePrincipalAsync(setup.AccountName, cancellationToken);
+                logger.LogInformation("Principal PAM identity was created during first-run setup.");
+                return true;
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                Shutdown();
+                return false;
+            }
+            catch (Exception exception)
+            {
+                logger.LogError(exception, "Principal PAM identity initialization failed.");
+                UrgentMessageBox.Show(
+                    exception is PamAccountException ? exception.Message :
+                        "No fue posible preparar el usuario principal. Exporta un diagnóstico si el problema continúa.",
+                    "No se pudo iniciar PAM Automation",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+                Shutdown(1);
+                return false;
+            }
         }
 
         private async Task CheckForUpdateAfterStartupAsync(
@@ -202,6 +255,7 @@ namespace PamAutomation.App
             AppDomain.CurrentDomain.UnhandledException -= LogUnhandledException;
             TaskScheduler.UnobservedTaskException -= LogUnobservedTaskException;
             updateHttpClient?.Dispose();
+            pamAccountService?.Dispose();
             applicationLifetime.Dispose();
             loggerFactory.Dispose();
             base.OnExit(e);
