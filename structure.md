@@ -851,7 +851,7 @@ La fase 23 no crea perfiles completos ni replica los almacenes de configuración
 - `PamAutomation.Infrastructure/Accounts/PamAccountService.cs`: coordina el índice con Windows Credential Manager, valida TOTP, aplica actualizaciones parciales y ejecuta rollback ante fallos.
 - `PamAutomation.Infrastructure/Credentials/WindowsPamCredentialStore.cs`: conserva su destino predeterminado para el principal y ahora admite destinos explícitos aislados para cuentas secundarias.
 - `PamAutomation.App/Views/PamAccountNameWindow.*`: creación obligatoria del principal en el primer inicio y edición posterior de su nombre.
-- `PamAutomation.App/Views/PamAccountsWindow.*`: administración `Usuarios PAM`, límite de cuentas y protección del rol principal. Su plantilla declara como unidireccionales los textos calculados de rol y credenciales para impedir escrituras de WPF sobre propiedades de solo lectura.
+- `PamAutomation.App/Views/PamAccountsWindow.*`: administración `Usuarios PAM`, límite de cuentas y protección del rol principal. Su plantilla declara como unidireccionales los textos calculados de rol y credenciales para impedir escrituras de WPF sobre propiedades de solo lectura, y reemplaza el contenedor visual de selección por una presentación transparente que conserva operativos los botones internos.
 - `PamAutomation.App/Views/PamSecondaryAccountWindow.*`: alta y edición de una cuenta secundaria sin volver a mostrar secretos.
 - `PamAutomation.App/Views/PamAccountSelectionWindow.*`: selector modal para una sola apertura interactiva; muestra estado y rol, y bloquea identidades sin credenciales.
 - `PamAutomation.App/Views/AboutWindow.*`: diálogo informativo local con versión del ensamblado, autor y cierre; no depende de servicios operativos.

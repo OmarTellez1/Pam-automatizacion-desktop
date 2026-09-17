@@ -690,3 +690,4 @@ Cada cambio relevante debe registrar qué se decidió, por qué, qué se verific
 - Se retiró de la portada el indicador permanente de colección activa y se conservó únicamente el aviso contextual que explica por qué no puede iniciarse la automatización.
 - El texto gris de estado se oculta mientras la aplicación está en reposo y aparece únicamente durante la ejecución para mostrar validación de Favorites/Pending y solicitudes creadas.
 - Se eliminó visualmente la repetición de mensajes sin modificar el contenido ni la secuencia del progreso operativo existente.
+- `Usuarios PAM` elimina el resaltado rectangular de selección propio de `ListBoxItem`; cada cuenta conserva únicamente su tarjeta blanca y sus acciones. Los botones `Renombrar` y `Eliminar` ganan ancho para evitar texto comprimido.
