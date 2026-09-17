@@ -15,8 +15,10 @@ using PamAutomation.Core.Interfaces.Execution;
 using PamAutomation.Core.Interfaces.Favorites;
 using PamAutomation.Core.Interfaces.Outlook;
 using PamAutomation.Core.Interfaces.Updates;
+using PamAutomation.Core.Interfaces.Accounts;
 using PamAutomation.Core.Models.Configuration;
 using PamAutomation.Core.Models.Credentials;
+using PamAutomation.Core.Accounts;
 using PamAutomation.Core.Requests;
 using PamAutomation.Core.Outlook;
 using PamAutomation.Core.Validation;
@@ -40,6 +42,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     private readonly IApplicationUpdateService? updateService;
     private readonly IPamInteractiveAccessService? interactiveAccessService;
     private readonly IFavoriteCollectionService? favoriteCollectionService;
+    private readonly IPamAccountService? pamAccountService;
     private readonly Version applicationVersion;
     private AppSettings settings = new();
     private MailSettings? mailSettings;
@@ -47,6 +50,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     private readonly SemaphoreSlim settingsSaveGate = new(1, 1);
     private PamExecutionResult? lastExecutionResult;
     private FavoriteCollectionsState favoriteCollectionsState = new();
+    private bool hasInteractivePamAccount;
 
     [ObservableProperty] private bool areCredentialsConfigured;
     [ObservableProperty] private bool isRequestConfigured;
@@ -65,6 +69,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
     [ObservableProperty] private string resultTitle = string.Empty;
     [ObservableProperty] private string resultSummary = string.Empty;
     [ObservableProperty] private string requestIdsText = string.Empty;
+    [ObservableProperty] private string principalAccountName = string.Empty;
+    [ObservableProperty] private string principalAccountInitial = "?";
 
     public MainWindowViewModel()
         : this(null, null, null, null, new AppSettingsValidator(new RequestSettingsValidator()), TimeProvider.System, null)
@@ -87,7 +93,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
         IApplicationUpdateService? updateService = null,
         Version? applicationVersion = null,
         IPamInteractiveAccessService? interactiveAccessService = null,
-        IFavoriteCollectionService? favoriteCollectionService = null)
+        IFavoriteCollectionService? favoriteCollectionService = null,
+        IPamAccountService? pamAccountService = null)
     {
         this.executionService = executionService;
         this.settingsStore = settingsStore;
@@ -104,6 +111,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         this.updateService = updateService;
         this.interactiveAccessService = interactiveAccessService;
         this.favoriteCollectionService = favoriteCollectionService;
+        this.pamAccountService = pamAccountService;
         this.applicationVersion = applicationVersion ??
             typeof(MainWindowViewModel).Assembly.GetName().Version ?? new Version(0, 0, 1, 0);
 
@@ -113,7 +121,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
             () => AreControlsEnabled && favoriteCollectionsState.ActiveCollection is not null);
         ConfigureMailCommand = new AsyncRelayCommand(ConfigureMailAsync, () => AreControlsEnabled);
         OpenCollectionsCommand = new AsyncRelayCommand(OpenCollectionsAsync, () => AreControlsEnabled && configurationDialogs is not null);
-        OpenPamAccountsCommand = new RelayCommand(OpenPamAccounts, () => AreControlsEnabled && configurationDialogs is not null);
+        OpenPamAccountsCommand = new AsyncRelayCommand(OpenPamAccountsAsync, () => AreControlsEnabled && configurationDialogs is not null);
         StartTestCommand = new AsyncRelayCommand(StartTestAsync, () => IsTestActionEnabled);
         StartAutomationCommand = new AsyncRelayCommand(StartAutomationAsync, () => CanStartAutomation);
         ToggleFinalActionCommand = new AsyncRelayCommand(ToggleFinalActionAsync, () => AreControlsEnabled);
@@ -127,7 +135,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public IRelayCommand ConfigureRequestCommand { get; }
     public IRelayCommand ConfigureMailCommand { get; }
     public IAsyncRelayCommand OpenCollectionsCommand { get; }
-    public IRelayCommand OpenPamAccountsCommand { get; }
+    public IAsyncRelayCommand OpenPamAccountsCommand { get; }
     public IAsyncRelayCommand StartTestCommand { get; }
     public IAsyncRelayCommand StartAutomationCommand { get; }
     public IAsyncRelayCommand ToggleFinalActionCommand { get; }
@@ -135,12 +143,15 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public IAsyncRelayCommand AccessPamCommand { get; }
     public IRelayCommand ShowResultCommand { get; }
     public IRelayCommand DismissUpdateCommand { get; }
-    public string ApplicationDisplayName => $"PAM Automation V. {applicationVersion.ToString(3)}";
+    public string ApplicationDisplayName => "PAM Automation";
     public bool AreControlsEnabled => !IsInitializing && !IsRunning && !IsExportingDiagnostics && !IsAccessingPam;
     public bool IsBusy => IsInitializing || IsRunning || IsAccessingPam;
     public bool CanExportDiagnostics => diagnosticExportService is not null && dialogs is not null && AreControlsEnabled;
-    public bool CanAccessPam => interactiveAccessService is not null && credentialStore is not null &&
-                                AreCredentialsConfigured && !IsInitializing && !IsAccessingPam && !IsExportingDiagnostics;
+    public bool CanAccessPam => interactiveAccessService is not null && !IsInitializing && !IsAccessingPam &&
+                                !IsExportingDiagnostics &&
+                                (pamAccountService is not null
+                                    ? configurationDialogs is not null && hasInteractivePamAccount
+                                    : credentialStore is not null && AreCredentialsConfigured);
     public bool CanShowResult => dialogs is not null && HasResult && AreControlsEnabled;
     public bool IsEffectiveRequestConfigured => favoriteCollectionsState.ActiveCollection is not null &&
                                                 settingsValidator.Validate(GetEffectiveSettings(), GetEcuadorNow()).IsValid;
@@ -190,6 +201,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
                 logger.LogInformation("Expired request start was advanced during application initialization.");
             }
             AreCredentialsConfigured = credentialStore.HasCredentials();
+            await RefreshInteractivePamAccountAvailabilityAsync(cancellationToken);
             IsTestModeEnabled = settings.TestModeEnabled;
             SendEmailAtEnd = settings.FinalAction == FinalAction.SendEmail;
             await ReloadFavoriteCollectionsAsync(cancellationToken);
@@ -282,7 +294,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         PamCredentials? credentials;
         try
         {
-            credentials = credentialStore!.LoadForAuthentication();
+            credentials = await SelectInteractiveCredentialsAsync();
         }
         catch (Exception exception)
         {
@@ -297,27 +309,14 @@ public sealed partial class MainWindowViewModel : ObservableObject
             return;
         }
 
-        if (credentials is null)
-        {
-            AreCredentialsConfigured = false;
-            const string message = "No hay credenciales PAM configuradas.";
-            if (preserveAutomationStatus)
-            {
-                dialogs?.ShowError(message);
-            }
-            else
-            {
-                StatusMessage = message;
-            }
-            return;
-        }
+        if (credentials is null) return;
 
         IsAccessingPam = true;
         if (!preserveAutomationStatus)
         {
             StatusMessage = "Abriendo BeyondInsight e iniciando sesión…";
         }
-        logger.LogInformation("Interactive PAM access started.");
+        logger.LogInformation("Interactive PAM access started with the confirmed identity.");
         try
         {
             await interactiveAccessService!.OpenAsync(credentials).ConfigureAwait(true);
@@ -342,6 +341,61 @@ public sealed partial class MainWindowViewModel : ObservableObject
         {
             IsAccessingPam = false;
         }
+    }
+
+    private async Task<PamCredentials?> SelectInteractiveCredentialsAsync()
+    {
+        if (pamAccountService is null)
+        {
+            PamCredentials? legacyCredentials = credentialStore?.LoadForAuthentication();
+            if (legacyCredentials is null) PresentMissingInteractiveCredentials();
+            return legacyCredentials;
+        }
+
+        IReadOnlyList<PamAccountStatus> accounts = await pamAccountService.GetAccountsAsync();
+        hasInteractivePamAccount = accounts.Any(status => status.HasCredentials);
+        RefreshPresentationState();
+        if (!hasInteractivePamAccount)
+        {
+            PresentMissingInteractiveCredentials();
+            return null;
+        }
+
+        PamAccountId? selectedId = configurationDialogs!.SelectPamAccount(accounts);
+        if (selectedId is null)
+        {
+            logger.LogInformation("Interactive PAM account selection was cancelled.");
+            return null;
+        }
+
+        PamAccountStatus? selected = accounts.FirstOrDefault(status => status.Account.Id == selectedId.Value);
+        if (selected is null || !selected.HasCredentials)
+        {
+            await RefreshInteractivePamAccountAvailabilityAsync();
+            PresentMissingInteractiveCredentials();
+            return null;
+        }
+
+        PamCredentials? credentials = await pamAccountService.LoadCredentialsAsync(selectedId.Value);
+        if (credentials is null)
+        {
+            await RefreshInteractivePamAccountAvailabilityAsync();
+            PresentMissingInteractiveCredentials();
+            return null;
+        }
+
+        logger.LogInformation(
+            "Interactive PAM identity confirmed. AccountId={AccountId}; IsPrimary={IsPrimary}.",
+            selected.Account.Id,
+            selected.Account.IsPrimary);
+        return credentials;
+    }
+
+    private void PresentMissingInteractiveCredentials()
+    {
+        const string message = "El usuario PAM seleccionado no tiene credenciales completas. Abre Usuarios PAM para configurarlas.";
+        if (IsRunning) dialogs?.ShowError(message);
+        else StatusMessage = message;
     }
 
     private async Task StartAutomationAsync()
@@ -420,6 +474,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
                 outlookSmtpAddress);
             CredentialConfigurationState state = await configurationDialogs.EditCredentialsAsync(currentState);
             AreCredentialsConfigured = state.HasPamCredentials;
+            await RefreshInteractivePamAccountAvailabilityAsync();
             outlookSmtpAddress = state.OutlookSmtpAddress;
             if (mailSettings is not null && !string.IsNullOrWhiteSpace(outlookSmtpAddress))
             {
@@ -518,14 +573,44 @@ public sealed partial class MainWindowViewModel : ObservableObject
         }
     }
 
-    private void OpenPamAccounts()
+    private async Task OpenPamAccountsAsync()
     {
         try
         {
             configurationDialogs?.OpenPamAccounts();
+            await RefreshInteractivePamAccountAvailabilityAsync();
             StatusMessage = "Administración de usuarios PAM cerrada.";
         }
         catch (Exception exception) { PresentError(exception); }
+    }
+
+    private async Task RefreshInteractivePamAccountAvailabilityAsync(CancellationToken cancellationToken = default)
+    {
+        if (pamAccountService is null)
+        {
+            hasInteractivePamAccount = AreCredentialsConfigured;
+            PrincipalAccountName = string.Empty;
+            PrincipalAccountInitial = "?";
+            RefreshPresentationState();
+            return;
+        }
+
+        IReadOnlyList<PamAccountStatus> accounts = await pamAccountService.GetAccountsAsync(cancellationToken);
+        PamAccountSummary? principal = accounts.FirstOrDefault(status => status.Account.IsPrimary)?.Account;
+        hasInteractivePamAccount = accounts.Any(status => status.HasCredentials);
+        PrincipalAccountName = principal?.Name ?? string.Empty;
+        PrincipalAccountInitial = GetAccountInitial(principal?.Name);
+        RefreshPresentationState();
+    }
+
+    private static string GetAccountInitial(string? name)
+    {
+        string? firstTextElement = string.IsNullOrWhiteSpace(name)
+            ? null
+            : System.Globalization.StringInfo.GetNextTextElement(name.Trim());
+        return string.IsNullOrWhiteSpace(firstTextElement)
+            ? "?"
+            : firstTextElement.ToUpperInvariant();
     }
 
     private async Task StartTestAsync()

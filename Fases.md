@@ -374,6 +374,8 @@ Las credenciales que actualmente usa la automatización conservarán su destino 
 
 La portada ya incorpora `Usuarios PAM`. La ventana de administración permite renombrar al principal y crear, editar o eliminar hasta cuatro cuentas secundarias. La edición secundaria deja intactos los secretos cuyos campos se envían vacíos; el borrado exige confirmación. El índice se protege con DPAPI CurrentUser en `pam-accounts.dat`, usa escritura atómica y GUID estables. Cada secundaria utiliza un destino independiente de Credential Manager, mientras el principal reutiliza `PamAutomation/PamCredentials/v1`. El servicio valida la semilla TOTP y revierte el índice o la credencial cuando una mutación coordinada falla. **Fase completada.**
 
+El ajuste de presentación posterior muestra permanentemente el nombre y la inicial del principal en la cabecera, mantiene allí solo `Acceder a PAM` y `Usuarios PAM`, y traslada `Exportar diagnóstico` y la acción final a la zona de configuración. La lista de usuarios fuerza enlaces WPF de solo lectura para evitar que `Run.Text` intente escribir sobre propiedades calculadas; con ello se elimina la excepción crítica que anteriormente cerraba la aplicación al abrir `Usuarios PAM`.
+
 ### Fase 23.3 — Selección de cuenta al acceder a PAM
 
 Al pulsar `Acceder a PAM`, la aplicación mostrará siempre una selección breve para que el usuario confirme con qué identidad desea iniciar sesión, incluso cuando solo exista la principal. Cada opción se identificará únicamente por su nombre descriptivo y marcará cuál es el usuario principal; jamás mostrará el usuario técnico, contraseña o semilla.
@@ -384,6 +386,8 @@ Elegir una cuenta secundaria para `Acceder a PAM` no cambia el usuario activo de
 
 La disponibilidad de ambas acciones se calculará por separado. `Iniciar automatización` permanecerá deshabilitado si el principal no tiene credenciales completas. `Acceder a PAM` podrá habilitarse cuando exista al menos una identidad con credenciales completas; una identidad todavía sin configurar aparecerá claramente como pendiente y no podrá seleccionarse para iniciar sesión.
 
+La aplicación ya muestra `PamAccountSelectionWindow` en cada apertura interactiva, incluso si solo existe el principal. Las identidades sin credenciales permanecen visibles pero no seleccionables. Tras confirmar, `PamAccountService` recupera únicamente la credencial asociada al GUID elegido y la entrega al servicio interactivo; cancelar no carga secretos ni abre Edge. El flujo de solicitudes conserva el `IPamCredentialStore` principal y no consulta esta selección. La compilación `Release | x64` y las 407 pruebas ordinarias pasaron sin abrir PAM ni Outlook. **Fase completada.**
+
 ### Fase 23.4 — Migración, seguridad y aceptación
 
 La fase incorporará una migración idempotente desde la configuración actual: conservará las credenciales PAM existentes como credenciales del principal, solicitará únicamente el nombre faltante y no tocará correo, cuenta Outlook, plantillas, Favorites, colecciones ni configuración temporal. Un fallo mantendrá utilizable el estado anterior y permitirá reintentar.
@@ -391,6 +395,10 @@ La fase incorporará una migración idempotente desde la configuración actual: 
 Las pruebas cubrirán primer inicio, cancelación obligatoria segura, nombre principal editable, imposibilidad de eliminar o degradar al principal, altas y modificaciones parciales de cuentas, nombres repetidos, eliminación con rollback, aislamiento por GUID y selección correcta en `Acceder a PAM`. También demostrarán que una cuenta secundaria nunca llega a la automatización de solicitudes y que los secretos no aparecen en archivos, interfaz, logs o diagnóstico.
 
 Quedan expresamente fuera de alcance la importación y exportación de perfiles o cuentas, el intercambio de credenciales entre computadoras, configuraciones distintas de correo o colecciones por cuenta y la selección de una cuenta secundaria para crear solicitudes. La fase se considerará completa solo después de compilar y aprobar la suite en `Release | x64` y validar visualmente los recorridos sin realizar solicitudes PAM ni enviar correos. **Estado: planificada.**
+
+El arranque principal se aisló en `PrincipalIdentityBootstrapper` y se verificó como idempotente: un registro existente no vuelve a solicitar nombre, un registro vacío crea únicamente los metadatos del principal, cancelar no escribe nada y una creación concurrente reconoce el estado ya logrado. Las pruebas confirman que las credenciales preexistentes del principal conservan su destino, las secundarias permanecen aisladas, el registro manipulado o con esquema futuro se rechaza sin reinterpretación y los diagnósticos no contienen usuario técnico, contraseña ni semilla TOTP. La carga visual de las ventanas se valida mediante pruebas WPF; no se contactó PAM ni Outlook. La compilación `Release | x64` y las 414 pruebas ordinarias pasaron. **Fase completada.**
+
+La regresión de administración se volvió a validar después de corregir la plantilla WPF: compilación `Release | x64`, 63 pruebas relacionadas y la suite completa de 414 pruebas aprobaron, incluida la creación visual real de `PamAccountsWindow`. No se abrió PAM ni Outlook y no se utilizaron secretos reales.
 
 ## Fases pendientes
 
@@ -404,8 +412,6 @@ La clasificación siguiente se refiere únicamente a dependencias entre fases pe
 |---|---|---|---|
 | 19 — Pruebas finales administradas | **Independiente** | Ninguna fase pendiente. | Es la validación final del producto publicado en el entorno Windows objetivo. |
 | 20.6+ — Administración ampliada de colecciones | **Dependiente** | Fases 20.2–20.5 implementadas. | Podrá añadir duplicación u otras mejoras que el usuario confirme; no son necesarias para crear, editar, eliminar, seleccionar y ejecutar una colección. |
-| 23.3 — Selección de cuenta al acceder a PAM | **Dependiente** | Fases 23.1–23.2 completadas. | Conectará las identidades disponibles exclusivamente con el flujo interactivo `Acceder a PAM`. |
-| 23.4 — Migración, seguridad y aceptación | **Dependiente** | Fase 23.3. | Cerrará la migración, el aislamiento entre flujos y la aceptación visual de la fase. |
 
 ## Mapa recomendado de trabajo paralelo
 
@@ -416,14 +422,14 @@ Fases 21–21.10 completadas de forma independiente
 
 Fases 20.1–20.5 completadas ──► validación real futura
 
-Fases 20–22 completadas ──► Fase 23.1 completada ──► 23.2 completada ──► 23.3 ──► 23.4
+Fases 20–22 completadas ──► Fase 23.1 completada ──► 23.2 completada ──► 23.3 completada ──► 23.4 completada
 ```
 
 La fase 18 quedó completada tras validar el manifiesto GitHub real. El coordinador solo podrá paralelizar una parte futura si vuelve a demostrar independencia, contratos congelados y ausencia de archivos compartidos.
 
 La fase 20 registra la ampliación solicitada después de la migración. Las fases 20.1–20.5 implementan el catálogo protegido, las colecciones nombradas y eliminables, `All favorites` administrada y la colección activa como único alcance de ejecución. Su diseño, navegación, reconciliación y seguridad se detallan en `PAM_NAVIGATION.md`; ninguna de estas fases hereda autorización para crear solicitudes reales.
 
-La fase 23 no reutiliza el diseño descartado de perfiles completos. Las fases 23.1 y 23.2 ya incorporan la identidad principal y la administración segura de cuentas. La configuración funcional sigue siendo única; conectar las identidades adicionales al botón interactivo `Acceder a PAM` corresponde a la fase 23.3.
+La fase 23 no reutiliza el diseño descartado de perfiles completos. Las fases 23.1–23.4 incorporan la identidad principal, la administración segura, la selección exclusiva para `Acceder a PAM` y la aceptación de migración/seguridad. La configuración funcional y las credenciales de automatización siguen siendo únicas y pertenecen al principal. **Fase 23 completada.**
 
 Esta clasificación es una guía de planificación, no una autorización automática para crear subagentes. Antes de cada oleada, el coordinador debe inspeccionar el diff y la estructura real; si el trabajo resultó pequeño o apareció solapamiento, debe conservarlo en el agente principal o ejecutarlo secuencialmente.
 

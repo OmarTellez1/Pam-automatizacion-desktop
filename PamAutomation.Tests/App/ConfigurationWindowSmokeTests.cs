@@ -49,8 +49,7 @@ public sealed class ConfigurationWindowSmokeTests
             Assert.AreEqual(Visibility.Visible, updateBanner.Visibility);
             Assert.AreEqual(Visibility.Visible, startWarning.Visibility);
             Assert.AreEqual(Visibility.Collapsed, resultButton.Visibility);
-            string expectedVersion = typeof(MainWindowViewModel).Assembly.GetName().Version!.ToString(3);
-            Assert.AreEqual($"PAM Automation V. {expectedVersion}", window.Title);
+            Assert.AreEqual("PAM Automation", window.Title);
             Assert.AreEqual(WindowState.Maximized, window.WindowState);
             Assert.AreEqual(TimeSpan.FromMinutes(1), MainWindow.RequestTimeRefreshInterval);
             Assert.AreEqual(48d, brandBadge.Width);
@@ -130,18 +129,23 @@ public sealed class ConfigurationWindowSmokeTests
         EnsureApplicationResources();
         var principal = new PamAccountSummary(PamAccountId.New(), "Principal", true);
         var accountsWindow = new PamAccountsWindow(new StaticPamAccountService(principal));
+        var selectionWindow = new PamAccountSelectionWindow(
+            [new PamAccountStatus(principal, true)]);
         var setupWindow = new PamAccountNameWindow();
         var secondaryWindow = new PamSecondaryAccountWindow();
 
         try
         {
             accountsWindow.Show();
+            selectionWindow.Show();
             setupWindow.Show();
             secondaryWindow.Show();
             Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
 
             Assert.IsNotNull(accountsWindow.FindName("AccountsList"));
             Assert.IsNotNull(accountsWindow.FindName("CreateSecondaryButton"));
+            Assert.IsNotNull(selectionWindow.FindName("AccountsList"));
+            Assert.IsNotNull(selectionWindow.FindName("ContinueButton"));
             Assert.IsNotNull(setupWindow.FindName("NameBox"));
             Assert.IsNotNull(secondaryWindow.FindName("UsernameBox"));
             Assert.IsNotNull(secondaryWindow.FindName("PasswordBox"));
@@ -151,6 +155,7 @@ public sealed class ConfigurationWindowSmokeTests
         {
             secondaryWindow.Close();
             setupWindow.Close();
+            selectionWindow.Close();
             accountsWindow.Close();
         }
     }
@@ -380,6 +385,8 @@ public sealed class ConfigurationWindowSmokeTests
     {
         public Task<IReadOnlyList<PamAccountStatus>> GetAccountsAsync(CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<PamAccountStatus>>([new PamAccountStatus(principal, true)]);
+        public Task<PamCredentials?> LoadCredentialsAsync(PamAccountId accountId, CancellationToken cancellationToken = default) =>
+            Task.FromResult<PamCredentials?>(new PamCredentials("user", "password", "JBSWY3DPEHPK3PXP"));
         public Task<PamAccountSummary> CreatePrincipalAsync(string name, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<PamAccountSummary> RenameAsync(PamAccountId accountId, string name, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<PamAccountSummary> CreateSecondaryAsync(string name, PamCredentialUpdate credentials, CancellationToken cancellationToken = default) => throw new NotSupportedException();

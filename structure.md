@@ -841,7 +841,7 @@ Durante desarrollo podrán existir `results`, `logs`, `artifacts` y `temp` en la
 
 El servicio de actualización depende solo de su interfaz de Core. El ViewModel muestra un banner descartable y desconoce HTTP o GitHub. La aplicación consulta la URL `raw` del manifiesto y exige que este apunte al repositorio GitHub configurado, sin relajar TLS.
 
-### Estructura de las fases 23.1 y 23.2
+### Estructura de la fase 23
 
 La fase 23 no crea perfiles completos ni replica los almacenes de configuración. Las dos primeras entregas mantienen la configuración actual bajo `config` y añaden responsabilidades pequeñas para identidades PAM:
 
@@ -851,12 +851,16 @@ La fase 23 no crea perfiles completos ni replica los almacenes de configuración
 - `PamAutomation.Infrastructure/Accounts/PamAccountService.cs`: coordina el índice con Windows Credential Manager, valida TOTP, aplica actualizaciones parciales y ejecuta rollback ante fallos.
 - `PamAutomation.Infrastructure/Credentials/WindowsPamCredentialStore.cs`: conserva su destino predeterminado para el principal y ahora admite destinos explícitos aislados para cuentas secundarias.
 - `PamAutomation.App/Views/PamAccountNameWindow.*`: creación obligatoria del principal en el primer inicio y edición posterior de su nombre.
-- `PamAutomation.App/Views/PamAccountsWindow.*`: administración `Usuarios PAM`, límite de cuentas y protección del rol principal.
+- `PamAutomation.App/Views/PamAccountsWindow.*`: administración `Usuarios PAM`, límite de cuentas y protección del rol principal. Su plantilla declara como unidireccionales los textos calculados de rol y credenciales para impedir escrituras de WPF sobre propiedades de solo lectura.
 - `PamAutomation.App/Views/PamSecondaryAccountWindow.*`: alta y edición de una cuenta secundaria sin volver a mostrar secretos.
+- `PamAutomation.App/Views/PamAccountSelectionWindow.*`: selector modal para una sola apertura interactiva; muestra estado y rol, y bloquea identidades sin credenciales.
+- `PamAutomation.App/ViewModels/MainWindowViewModel.cs`: calcula por separado la disponibilidad del acceso interactivo, expone nombre e inicial del principal para la cabecera, solicita una identidad y entrega únicamente su credencial a `IPamInteractiveAccessService`. La automatización conserva el almacén principal.
 - `PamAutomation.App/App.xaml.cs`: bloquea la portada hasta que exista principal y conserva intacta la configuración funcional existente.
+- `PamAutomation.App/Services/PrincipalIdentityBootstrapper.cs`: coordina de forma idempotente la detección o creación inicial del principal y representa explícitamente creación, estado existente o cancelación.
 - `PamAutomation.Tests/Core/Accounts` y `PamAutomation.Tests/Infrastructure/Accounts`: dominio, DPAPI, aislamiento de destinos y rollback. `ConfigurationWindowSmokeTests` valida además la carga de las ventanas nuevas.
+- `PamAutomation.Tests/App/PrincipalIdentityBootstrapperTests.cs`: aceptación del arranque existente, primera creación, cancelación y carrera de creación concurrente.
 
-El índice almacena únicamente GUID, nombre y rol. Las credenciales permanecen en destinos separados de Credential Manager: la cuenta principal reutiliza `PamAutomation/PamCredentials/v1` y las secundarias usan `PamAutomation/Accounts/<guid>/PamCredentials/v1`. La selección de estas identidades para `Acceder a PAM` se añadirá en 23.3; no forma parte todavía de esta estructura integrada.
+El índice almacena únicamente GUID, nombre y rol. Las credenciales permanecen en destinos separados de Credential Manager: la cuenta principal reutiliza `PamAutomation/PamCredentials/v1` y las secundarias usan `PamAutomation/Accounts/<guid>/PamCredentials/v1`. `IPamAccountService.LoadCredentialsAsync` resuelve por GUID una credencial solo después de la confirmación del selector interactivo.
 
 El diseño anterior de perfiles aislados y archivos `.pamprofile` queda descartado. No se moverán `app-settings.json`, correo, Outlook, Favorites o colecciones a ámbitos por identidad.
 

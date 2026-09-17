@@ -648,3 +648,31 @@ Cada cambio relevante debe registrar qué se decidió, por qué, qué se verific
 - `PamAccountService` serializa mutaciones, valida las semillas TOTP y aplica rollback entre el índice y Credential Manager cuando una operación falla.
 - La fase 23.3 permanece pendiente: `Acceder a PAM` todavía usa el principal y aún no muestra el selector de identidad.
 - La compilación `Release | x64` y las 403 pruebas ordinarias pasaron. No se abrió PAM ni Outlook, no se crearon solicitudes y no se envió correo.
+
+## 17 de septiembre de 2026 — Fase 23.3: selección de identidad para Acceder a PAM
+
+- Cada pulsación de `Acceder a PAM` abre un selector modal con el principal y las cuentas secundarias, incluso cuando solo hay una identidad.
+- Las identidades sin credenciales completas permanecen visibles como pendientes, pero no pueden confirmarse. Cancelar no recupera secretos ni abre Edge.
+- Tras confirmar, `PamAccountService` carga exclusivamente la credencial vinculada al GUID elegido y el ViewModel la entrega al flujo interactivo existente. Los logs registran únicamente GUID y rol, nunca nombre técnico, contraseña, semilla o TOTP.
+- La disponibilidad de `Acceder a PAM` depende de que al menos una identidad tenga credenciales. Se recalcula al iniciar, editar las credenciales principales y cerrar `Usuarios PAM`.
+- `Iniciar automatización` conserva el almacén principal original y no consulta la identidad seleccionada para acceso interactivo. Una prueba específica demuestra este límite.
+- La compilación `Release | x64` y las 407 pruebas ordinarias pasaron. No se abrió PAM ni Outlook, no se crearon solicitudes y no se envió correo.
+
+## 17 de septiembre de 2026 — Fase 23.4: migración, seguridad y aceptación
+
+- El alta inicial se extrajo a `PrincipalIdentityBootstrapper` para probar y mantener explícita su idempotencia. Una instalación con principal no vuelve a preguntar ni escribir; una instalación nueva crea solo su identidad; cancelar no cambia el estado.
+- Una carrera de creación reconoce `PrincipalAlreadyExists` como estado listo, sin reemplazar el principal ni reinterpretar la configuración.
+- Se verificó que el destino histórico `PamAutomation/PamCredentials/v1` continúa perteneciendo al principal y que crear el registro no mueve ni sobrescribe sus credenciales.
+- El registro DPAPI manipulado y un `schemaVersion` futuro se rechazan de forma controlada, conservando el archivo existente y evitando migraciones implícitas.
+- Los eventos de administración y resolución de cuentas se validaron contra el diagnóstico en memoria: usuario técnico, contraseña y semilla TOTP no aparecen en plantillas ni propiedades exportables.
+- Las pruebas WPF cargan la administración, el primer inicio, la edición secundaria y el selector interactivo. No se realizó acceso real a PAM, no se crearon solicitudes y no se abrió Outlook.
+- La compilación `Release | x64` y las 414 pruebas ordinarias pasaron. La fase 23 queda completada.
+
+## 17 de septiembre de 2026 — Ajuste de Usuarios PAM y cabecera principal
+
+- El diagnóstico local identificó que `PamAccountsWindow` cerraba la aplicación porque `Run.Text` usa enlace bidireccional por defecto e intentaba escribir en `RoleText` y `CredentialText`, propiedades calculadas de solo lectura.
+- La plantilla declara ahora ambos enlaces como `OneWay`; la prueba WPF muestra y renderiza la ventana con una cuenta principal para cubrir el recorrido que produjo la excepción.
+- La cabecera muestra únicamente `Acceder a PAM`, `Usuarios PAM` y una tarjeta con la inicial y el nombre del principal. El título visible pasa a ser `PAM Automation`, sin incluir la versión.
+- `Exportar diagnóstico` y la acción final `Mostrar IDs al final`/envío por Outlook se trasladaron sobre las tarjetas de configuración.
+- Se conserva la administración acordada: el principal puede renombrarse pero no eliminarse; los secundarios pueden crearse, renombrarse, actualizar sus credenciales o eliminarse con confirmación.
+- La compilación `Release | x64`, 63 pruebas relacionadas y la suite completa de 414 pruebas pasaron sin abrir PAM ni Outlook ni usar secretos reales.

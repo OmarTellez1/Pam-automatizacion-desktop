@@ -13,6 +13,8 @@ using PamAutomation.Core.Interfaces.Execution;
 using PamAutomation.Core.Interfaces.Favorites;
 using PamAutomation.Core.Interfaces.Outlook;
 using PamAutomation.Core.Interfaces.Updates;
+using PamAutomation.Core.Interfaces.Accounts;
+using PamAutomation.Core.Accounts;
 using PamAutomation.Core.Models.Configuration;
 using PamAutomation.Core.Models.Credentials;
 using PamAutomation.Core.Outlook;
@@ -36,8 +38,7 @@ public sealed class MainWindowViewModelTests
         Assert.IsFalse(viewModel.IsTestActionVisible);
         Assert.IsFalse(viewModel.SendEmailAtEnd);
         Assert.AreEqual("Configuración pendiente", viewModel.ConfigurationSummaryText);
-        string expectedVersion = typeof(MainWindowViewModel).Assembly.GetName().Version!.ToString(3);
-        Assert.AreEqual($"PAM Automation V. {expectedVersion}", viewModel.ApplicationDisplayName);
+        Assert.AreEqual("PAM Automation", viewModel.ApplicationDisplayName);
     }
 
     [TestMethod]
@@ -358,6 +359,72 @@ public sealed class MainWindowViewModelTests
     }
 
     [TestMethod]
+    public async Task AccessPamAsync_SecondaryIdentitySelected_UsesOnlySecondaryCredential()
+    {
+        var principal = new PamAccountSummary(PamAccountId.New(), "Principal", true);
+        var secondary = new PamAccountSummary(PamAccountId.New(), "Pepe", false);
+        var accountService = new FakePamAccountService(
+            [new PamAccountStatus(principal, true), new PamAccountStatus(secondary, true)],
+            new Dictionary<PamAccountId, PamCredentials>
+            {
+                [principal.Id] = new("principal", "principal-password", "JBSWY3DPEHPK3PXP"),
+                [secondary.Id] = new("secondary", "secondary-password", "JBSWY3DPEHPK3PXP")
+            });
+        var configurationDialogs = new FakeConfigurationDialogs { SelectedAccountId = secondary.Id };
+        var interactiveAccess = new FakeInteractiveAccessService();
+        var viewModel = new MainWindowViewModel(
+            null,
+            new FakeSettingsStore(new AppSettings()),
+            new FakeCredentialStore(),
+            new FakeDialogs(confirm: true),
+            new AppSettingsValidator(new RequestSettingsValidator()),
+            TimeProvider.System,
+            configurationDialogs: configurationDialogs,
+            interactiveAccessService: interactiveAccess,
+            pamAccountService: accountService);
+        await viewModel.InitializeAsync();
+
+        Assert.AreEqual("Principal", viewModel.PrincipalAccountName);
+        Assert.AreEqual("P", viewModel.PrincipalAccountInitial);
+        await viewModel.AccessPamCommand.ExecuteAsync(null);
+
+        Assert.AreEqual(1, configurationDialogs.SelectionCount);
+        Assert.AreEqual(secondary.Id, accountService.LastLoadedAccountId);
+        Assert.AreEqual("secondary", interactiveAccess.LastCredentials?.Username);
+    }
+
+    [TestMethod]
+    public async Task AccessPamAsync_SelectionCancelled_DoesNotLoadCredentialsOrOpenBrowser()
+    {
+        var principal = new PamAccountSummary(PamAccountId.New(), "Principal", true);
+        var accountService = new FakePamAccountService(
+            [new PamAccountStatus(principal, true)],
+            new Dictionary<PamAccountId, PamCredentials>
+            {
+                [principal.Id] = new("principal", "password", "JBSWY3DPEHPK3PXP")
+            });
+        var configurationDialogs = new FakeConfigurationDialogs();
+        var interactiveAccess = new FakeInteractiveAccessService();
+        var viewModel = new MainWindowViewModel(
+            null,
+            new FakeSettingsStore(new AppSettings()),
+            new FakeCredentialStore(),
+            new FakeDialogs(confirm: true),
+            new AppSettingsValidator(new RequestSettingsValidator()),
+            TimeProvider.System,
+            configurationDialogs: configurationDialogs,
+            interactiveAccessService: interactiveAccess,
+            pamAccountService: accountService);
+        await viewModel.InitializeAsync();
+
+        await viewModel.AccessPamCommand.ExecuteAsync(null);
+
+        Assert.AreEqual(1, configurationDialogs.SelectionCount);
+        Assert.IsNull(accountService.LastLoadedAccountId);
+        Assert.AreEqual(0, interactiveAccess.OpenCount);
+    }
+
+    [TestMethod]
     public void PresentSubmissionProgress_SubmittedApplication_ShowsApplicationColumnName()
     {
         var viewModel = new MainWindowViewModel();
@@ -567,6 +634,16 @@ public sealed class MainWindowViewModelTests
             new FavoriteCollectionsState([collection], collection.Id));
         var execution = new FakeExecutionService(now);
         var dialogs = new FakeDialogs(confirm: true);
+        var principal = new PamAccountSummary(PamAccountId.New(), "Principal", true);
+        var secondary = new PamAccountSummary(PamAccountId.New(), "Secundario", false);
+        var accountService = new FakePamAccountService(
+            [new PamAccountStatus(principal, true), new PamAccountStatus(secondary, true)],
+            new Dictionary<PamAccountId, PamCredentials>
+            {
+                [principal.Id] = new("principal", "password", "JBSWY3DPEHPK3PXP"),
+                [secondary.Id] = new("secondary", "password", "JBSWY3DPEHPK3PXP")
+            });
+        var configurationDialogs = new FakeConfigurationDialogs { SelectedAccountId = secondary.Id };
         var viewModel = new MainWindowViewModel(
             execution,
             new FakeSettingsStore(globalSettings),
@@ -574,7 +651,9 @@ public sealed class MainWindowViewModelTests
             dialogs,
             new AppSettingsValidator(new RequestSettingsValidator()),
             new FixedTimeProvider(now.ToUniversalTime()),
-            favoriteCollectionService: collectionService);
+            configurationDialogs: configurationDialogs,
+            favoriteCollectionService: collectionService,
+            pamAccountService: accountService);
         await viewModel.InitializeAsync();
 
         await viewModel.StartAutomationCommand.ExecuteAsync(null);
@@ -585,6 +664,8 @@ public sealed class MainWindowViewModelTests
         Assert.AreEqual(new TimeOnly(17, 0), execution.LastPreparedSettings?.Request.StartTime);
         Assert.AreEqual("Configuración de colección", execution.LastPreparedSettings?.Request.RequestReason);
         Assert.HasCount(1, execution.LastSelectedAccounts);
+        Assert.AreEqual("user", execution.LastPreparedCredentialUsername);
+        Assert.AreEqual(0, configurationDialogs.SelectionCount);
     }
 
     [TestMethod]
@@ -910,16 +991,59 @@ public sealed class MainWindowViewModelTests
     {
         public int OpenCount { get; private set; }
         public Exception? Failure { get; init; }
+        public PamCredentials? LastCredentials { get; private set; }
 
         public Task OpenAsync(
             PamCredentials credentials,
             CancellationToken cancellationToken = default)
         {
             OpenCount++;
+            LastCredentials = credentials;
             return Failure is null
                 ? Task.CompletedTask
                 : Task.FromException(Failure);
         }
+    }
+
+    private sealed class FakePamAccountService(
+        IReadOnlyList<PamAccountStatus> accounts,
+        IReadOnlyDictionary<PamAccountId, PamCredentials> credentials) : IPamAccountService
+    {
+        public PamAccountId? LastLoadedAccountId { get; private set; }
+
+        public Task<IReadOnlyList<PamAccountStatus>> GetAccountsAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(accounts);
+
+        public Task<PamCredentials?> LoadCredentialsAsync(PamAccountId accountId, CancellationToken cancellationToken = default)
+        {
+            LastLoadedAccountId = accountId;
+            credentials.TryGetValue(accountId, out PamCredentials? value);
+            return Task.FromResult(value);
+        }
+
+        public Task<PamAccountSummary> CreatePrincipalAsync(string name, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<PamAccountSummary> RenameAsync(PamAccountId accountId, string name, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<PamAccountSummary> CreateSecondaryAsync(string name, PamCredentialUpdate credentialUpdate, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<PamAccountSummary> UpdateSecondaryAsync(PamAccountId accountId, string name, PamCredentialUpdate credentialUpdate, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task DeleteSecondaryAsync(PamAccountId accountId, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+    }
+
+    private sealed class FakeConfigurationDialogs : IConfigurationDialogService
+    {
+        public PamAccountId? SelectedAccountId { get; init; }
+        public int SelectionCount { get; private set; }
+
+        public PamAccountId? SelectPamAccount(IReadOnlyList<PamAccountStatus> accounts)
+        {
+            SelectionCount++;
+            return SelectedAccountId;
+        }
+
+        public Task<CredentialConfigurationState> EditCredentialsAsync(CredentialConfigurationState current, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public RequestConfigurationEdit? EditRequest(RequestSettings current, bool testModeEnabled, DateOnly ecuadorToday) => throw new NotSupportedException();
+        public MailConfigurationEdit? EditMail(MailSettings? current, string smtpAddress) => throw new NotSupportedException();
+        public void OpenFavoriteCollections() => throw new NotSupportedException();
+        public void OpenPamAccounts() => throw new NotSupportedException();
     }
 
     private sealed class FakeFavoriteCollectionService(FavoriteCollectionsState initial) : IFavoriteCollectionService
@@ -957,6 +1081,7 @@ public sealed class MainWindowViewModelTests
         public int PendingDuplicateCount { get; set; }
         public int CollectionPreparationCount { get; private set; }
         public AppSettings? LastPreparedSettings { get; private set; }
+        public string? LastPreparedCredentialUsername { get; private set; }
         public IReadOnlyList<FavoriteAccountKey> LastSelectedAccounts { get; private set; } = [];
 
         public Task<PamExecutionPreparation> PrepareRealAsync(PamCredentials credentials, AppSettings settings,
@@ -981,6 +1106,7 @@ public sealed class MainWindowViewModelTests
             PreparationCount++;
             CollectionPreparationCount++;
             LastPreparedSettings = settings;
+            LastPreparedCredentialUsername = credentials.Username;
             LastSelectedAccounts = selectedAccounts.ToArray();
             return Task.FromResult(new PamExecutionPreparation(
                 selectedAccounts.Count,

@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using PamAutomation.App.Views;
 using PamAutomation.App.ViewModels;
+using PamAutomation.Core.Accounts;
 using PamAutomation.Core.Interfaces.Favorites;
 using PamAutomation.Core.Interfaces.Accounts;
 using PamAutomation.Core.Models.Configuration;
@@ -90,5 +91,12 @@ public sealed class WpfConfigurationDialogService : IConfigurationDialogService
         if (pamAccountService is null) throw new InvalidOperationException("La administración de usuarios PAM no está disponible.");
         var dialog = new PamAccountsWindow(pamAccountService, pamAccountsWindowLogger) { Owner = Application.Current.MainWindow };
         dialog.ShowDialog();
+    }
+
+    public PamAccountId? SelectPamAccount(IReadOnlyList<PamAccountStatus> accounts)
+    {
+        ArgumentNullException.ThrowIfNull(accounts);
+        var dialog = new PamAccountSelectionWindow(accounts) { Owner = Application.Current.MainWindow };
+        return dialog.ShowDialog() == true ? dialog.SelectedAccountId : null;
     }
 }

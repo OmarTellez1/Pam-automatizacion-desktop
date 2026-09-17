@@ -4,6 +4,8 @@ using PamAutomation.Core.Interfaces.Credentials;
 using PamAutomation.Core.Models.Credentials;
 using PamAutomation.Infrastructure.Accounts;
 using PamAutomation.Infrastructure.Credentials;
+using PamAutomation.Infrastructure.Diagnostics;
+using Microsoft.Extensions.Logging;
 
 namespace PamAutomation.Tests.Infrastructure.Accounts;
 
@@ -44,6 +46,37 @@ public sealed class PamAccountServiceTests
         Assert.AreEqual("principal", credentials.For(WindowsPamCredentialStore.CredentialTargetName).LoadForAuthentication()?.Username);
         string secondaryTarget = $"PamAutomation/Accounts/{secondary.Id.ToStorageKey()}/PamCredentials/v1";
         Assert.AreEqual("secondary", credentials.For(secondaryTarget).LoadForAuthentication()?.Username);
+    }
+
+    [TestMethod]
+    public async Task LoadCredentialsAsync_SelectedIdentity_ReturnsOnlyItsCredential()
+    {
+        var registry = new MemoryRegistryStore();
+        var credentials = new CredentialDirectory();
+        credentials.For(WindowsPamCredentialStore.CredentialTargetName).Save(Complete("principal"));
+        using var service = new PamAccountService(registry, credentials.For);
+        PamAccountSummary principal = await service.CreatePrincipalAsync("Principal");
+        PamAccountSummary secondary = await service.CreateSecondaryAsync("Pepe", Complete("secondary"));
+
+        PamCredentials? principalCredentials = await service.LoadCredentialsAsync(principal.Id);
+        PamCredentials? secondaryCredentials = await service.LoadCredentialsAsync(secondary.Id);
+
+        Assert.AreEqual("principal", principalCredentials?.Username);
+        Assert.AreEqual("secondary", secondaryCredentials?.Username);
+    }
+
+    [TestMethod]
+    public async Task LoadCredentialsAsync_UnknownIdentity_IsRejected()
+    {
+        var registry = new MemoryRegistryStore();
+        var credentials = new CredentialDirectory();
+        using var service = new PamAccountService(registry, credentials.For);
+        await service.CreatePrincipalAsync("Principal");
+
+        PamAccountException exception = await Assert.ThrowsExactlyAsync<PamAccountException>(
+            () => service.LoadCredentialsAsync(PamAccountId.New()));
+
+        Assert.AreEqual(PamAccountErrorCode.AccountNotFound, exception.ErrorCode);
     }
 
     [TestMethod]
@@ -169,6 +202,38 @@ public sealed class PamAccountServiceTests
         Assert.AreEqual(PamAccountErrorCode.InvalidCredentials, exception.ErrorCode);
         Assert.HasCount(1, (await registry.LoadAsync()).Accounts);
         Assert.AreEqual(0, credentials.StoreCount);
+    }
+
+    [TestMethod]
+    public async Task AccountOperations_RuntimeDiagnostics_DoNotContainCredentialValues()
+    {
+        const string username = "private-account-user";
+        const string password = "private-account-password";
+        const string seed = "JBSWY3DPEHPK3PXP";
+        using var loggerFactory = new RuntimeDiagnosticLoggerFactory();
+        var registry = new MemoryRegistryStore();
+        var credentials = new CredentialDirectory();
+        using var service = new PamAccountService(
+            registry,
+            credentials.For,
+            loggerFactory.CreateLogger<PamAccountService>());
+        await service.CreatePrincipalAsync("Principal");
+        PamAccountSummary secondary = await service.CreateSecondaryAsync("Secundario", new PamCredentialUpdate
+        {
+            Username = username,
+            Password = password,
+            TotpSeed = seed
+        });
+
+        _ = await service.LoadCredentialsAsync(secondary.Id);
+
+        string diagnosticText = string.Join(
+            "\n",
+            loggerFactory.CaptureSnapshot().Select(logEvent =>
+                $"{logEvent.MessageTemplate} {string.Join(' ', logEvent.Properties.Values)}"));
+        Assert.DoesNotContain(username, diagnosticText, StringComparison.Ordinal);
+        Assert.DoesNotContain(password, diagnosticText, StringComparison.Ordinal);
+        Assert.DoesNotContain(seed, diagnosticText, StringComparison.Ordinal);
     }
 
     private static PamCredentialUpdate Complete(string username) => new()

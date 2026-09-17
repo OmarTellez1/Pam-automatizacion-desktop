@@ -164,7 +164,8 @@ namespace PamAutomation.App
                 updateService,
                 typeof(App).Assembly.GetName().Version,
                 interactiveAccess,
-                favoriteCollections);
+                favoriteCollections,
+                pamAccountService);
             viewModel.BeginInitialization();
             var window = new MainWindow { DataContext = viewModel };
             MainWindow = window;
@@ -193,19 +194,22 @@ namespace PamAutomation.App
         {
             try
             {
-                IReadOnlyList<PamAccountStatus> accounts = await accountService.GetAccountsAsync(cancellationToken);
-                if (accounts.Count > 0) return true;
-
-                var setup = new PamAccountNameWindow();
-                if (setup.ShowDialog() != true)
+                var bootstrapper = new PrincipalIdentityBootstrapper(accountService);
+                PrincipalIdentityBootstrapResult result = await bootstrapper.EnsureAsync(() =>
+                {
+                    var setup = new PamAccountNameWindow();
+                    return setup.ShowDialog() == true ? setup.AccountName : null;
+                }, cancellationToken);
+                if (result == PrincipalIdentityBootstrapResult.Cancelled)
                 {
                     logger.LogInformation("First-run principal identity setup was cancelled.");
                     Shutdown();
                     return false;
                 }
 
-                await accountService.CreatePrincipalAsync(setup.AccountName, cancellationToken);
-                logger.LogInformation("Principal PAM identity was created during first-run setup.");
+                logger.LogInformation(
+                    "Principal PAM identity bootstrap completed. Status={Status}.",
+                    result);
                 return true;
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

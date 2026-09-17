@@ -18,13 +18,13 @@
                             <StackPanel>
                                 <TextBlock FontSize="16" FontWeight="SemiBold" Text="{Binding Account.Name}"/>
                                 <TextBlock Margin="0,3,0,0" Foreground="{StaticResource TextSecondaryBrush}">
-                                    <Run Text="{Binding RoleText}"/><Run Text=" · "/><Run Text="{Binding CredentialText}"/>
+                                    <Run Text="{Binding RoleText, Mode=OneWay}"/><Run Text=" · "/><Run Text="{Binding CredentialText, Mode=OneWay}"/>
                                 </TextBlock>
                             </StackPanel>
                             <Button Grid.Column="1" Width="90" Height="34" Margin="10,0,0,0" Content="Renombrar" Click="Rename_Click">
                                 <Button.Style><Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding Account.IsPrimary}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></Button.Style>
                             </Button>
-                            <Button Grid.Column="2" Width="75" Height="34" Margin="8,0,0,0" Content="Editar" Click="Edit_Click">
+                            <Button Grid.Column="2" Width="145" Height="34" Margin="8,0,0,0" Content="Editar usuario" Click="Edit_Click">
                                 <Button.Style><Style TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}"><Setter Property="Visibility" Value="Visible"/><Style.Triggers><DataTrigger Binding="{Binding Account.IsPrimary}" Value="True"><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style></Button.Style>
                             </Button>
                             <Button Grid.Column="3" Width="75" Height="34" Margin="8,0,0,0" Content="Eliminar" Foreground="#B42318" Click="Delete_Click">

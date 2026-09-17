@@ -1,5 +1,6 @@
 using PamAutomation.Core.Models.Configuration;
 using PamAutomation.Core.Models.Credentials;
+using PamAutomation.Core.Accounts;
 
 namespace PamAutomation.App.Services;
 
@@ -12,4 +13,5 @@ public interface IConfigurationDialogService
     MailConfigurationEdit? EditMail(MailSettings? current, string smtpAddress);
     void OpenFavoriteCollections();
     void OpenPamAccounts();
+    PamAccountId? SelectPamAccount(IReadOnlyList<PamAccountStatus> accounts);
 }

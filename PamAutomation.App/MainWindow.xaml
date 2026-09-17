@@ -59,15 +59,6 @@
                 <StackPanel Grid.Column="1"
                             Orientation="Horizontal"
                             VerticalAlignment="Center">
-                    <Button x:Name="ExportDiagnosticsButton"
-                            Width="165"
-                            Height="40"
-                            Margin="0,0,12,0"
-                            AutomationProperties.Name="Exportar diagnóstico"
-                            Command="{Binding ExportDiagnosticsCommand}"
-                            Content="Exportar diagnóstico"
-                            IsEnabled="{Binding CanExportDiagnostics}"
-                            Style="{StaticResource SecondaryButtonStyle}" />
                     <Button x:Name="AccessPamButton"
                             Width="135"
                             Height="40"
@@ -85,12 +76,36 @@
                             Command="{Binding OpenPamAccountsCommand}"
                             Content="Usuarios PAM"
                             Style="{StaticResource SecondaryButtonStyle}" />
-                    <ToggleButton VerticalAlignment="Center"
-                                  AutomationProperties.Name="Seleccionar acción final"
-                                  Command="{Binding ToggleFinalActionCommand}"
-                                  IsChecked="{Binding SendEmailAtEnd, Mode=OneWay}"
-                                  IsEnabled="{Binding AreControlsEnabled}"
-                                  Style="{StaticResource OutlookActionToggleStyle}" />
+                    <Border MinWidth="170"
+                            Height="48"
+                            Padding="7,4,14,4"
+                            Background="White"
+                            BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="14"
+                            AutomationProperties.Name="Usuario principal activo">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <Border Width="34" Height="34" Background="{StaticResource NavyBrush}" CornerRadius="10">
+                                <TextBlock HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           Foreground="White"
+                                           FontSize="15"
+                                           FontWeight="Bold"
+                                           Text="{Binding PrincipalAccountInitial, Mode=OneWay}" />
+                            </Border>
+                            <StackPanel Margin="9,0,0,0" VerticalAlignment="Center">
+                                <TextBlock Foreground="{StaticResource TextSecondaryBrush}"
+                                           FontSize="10"
+                                           Text="Usuario principal" />
+                                <TextBlock MaxWidth="180"
+                                           Foreground="{StaticResource TextPrimaryBrush}"
+                                           FontSize="13"
+                                           FontWeight="SemiBold"
+                                           Text="{Binding PrincipalAccountName, Mode=OneWay}"
+                                           TextTrimming="CharacterEllipsis" />
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
                 </StackPanel>
             </Grid>
 
@@ -263,9 +278,36 @@
                 </Button>
             </StackPanel>
 
-                <UniformGrid Grid.Row="2"
-                             MaxWidth="920"
-                             Margin="0,20,0,0"
+            <Grid Grid.Row="2"
+                  MaxWidth="920"
+                  Margin="0,20,0,0"
+                  HorizontalAlignment="Stretch">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <StackPanel Grid.Row="0"
+                            Margin="0,0,0,12"
+                            HorizontalAlignment="Center"
+                            Orientation="Horizontal">
+                    <Button x:Name="ExportDiagnosticsButton"
+                            Width="180"
+                            Height="40"
+                            Margin="0,0,12,0"
+                            AutomationProperties.Name="Exportar diagnóstico"
+                            Command="{Binding ExportDiagnosticsCommand}"
+                            Content="Exportar diagnóstico"
+                            IsEnabled="{Binding CanExportDiagnostics}"
+                            Style="{StaticResource SecondaryButtonStyle}" />
+                    <ToggleButton VerticalAlignment="Center"
+                                  AutomationProperties.Name="Seleccionar acción final"
+                                  Command="{Binding ToggleFinalActionCommand}"
+                                  IsChecked="{Binding SendEmailAtEnd, Mode=OneWay}"
+                                  IsEnabled="{Binding AreControlsEnabled}"
+                                  Style="{StaticResource OutlookActionToggleStyle}" />
+                </StackPanel>
+
+                <UniformGrid Grid.Row="1"
                              HorizontalAlignment="Stretch"
                              Columns="4">
                 <Button Margin="0,0,10,0"
@@ -348,7 +390,8 @@
                                    Text="→" />
                     </Grid>
                 </Button>
-            </UniformGrid>
+                </UniformGrid>
+            </Grid>
         </Grid>
     </Grid>
 </Window>

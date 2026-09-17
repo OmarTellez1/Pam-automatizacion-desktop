@@ -39,6 +39,29 @@ public sealed class PamAccountService : IPamAccountService, IDisposable
         return state.Accounts.Select(account => new PamAccountStatus(account, GetCredentialStore(account).HasCredentials())).ToArray();
     }
 
+    public async Task<PamCredentials?> LoadCredentialsAsync(
+        PamAccountId accountId,
+        CancellationToken cancellationToken = default)
+    {
+        await gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            PamAccountRegistryState state = await store.LoadAsync(cancellationToken).ConfigureAwait(false);
+            PamAccountSummary account = Find(state, accountId);
+            PamCredentials? credentials = GetCredentialStore(account).LoadForAuthentication();
+            logger.LogInformation(
+                "PAM credentials resolved for interactive access. AccountId={AccountId}; IsPrimary={IsPrimary}; Available={Available}.",
+                account.Id,
+                account.IsPrimary,
+                credentials is not null);
+            return credentials;
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
     public async Task<PamAccountSummary> CreatePrincipalAsync(string name, CancellationToken cancellationToken = default)
     {
         string normalized = NormalizeName(name);
