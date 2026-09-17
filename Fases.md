@@ -376,6 +376,10 @@ La portada ya incorpora `Usuarios PAM`. La ventana de administración permite re
 
 El ajuste de presentación posterior muestra permanentemente el nombre y la inicial del principal en la cabecera, mantiene allí solo `Acceder a PAM` y `Usuarios PAM`, y traslada `Exportar diagnóstico` y la acción final a la zona de configuración. La lista de usuarios fuerza enlaces WPF de solo lectura para evitar que `Run.Text` intente escribir sobre propiedades calculadas; con ello se elimina la excepción crítica que anteriormente cerraba la aplicación al abrir `Usuarios PAM`.
 
+Las tarjetas de `Usuarios PAM` se estiran ahora al ancho completo de la lista para mantener alineadas la información y las acciones de principal y secundarios. La portada incorpora además un acceso circular `Acerca de` que abre un diálogo pequeño con la versión obtenida del ensamblado, el autor y una acción de cierre; no interviene en configuración ni secretos.
+
+La zona central se simplificó retirando el indicador permanente de colección activa y conservando un único aviso de bloqueo. El estado gris se renderiza solo cuando `IsRunning` está activo, de modo que Favorites, Pending y cada solicitud continúan informando progreso durante la automatización sin repetir mensajes cuando la aplicación está en reposo. La colección sigue validándose y mostrándose en la confirmación previa.
+
 ### Fase 23.3 — Selección de cuenta al acceder a PAM
 
 Al pulsar `Acceder a PAM`, la aplicación mostrará siempre una selección breve para que el usuario confirme con qué identidad desea iniciar sesión, incluso cuando solo exista la principal. Cada opción se identificará únicamente por su nombre descriptivo y marcará cuál es el usuario principal; jamás mostrará el usuario técnico, contraseña o semilla.

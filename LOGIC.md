@@ -73,6 +73,10 @@ La fase 23.4 hace idempotente y comprobable el arranque mediante `PrincipalIdent
 
 La portada muestra la identidad principal como nombre e inicial, pero ese indicador no cambia el ámbito funcional de la aplicación. `Usuarios PAM` siempre lista al principal primero; permite renombrarlo, nunca eliminarlo, y administra el alta, edición de nombre/credenciales y eliminación confirmada de secundarios. Los campos secretos vacíos durante una edición conservan el valor protegido existente. La plantilla de la lista usa enlaces explícitamente unidireccionales porque sus textos de rol y estado son propiedades calculadas de solo lectura.
 
+El diálogo `Acerca de` es únicamente informativo: lee la versión pública del ensamblado y muestra el autor, sin acceder a configuración, credenciales, navegador, Outlook o red.
+
+La portada no muestra un indicador permanente de colección activa y presenta un único aviso cuando la configuración bloquea el inicio. El texto gris de estado permanece oculto en reposo y se muestra solo durante una ejecución, para comunicar validación de Favorites/Pending y el avance de cada solicitud sin duplicar advertencias persistentes. La colección seleccionada continúa formando parte de la validación y de la confirmación previa a la ejecución.
+
 No habrá importación o exportación de perfiles, configuración por cuenta, intercambio de usuarios entre equipos ni automatización de solicitudes con una cuenta secundaria.
 
 La aplicación no utilizará archivos .env.

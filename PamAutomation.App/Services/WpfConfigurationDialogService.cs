@@ -93,6 +93,12 @@ public sealed class WpfConfigurationDialogService : IConfigurationDialogService
         dialog.ShowDialog();
     }
 
+    public void OpenAbout()
+    {
+        var dialog = new AboutWindow { Owner = Application.Current.MainWindow };
+        dialog.ShowDialog();
+    }
+
     public PamAccountId? SelectPamAccount(IReadOnlyList<PamAccountStatus> accounts)
     {
         ArgumentNullException.ThrowIfNull(accounts);

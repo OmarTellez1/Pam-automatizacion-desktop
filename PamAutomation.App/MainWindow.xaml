@@ -175,20 +175,6 @@
                         IsEnabled="{Binding CanStartAutomation}"
                         Style="{StaticResource HeroButtonStyle}" />
 
-                <Border Width="500"
-                        Margin="0,12,0,0"
-                        Padding="14,9"
-                        Background="{StaticResource NeutralSurfaceBrush}"
-                        BorderBrush="{StaticResource BorderBrush}"
-                        BorderThickness="1"
-                        CornerRadius="12">
-                    <TextBlock HorizontalAlignment="Center"
-                               FontWeight="SemiBold"
-                               Foreground="{StaticResource TextSecondaryBrush}"
-                               Text="{Binding ActiveCollectionText}"
-                               TextTrimming="CharacterEllipsis" />
-                </Border>
-
                 <Button Margin="0,14,0,0"
                         MinWidth="250"
                         HorizontalAlignment="Center"
@@ -224,7 +210,7 @@
 
                 <Border x:Name="StartAutomationWarningBanner"
                         Width="500"
-                        Margin="0,12,0,0"
+                        Margin="0,16,0,0"
                         Padding="12,10"
                         Background="#FFF7E8"
                         BorderBrush="#F0B44D"
@@ -249,14 +235,26 @@
                                TextWrapping="Wrap" />
                 </Border>
 
-                <TextBlock Width="500"
+                <TextBlock x:Name="AutomationStatusText"
+                           Width="500"
                            Margin="0,12,0,0"
                            HorizontalAlignment="Center"
                            Foreground="{StaticResource TextSecondaryBrush}"
                            FontSize="13"
                            Text="{Binding StatusMessage}"
                            TextAlignment="Center"
-                           TextWrapping="Wrap" />
+                           TextWrapping="Wrap">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsRunning}" Value="True">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
 
                 <Button x:Name="ShowAutomationResultButton"
                         MinWidth="230"
@@ -393,5 +391,56 @@
                 </UniformGrid>
             </Grid>
         </Grid>
+
+        <Button x:Name="AboutButton"
+                Grid.Row="1"
+                Width="42"
+                Height="42"
+                Margin="30,0,0,24"
+                HorizontalAlignment="Left"
+                VerticalAlignment="Bottom"
+                Panel.ZIndex="10"
+                AutomationProperties.Name="Acerca de PAM Automation"
+                Command="{Binding OpenAboutCommand}"
+                Content="i"
+                FontFamily="Segoe UI"
+                FontSize="20"
+                FontStyle="Italic"
+                FontWeight="Bold"
+                ToolTip="Acerca de PAM Automation">
+            <Button.Style>
+                <Style TargetType="Button">
+                    <Setter Property="Background" Value="{StaticResource NavyBrush}"/>
+                    <Setter Property="BorderBrush" Value="{StaticResource NavyBrush}"/>
+                    <Setter Property="BorderThickness" Value="1"/>
+                    <Setter Property="Foreground" Value="White"/>
+                    <Setter Property="Cursor" Value="Hand"/>
+                    <Setter Property="Template">
+                        <Setter.Value>
+                            <ControlTemplate TargetType="Button">
+                                <Border x:Name="Circle"
+                                        Background="{TemplateBinding Background}"
+                                        BorderBrush="{TemplateBinding BorderBrush}"
+                                        BorderThickness="{TemplateBinding BorderThickness}"
+                                        CornerRadius="21">
+                                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="Circle" Property="Opacity" Value="0.85"/>
+                                    </Trigger>
+                                    <Trigger Property="IsPressed" Value="True">
+                                        <Setter TargetName="Circle" Property="Opacity" Value="0.7"/>
+                                    </Trigger>
+                                    <Trigger Property="IsEnabled" Value="False">
+                                        <Setter TargetName="Circle" Property="Opacity" Value="0.45"/>
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Setter.Value>
+                    </Setter>
+                </Style>
+            </Button.Style>
+        </Button>
     </Grid>
 </Window>

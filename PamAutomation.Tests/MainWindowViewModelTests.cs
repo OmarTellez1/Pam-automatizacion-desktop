@@ -1044,6 +1044,7 @@ public sealed class MainWindowViewModelTests
         public MailConfigurationEdit? EditMail(MailSettings? current, string smtpAddress) => throw new NotSupportedException();
         public void OpenFavoriteCollections() => throw new NotSupportedException();
         public void OpenPamAccounts() => throw new NotSupportedException();
+        public void OpenAbout() => throw new NotSupportedException();
     }
 
     private sealed class FakeFavoriteCollectionService(FavoriteCollectionsState initial) : IFavoriteCollectionService

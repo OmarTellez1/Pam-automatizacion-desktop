@@ -9,10 +9,28 @@
         <TextBlock Grid.Row="1" Margin="0,7,0,18" Foreground="{StaticResource TextSecondaryBrush}"
                    Text="El principal realiza la automatización completa. Los secundarios solo permiten abrir una sesión mediante Acceder a PAM."
                    TextWrapping="Wrap"/>
-        <ListBox x:Name="AccountsList" Grid.Row="2" BorderThickness="0" Background="Transparent" ScrollViewer.VerticalScrollBarVisibility="Auto">
+        <ListBox x:Name="AccountsList"
+                 Grid.Row="2"
+                 BorderThickness="0"
+                 Background="Transparent"
+                 HorizontalContentAlignment="Stretch"
+                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                 ScrollViewer.VerticalScrollBarVisibility="Auto">
+            <ListBox.ItemContainerStyle>
+                <Style TargetType="ListBoxItem">
+                    <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                    <Setter Property="Padding" Value="0"/>
+                </Style>
+            </ListBox.ItemContainerStyle>
             <ListBox.ItemTemplate>
                 <DataTemplate>
-                    <Border Margin="0,0,0,9" Padding="15,12" Background="White" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" CornerRadius="10">
+                    <Border Margin="0,0,0,9"
+                            Padding="15,12"
+                            HorizontalAlignment="Stretch"
+                            Background="White"
+                            BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="10">
                         <Grid>
                             <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                             <StackPanel>

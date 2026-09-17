@@ -13,5 +13,6 @@ public interface IConfigurationDialogService
     MailConfigurationEdit? EditMail(MailSettings? current, string smtpAddress);
     void OpenFavoriteCollections();
     void OpenPamAccounts();
+    void OpenAbout();
     PamAccountId? SelectPamAccount(IReadOnlyList<PamAccountStatus> accounts);
 }

@@ -39,15 +39,18 @@ public sealed class ConfigurationWindowSmokeTests
             Assert.IsNotNull(window.FindName("ExportDiagnosticsButton"));
             Assert.IsNotNull(window.FindName("AccessPamButton"));
             Assert.IsNotNull(window.FindName("PamAccountsButton"));
+            Assert.IsNotNull(window.FindName("AboutButton"));
             Assert.IsNotNull(window.FindName("CollectionsButton"));
             Assert.IsNull(window.FindName("UseCollectionsToggle"));
             var brandBadge = Assert.IsInstanceOfType<Border>(window.FindName("BrandMonogramBadge"));
             var brandMonogram = Assert.IsInstanceOfType<TextBlock>(window.FindName("BrandMonogram"));
             var updateBanner = Assert.IsInstanceOfType<Border>(window.FindName("UpdateNotificationBanner"));
             var startWarning = Assert.IsInstanceOfType<Border>(window.FindName("StartAutomationWarningBanner"));
+            var automationStatus = Assert.IsInstanceOfType<TextBlock>(window.FindName("AutomationStatusText"));
             var resultButton = Assert.IsInstanceOfType<Button>(window.FindName("ShowAutomationResultButton"));
             Assert.AreEqual(Visibility.Visible, updateBanner.Visibility);
             Assert.AreEqual(Visibility.Visible, startWarning.Visibility);
+            Assert.AreEqual(Visibility.Collapsed, automationStatus.Visibility);
             Assert.AreEqual(Visibility.Collapsed, resultButton.Visibility);
             Assert.AreEqual("PAM Automation", window.Title);
             Assert.AreEqual(WindowState.Maximized, window.WindowState);
@@ -55,6 +58,10 @@ public sealed class ConfigurationWindowSmokeTests
             Assert.AreEqual(48d, brandBadge.Width);
             Assert.AreEqual(48d, brandBadge.Height);
             Assert.AreEqual("PA", brandMonogram.Text);
+
+            viewModel.IsRunning = true;
+            Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+            Assert.AreEqual(Visibility.Visible, automationStatus.Visibility);
         }
         finally
         {
@@ -133,6 +140,7 @@ public sealed class ConfigurationWindowSmokeTests
             [new PamAccountStatus(principal, true)]);
         var setupWindow = new PamAccountNameWindow();
         var secondaryWindow = new PamSecondaryAccountWindow();
+        var aboutWindow = new AboutWindow();
 
         try
         {
@@ -140,9 +148,11 @@ public sealed class ConfigurationWindowSmokeTests
             selectionWindow.Show();
             setupWindow.Show();
             secondaryWindow.Show();
+            aboutWindow.Show();
             Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
 
-            Assert.IsNotNull(accountsWindow.FindName("AccountsList"));
+            var accountsList = Assert.IsInstanceOfType<ListBox>(accountsWindow.FindName("AccountsList"));
+            Assert.AreEqual(HorizontalAlignment.Stretch, accountsList.HorizontalContentAlignment);
             Assert.IsNotNull(accountsWindow.FindName("CreateSecondaryButton"));
             Assert.IsNotNull(selectionWindow.FindName("AccountsList"));
             Assert.IsNotNull(selectionWindow.FindName("ContinueButton"));
@@ -150,9 +160,14 @@ public sealed class ConfigurationWindowSmokeTests
             Assert.IsNotNull(secondaryWindow.FindName("UsernameBox"));
             Assert.IsNotNull(secondaryWindow.FindName("PasswordBox"));
             Assert.IsNotNull(secondaryWindow.FindName("TotpSeedBox"));
+            Assert.AreEqual("1.0.2", aboutWindow.VersionText);
+            var author = Assert.IsInstanceOfType<TextBlock>(aboutWindow.FindName("AuthorText"));
+            Assert.AreEqual("Hitss Omar Téllez", author.Text);
+            Assert.IsNotNull(aboutWindow.FindName("CloseButton"));
         }
         finally
         {
+            aboutWindow.Close();
             secondaryWindow.Close();
             setupWindow.Close();
             selectionWindow.Close();

@@ -122,6 +122,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         ConfigureMailCommand = new AsyncRelayCommand(ConfigureMailAsync, () => AreControlsEnabled);
         OpenCollectionsCommand = new AsyncRelayCommand(OpenCollectionsAsync, () => AreControlsEnabled && configurationDialogs is not null);
         OpenPamAccountsCommand = new AsyncRelayCommand(OpenPamAccountsAsync, () => AreControlsEnabled && configurationDialogs is not null);
+        OpenAboutCommand = new RelayCommand(OpenAbout, () => AreControlsEnabled && configurationDialogs is not null);
         StartTestCommand = new AsyncRelayCommand(StartTestAsync, () => IsTestActionEnabled);
         StartAutomationCommand = new AsyncRelayCommand(StartAutomationAsync, () => CanStartAutomation);
         ToggleFinalActionCommand = new AsyncRelayCommand(ToggleFinalActionAsync, () => AreControlsEnabled);
@@ -136,6 +137,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public IRelayCommand ConfigureMailCommand { get; }
     public IAsyncRelayCommand OpenCollectionsCommand { get; }
     public IAsyncRelayCommand OpenPamAccountsCommand { get; }
+    public IRelayCommand OpenAboutCommand { get; }
     public IAsyncRelayCommand StartTestCommand { get; }
     public IAsyncRelayCommand StartAutomationCommand { get; }
     public IAsyncRelayCommand ToggleFinalActionCommand { get; }
@@ -582,6 +584,18 @@ public sealed partial class MainWindowViewModel : ObservableObject
             StatusMessage = "Administración de usuarios PAM cerrada.";
         }
         catch (Exception exception) { PresentError(exception); }
+    }
+
+    private void OpenAbout()
+    {
+        try
+        {
+            configurationDialogs?.OpenAbout();
+        }
+        catch (Exception exception)
+        {
+            PresentError(exception);
+        }
     }
 
     private async Task RefreshInteractivePamAccountAvailabilityAsync(CancellationToken cancellationToken = default)
@@ -1066,6 +1080,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         ConfigureMailCommand.NotifyCanExecuteChanged();
         OpenCollectionsCommand.NotifyCanExecuteChanged();
         OpenPamAccountsCommand.NotifyCanExecuteChanged();
+        OpenAboutCommand.NotifyCanExecuteChanged();
         StartTestCommand.NotifyCanExecuteChanged();
         StartAutomationCommand.NotifyCanExecuteChanged();
         ToggleFinalActionCommand.NotifyCanExecuteChanged();

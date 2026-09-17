@@ -676,3 +676,17 @@ Cada cambio relevante debe registrar qué se decidió, por qué, qué se verific
 - `Exportar diagnóstico` y la acción final `Mostrar IDs al final`/envío por Outlook se trasladaron sobre las tarjetas de configuración.
 - Se conserva la administración acordada: el principal puede renombrarse pero no eliminarse; los secundarios pueden crearse, renombrarse, actualizar sus credenciales o eliminarse con confirmación.
 - La compilación `Release | x64`, 63 pruebas relacionadas y la suite completa de 414 pruebas pasaron sin abrir PAM ni Outlook ni usar secretos reales.
+
+## 17 de septiembre de 2026 — Ajustes visuales de usuarios y diálogo Acerca de
+
+- Las tarjetas del principal y de las cuentas secundarias ahora ocupan uniformemente todo el ancho disponible en `Usuarios PAM`; se deshabilitó el desplazamiento horizontal innecesario.
+- La esquina inferior izquierda de la portada incorpora un botón circular de información accesible mediante teclado y automatización.
+- El nuevo diálogo `Acerca de PAM Automation` muestra la versión de tres componentes leída del ensamblado (`1.0.2`), el autor `Hitss Omar Téllez` y un botón de cierre.
+- La presentación del diálogo permanece detrás de `IConfigurationDialogService`, sin incorporar decisiones de UI al dominio o a la infraestructura.
+- La compilación `Release | x64`, 43 pruebas específicas de presentación/ViewModel y la suite completa de 414 pruebas pasaron.
+
+## 17 de septiembre de 2026 — Simplificación del estado central
+
+- Se retiró de la portada el indicador permanente de colección activa y se conservó únicamente el aviso contextual que explica por qué no puede iniciarse la automatización.
+- El texto gris de estado se oculta mientras la aplicación está en reposo y aparece únicamente durante la ejecución para mostrar validación de Favorites/Pending y solicitudes creadas.
+- Se eliminó visualmente la repetición de mensajes sin modificar el contenido ni la secuencia del progreso operativo existente.

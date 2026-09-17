@@ -854,6 +854,7 @@ La fase 23 no crea perfiles completos ni replica los almacenes de configuración
 - `PamAutomation.App/Views/PamAccountsWindow.*`: administración `Usuarios PAM`, límite de cuentas y protección del rol principal. Su plantilla declara como unidireccionales los textos calculados de rol y credenciales para impedir escrituras de WPF sobre propiedades de solo lectura.
 - `PamAutomation.App/Views/PamSecondaryAccountWindow.*`: alta y edición de una cuenta secundaria sin volver a mostrar secretos.
 - `PamAutomation.App/Views/PamAccountSelectionWindow.*`: selector modal para una sola apertura interactiva; muestra estado y rol, y bloquea identidades sin credenciales.
+- `PamAutomation.App/Views/AboutWindow.*`: diálogo informativo local con versión del ensamblado, autor y cierre; no depende de servicios operativos.
 - `PamAutomation.App/ViewModels/MainWindowViewModel.cs`: calcula por separado la disponibilidad del acceso interactivo, expone nombre e inicial del principal para la cabecera, solicita una identidad y entrega únicamente su credencial a `IPamInteractiveAccessService`. La automatización conserva el almacén principal.
 - `PamAutomation.App/App.xaml.cs`: bloquea la portada hasta que exista principal y conserva intacta la configuración funcional existente.
 - `PamAutomation.App/Services/PrincipalIdentityBootstrapper.cs`: coordina de forma idempotente la detección o creación inicial del principal y representa explícitamente creación, estado existente o cancelación.
