@@ -5,4 +5,5 @@ public enum PamExecutionMode
 {
     Test,
     Real,
+    ExistingPending,
 }

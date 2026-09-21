@@ -9,14 +9,6 @@ namespace PamAutomation.Core.Requests;
 /// <summary>Coordinates read-only discovery and comparison of PAM <c>Pending</c> requests.</summary>
 public sealed class PamPendingService
 {
-    private static readonly string[] KnownApplicationFamilies =
-    [
-        "nosqlbooster",
-        "plsql",
-        "putty",
-        "winscp",
-    ];
-
     private readonly IPamAuthenticatedSessionFactory authenticatedSessionFactory;
     private readonly IPamPendingPortalFactory portalFactory;
     private readonly IAsyncDelay asyncDelay;
@@ -94,51 +86,52 @@ public sealed class PamPendingService
             .ToArray();
         ValidateExpectedAccounts(expectedAccounts);
 
+        DateTime expectedExpiration = form.StartDate
+            .ToDateTime(form.StartTime)
+            .AddMinutes(form.TotalMinutes);
         ILookup<string, PamPendingRequest> candidates = validatedRequests
-            .Where(request => request.StartDate == form.StartDate && request.StartTime == form.StartTime)
+            .Where(request => IsExactBatchRequest(request, form, expectedExpiration))
             .ToLookup(AccountKey, StringComparer.Ordinal);
-        var matches = new List<PamPendingRequestMatch>(expectedAccounts.Count);
-        var missing = new List<PamFavoriteAccount>();
-        for (int index = 0; index < expectedAccounts.Count; index++)
+        PamPendingRequestMatch?[] matchesByExpectedIndex = new PamPendingRequestMatch?[expectedAccounts.Count];
+        bool[] missingByExpectedIndex = new bool[expectedAccounts.Count];
+
+        foreach (IGrouping<string, (PamFavoriteAccount Account, int Index)> expectedGroup in expectedAccounts
+            .Select(static (account, index) => (Account: account, Index: index))
+            .GroupBy(static item => AccountKey(item.Account), StringComparer.Ordinal))
         {
-            PamFavoriteAccount account = expectedAccounts[index];
-            PamPendingRequest[] accountCandidates = candidates[AccountKey(account)].ToArray();
-            PamPendingRequest[] accountMatches = accountCandidates
-                .Where(request => ApplicationMatches(account.ApplicationName, request.ApplicationName))
+            (PamFavoriteAccount Account, int Index)[] expectedItems = expectedGroup.ToArray();
+            PamPendingRequest[] accountMatches = candidates[expectedGroup.Key]
+                .OrderBy(static request => request.RequestId.Length)
+                .ThenBy(static request => request.RequestId, StringComparer.Ordinal)
                 .ToArray();
-            if (accountMatches.Length > 1)
+            if (accountMatches.Length > expectedItems.Length)
             {
                 throw new PamPendingException(PamPendingErrorCode.AmbiguousIdentity);
             }
 
-            if (accountMatches.Length == 0)
+            for (int index = 0; index < expectedItems.Length; index++)
             {
-                if (accountCandidates.Length > 0)
+                (PamFavoriteAccount account, int expectedIndex) = expectedItems[index];
+                if (index < accountMatches.Length)
                 {
-                    throw new PamPendingException(PamPendingErrorCode.FieldMismatch);
+                    matchesByExpectedIndex[expectedIndex] = new PamPendingRequestMatch(
+                        account,
+                        accountMatches[index]);
                 }
-
-                missing.Add(account);
-                continue;
+                else
+                {
+                    missingByExpectedIndex[expectedIndex] = true;
+                }
             }
-
-            PamPendingRequest match = accountMatches[0];
-            DateTime expectedExpiration = form.StartDate
-                .ToDateTime(form.StartTime)
-                .AddMinutes(form.TotalMinutes);
-            if (match.ExpiresDate != DateOnly.FromDateTime(expectedExpiration) ||
-                match.ExpiresTime != TimeOnly.FromDateTime(expectedExpiration) ||
-                !string.Equals(
-                    NormalizeDescription(match.Description),
-                    NormalizeDescription(form.Reason),
-                    StringComparison.Ordinal))
-            {
-                throw new PamPendingException(PamPendingErrorCode.FieldMismatch);
-            }
-
-            matches.Add(new PamPendingRequestMatch(account, match));
         }
 
+        PamPendingRequestMatch[] matches = matchesByExpectedIndex
+            .Where(static match => match is not null)
+            .Select(static match => match!)
+            .ToArray();
+        PamFavoriteAccount[] missing = expectedAccounts
+            .Where((_, index) => missingByExpectedIndex[index])
+            .ToArray();
         return new PamPendingComparisonResult(matches, missing);
     }
 
@@ -158,18 +151,13 @@ public sealed class PamPendingService
             .ToDateTime(form.StartTime)
             .AddMinutes(form.TotalMinutes);
 
+        HashSet<string> expectedAccountKeys = expectedAccounts
+            .Select(AccountKey)
+            .ToHashSet(StringComparer.Ordinal);
+
         return validatedRequests
-            .Where(request => request.StartDate == form.StartDate &&
-                request.StartTime == form.StartTime &&
-                request.ExpiresDate == DateOnly.FromDateTime(expectedExpiration) &&
-                request.ExpiresTime == TimeOnly.FromDateTime(expectedExpiration) &&
-                string.Equals(
-                    NormalizeDescription(request.Description),
-                    NormalizeDescription(form.Reason),
-                    StringComparison.Ordinal) &&
-                expectedAccounts.Any(account =>
-                    string.Equals(AccountKey(account), AccountKey(request), StringComparison.Ordinal) &&
-                    ApplicationMatches(account.ApplicationName, request.ApplicationName)))
+            .Where(request => IsExactBatchRequest(request, form, expectedExpiration) &&
+                expectedAccountKeys.Contains(AccountKey(request)))
             .ToArray();
     }
 
@@ -284,26 +272,18 @@ public sealed class PamPendingService
     private static string Normalize(string value) =>
         string.Join(' ', value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)).ToLowerInvariant();
 
-    private static bool ApplicationMatches(string requested, string observed)
-    {
-        string normalizedRequested = Normalize(requested);
-        string normalizedObserved = Normalize(observed);
-        if (string.Equals(normalizedObserved, normalizedRequested, StringComparison.Ordinal) ||
-            normalizedObserved.StartsWith(normalizedRequested + " - ", StringComparison.Ordinal))
-        {
-            return true;
-        }
-
-        string? requestedFamily = GetKnownApplicationFamily(normalizedRequested);
-        return requestedFamily is not null &&
-            string.Equals(requestedFamily, GetKnownApplicationFamily(normalizedObserved), StringComparison.Ordinal);
-    }
-
-    private static string? GetKnownApplicationFamily(string normalizedApplication) =>
-        KnownApplicationFamilies.FirstOrDefault(family =>
-            string.Equals(normalizedApplication, family, StringComparison.Ordinal) ||
-            normalizedApplication.StartsWith(family + " ", StringComparison.Ordinal) ||
-            normalizedApplication.StartsWith(family + "-", StringComparison.Ordinal));
+    private static bool IsExactBatchRequest(
+        PamPendingRequest request,
+        PamRequestFormData form,
+        DateTime expectedExpiration) =>
+        request.StartDate == form.StartDate &&
+        request.StartTime == form.StartTime &&
+        request.ExpiresDate == DateOnly.FromDateTime(expectedExpiration) &&
+        request.ExpiresTime == TimeOnly.FromDateTime(expectedExpiration) &&
+        string.Equals(
+            NormalizeDescription(request.Description),
+            NormalizeDescription(form.Reason),
+            StringComparison.Ordinal);
 
     private static string NormalizeDescription(string value) =>
         string.Join(' ', value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));

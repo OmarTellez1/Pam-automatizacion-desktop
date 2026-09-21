@@ -434,14 +434,33 @@ public sealed partial class MainWindowViewModel : ObservableObject
                 executionSettings,
                 activeCollection.Accounts,
                 GetEcuadorNow());
-            if (preparation.HasExactPendingDuplicates &&
-                !dialogs!.ConfirmRepeatedPendingRequests(preparation))
+            if (preparation.HasExactPendingDuplicates)
             {
-                logger.LogInformation(
-                    "Real PAM execution was cancelled because exact Pending duplicates were found. DuplicateCount={DuplicateCount}.",
-                    preparation.ExactPendingDuplicateCount);
-                StatusMessage = "Ejecución cancelada. Las solicitudes repetidas de Pending no se volvieron a crear.";
-                return;
+                RepeatedPendingDecision decision = dialogs!.ChooseRepeatedPendingAction(preparation);
+                if (decision == RepeatedPendingDecision.Cancel)
+                {
+                    logger.LogInformation(
+                        "Real PAM execution was cancelled because exact Pending duplicates were found. DuplicateCount={DuplicateCount}.",
+                        preparation.ExactPendingDuplicateCount);
+                    StatusMessage = "Ejecución cancelada. Las solicitudes repetidas de Pending no se volvieron a crear.";
+                    return;
+                }
+
+                if (decision == RepeatedPendingDecision.UseExistingRequestIds)
+                {
+                    if (mailSettings is null)
+                    {
+                        throw new InvalidOperationException("La configuración de correo no está disponible.");
+                    }
+
+                    StatusMessage = "Enviando correo con los Request ID existentes en Pending…";
+                    PamExecutionResult existingResult = await executionService
+                        .CompleteWithExistingPendingAsync(preparation, mailSettings)
+                        .ConfigureAwait(true);
+                    PresentResult(existingResult);
+                    PresentExistingPendingMailOutcome(existingResult.MailDelivery);
+                    return;
+                }
             }
 
             var progress = new Progress<PamRequestSubmissionProgress>(PresentSubmissionProgress);
@@ -784,10 +803,21 @@ public sealed partial class MainWindowViewModel : ObservableObject
         lastExecutionResult = result;
         HasResult = true;
         HasRequestIds = result.RequestIds.Count > 0;
-        ResultTitle = result.Mode == PamExecutionMode.Test ? "Prueba completada" : "Automatización completada";
-        ResultSummary = result.Mode == PamExecutionMode.Test
-            ? $"{result.ProcessedCount} de {result.FavoriteCount} formularios fueron validados y descartados. Solicitudes creadas: 0. Finalizó: {result.CompletedAt:dd/MM/yyyy hh:mm tt}."
-            : $"Procesadas: {result.ProcessedCount} de {result.FavoriteCount}. Request ID: {result.RequestIds.Count}. Conflictos: {result.ConflictCount}. Finalizó: {result.CompletedAt:dd/MM/yyyy hh:mm tt}.";
+        ResultTitle = result.Mode switch
+        {
+            PamExecutionMode.Test => "Prueba completada",
+            PamExecutionMode.ExistingPending => "Solicitudes existentes utilizadas",
+            _ => "Automatización completada",
+        };
+        ResultSummary = result.Mode switch
+        {
+            PamExecutionMode.Test =>
+                $"{result.ProcessedCount} de {result.FavoriteCount} formularios fueron validados y descartados. Solicitudes creadas: 0. Finalizó: {result.CompletedAt:dd/MM/yyyy hh:mm tt}.",
+            PamExecutionMode.ExistingPending =>
+                $"Se utilizaron {result.RequestIds.Count} Request ID existentes en Pending. Solicitudes nuevas creadas: 0. Finalizó: {result.CompletedAt:dd/MM/yyyy hh:mm tt}.",
+            _ =>
+                $"Procesadas: {result.ProcessedCount} de {result.FavoriteCount}. Request ID: {result.RequestIds.Count}. Conflictos: {result.ConflictCount}. Finalizó: {result.CompletedAt:dd/MM/yyyy hh:mm tt}.",
+        };
         if (result.MailDelivery is not null) ResultSummary += " " + result.MailDelivery.Message;
         RequestIdsText = string.Join(Environment.NewLine, result.RequestIds);
         StatusMessage = ResultTitle;
@@ -802,6 +832,33 @@ public sealed partial class MainWindowViewModel : ObservableObject
               Environment.NewLine + RequestIdsText
             : ResultSummary;
         dialogs!.ShowResult(ResultTitle, message);
+    }
+
+    private void PresentExistingPendingMailOutcome(OutlookDeliveryResult? delivery)
+    {
+        if (delivery is null) return;
+
+        switch (delivery.Status)
+        {
+            case OutlookDeliveryStatus.SentConfirmed:
+                dialogs!.ShowResult(
+                    "Correo enviado",
+                    "El correo con los Request ID existentes fue enviado correctamente y localizado en Enviados.");
+                break;
+            case OutlookDeliveryStatus.SubmittedUnconfirmed:
+                dialogs!.ShowResult(
+                    "Envío aceptado por Outlook",
+                    "Outlook recibió correctamente la solicitud para enviar el correo con los Request ID existentes.");
+                break;
+            case OutlookDeliveryStatus.OutboxPending:
+                dialogs!.ShowResult(
+                    "Correo pendiente en Outlook",
+                    "Outlook recibió el correo, pero todavía permanece en Bandeja de salida. Outlook continuará procesándolo.");
+                break;
+            default:
+                dialogs!.ShowError(delivery.Message);
+                break;
+        }
     }
 
     private void PresentError(Exception exception)

@@ -3,28 +3,29 @@ using System.Windows;
 using Microsoft.Win32;
 using PamAutomation.Core.Execution;
 using PamAutomation.Core.Models.Configuration;
+using PamAutomation.App.Views;
 
 namespace PamAutomation.App.Services;
 
 public sealed class WpfUserDialogService : IUserDialogService
 {
-    public bool ConfirmRepeatedPendingRequests(PamExecutionPreparation preparation)
+    public RepeatedPendingDecision ChooseRepeatedPendingAction(PamExecutionPreparation preparation)
     {
         ArgumentNullException.ThrowIfNull(preparation);
-        string message = string.Join(
-            Environment.NewLine,
-            $"Pending ya contiene {preparation.ExactPendingDuplicateCount} solicitud(es) exactamente iguales.",
-            string.Empty,
-            "Coinciden Account, System, Application, Request Start Date, Expires y Description.",
-            "PAM permite volver a pedirlas, pero se crearán solicitudes repetidas.",
-            string.Empty,
-            "Selecciona Sí para volver a pedirlas o No para cancelar la automatización.");
-        return UrgentMessageBox.Show(
-            message,
-            "Solicitudes repetidas en Pending",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Warning,
-            MessageBoxResult.No) == MessageBoxResult.Yes;
+        Window? owner = Application.Current?.MainWindow;
+        if (owner?.WindowState == WindowState.Minimized)
+        {
+            owner.WindowState = WindowState.Normal;
+        }
+
+        owner?.Activate();
+        var window = new RepeatedPendingDecisionWindow(preparation)
+        {
+            Owner = owner,
+            Topmost = true,
+        };
+        window.ShowDialog();
+        return window.Decision;
     }
 
     public bool ConfirmAutomationStart(AppSettings settings, MailSettings? mailSettings, string? collectionName = null)

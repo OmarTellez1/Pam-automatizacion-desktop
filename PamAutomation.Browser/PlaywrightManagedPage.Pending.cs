@@ -7,6 +7,7 @@ internal sealed partial class PlaywrightManagedPage
 {
     private const int MaximumPendingPages = 500;
     private const int MaximumPendingScanAttempts = 3;
+    private const float PendingCellReadTimeoutMilliseconds = 1_000;
     private const string PendingCaptureName = "fase13-pending-grid.png";
 
     public async Task<IReadOnlyList<PamPendingRequest>> ReadAllPendingAsync(
@@ -193,11 +194,15 @@ internal sealed partial class PlaywrightManagedPage
             {
                 (int currentPage, _) = await ReadPendingPageInfoAsync(pageInput, cancellationToken)
                     .ConfigureAwait(false);
+                if (currentPage != expectedPage)
+                {
+                    return false;
+                }
+
                 string signature = await ReadPendingSignatureAsync(rows, cancellationToken).ConfigureAwait(false);
-                return currentPage == expectedPage &&
-                    !string.Equals(signature, previousSignature, StringComparison.Ordinal);
+                return !string.Equals(signature, previousSignature, StringComparison.Ordinal);
             }
-            catch (InvalidOperationException)
+            catch (Exception exception) when (IsTransientPendingGridReadException(exception))
             {
                 return false;
             }
@@ -228,11 +233,7 @@ internal sealed partial class PlaywrightManagedPage
 
                 previous = current;
             }
-            catch (ArgumentException)
-            {
-                previous = null;
-            }
-            catch (InvalidOperationException)
+            catch (Exception exception) when (IsTransientPendingGridReadException(exception))
             {
                 previous = null;
             }
@@ -313,7 +314,10 @@ internal sealed partial class PlaywrightManagedPage
             throw new ArgumentException("La fila Pending no contiene todas las columnas requeridas.");
         }
 
-        string value = (await cell.InnerTextAsync().WaitAsync(cancellationToken).ConfigureAwait(false)).Trim();
+        string value = (await cell.InnerTextAsync(new LocatorInnerTextOptions
+        {
+            Timeout = PendingCellReadTimeoutMilliseconds,
+        }).WaitAsync(cancellationToken).ConfigureAwait(false)).Trim();
         if (!allowEmpty && value.Length == 0)
         {
             throw new ArgumentException("La fila Pending contiene un valor obligatorio vacío.");
@@ -321,6 +325,9 @@ internal sealed partial class PlaywrightManagedPage
 
         return value;
     }
+
+    internal static bool IsTransientPendingGridReadException(Exception exception) =>
+        exception is ArgumentException or InvalidOperationException or TimeoutException;
 
     private static async Task<string> ReadPendingSignatureAsync(
         ILocator rows,

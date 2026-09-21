@@ -99,7 +99,7 @@ public sealed class PamPendingServiceTests
     }
 
     [TestMethod]
-    public void Compare_DifferentApplication_DoesNotGuessIdentity()
+    public void Compare_DifferentApplication_UsesStablePendingFields()
     {
         var harness = new PendingHarness([]);
         var expected = new PamFavoriteAccount("NOSQLBOOSTER", "NOSQL BOOSTER", "account-a");
@@ -109,10 +109,10 @@ public sealed class PamPendingServiceTests
             "Application Session",
             "account-a");
 
-        PamPendingException exception = Assert.ThrowsExactly<PamPendingException>(
-            () => harness.Service.Compare([pending], [expected], CreateForm()));
+        PamPendingComparisonResult result = harness.Service.Compare([pending], [expected], CreateForm());
 
-        Assert.AreEqual(PamPendingErrorCode.FieldMismatch, exception.ErrorCode);
+        Assert.IsTrue(result.IsComplete);
+        Assert.AreEqual("170001", result.RequestIds[0]);
     }
 
     [TestMethod]
@@ -135,9 +135,8 @@ public sealed class PamPendingServiceTests
     [TestMethod]
     [DataRow("NOSQLBOOSTER", "NOSQLBOOSTER - PGDCPAMSER01")]
     [DataRow("PLSQL - Nodo1", "PLSQL - BDMOVIL-PGDC01")]
-    [DataRow("PuTTY - Nodo2", "PuTTY 0.77 - PGDCMSA01")]
-    [DataRow("WinSCP - nodo1", "WinSCP 5.21 N2 - PGDCMSA02")]
-    public void Compare_ObservedPortalApplicationFamily_MatchesFavoriteName(
+    [DataRow("Acceso futuro 383", "Nombre completamente distinto en Pending")]
+    public void Compare_ArbitraryPortalApplicationName_DoesNotAffectMatch(
         string favoriteApplication,
         string pendingApplication)
     {
@@ -152,7 +151,7 @@ public sealed class PamPendingServiceTests
     }
 
     [TestMethod]
-    public void Compare_SameKnownFamilyTwiceForSameAccount_RejectsAmbiguity()
+    public void Compare_RepeatedSystemAndAccount_MatchesByCountWithoutApplicationFamilies()
     {
         var harness = new PendingHarness([]);
         IReadOnlyList<PamFavoriteAccount> expected =
@@ -166,14 +165,14 @@ public sealed class PamPendingServiceTests
             CreatePending("170002", application: "PuTTY 0.77 - SERVER02"),
         ];
 
-        PamPendingException exception = Assert.ThrowsExactly<PamPendingException>(
-            () => harness.Service.Compare(requests, expected, CreateForm()));
+        PamPendingComparisonResult result = harness.Service.Compare(requests, expected, CreateForm());
 
-        Assert.AreEqual(PamPendingErrorCode.AmbiguousIdentity, exception.ErrorCode);
+        Assert.IsTrue(result.IsComplete);
+        CollectionAssert.AreEqual(new[] { "170001", "170002" }, result.RequestIds.ToArray());
     }
 
     [TestMethod]
-    public void Compare_SameAccountWithObservedPuttyAndWinscpNames_MatchesByFamily()
+    public void Compare_SameAccountWithDifferentApplications_MatchesDeterministicallyByRequestId()
     {
         var harness = new PendingHarness([]);
         IReadOnlyList<PamFavoriteAccount> expected =
@@ -190,7 +189,7 @@ public sealed class PamPendingServiceTests
         PamPendingComparisonResult result = harness.Service.Compare(requests, expected, CreateForm());
 
         Assert.IsTrue(result.IsComplete);
-        CollectionAssert.AreEqual(new[] { "151905", "151904" }, result.RequestIds.ToArray());
+        CollectionAssert.AreEqual(new[] { "151904", "151905" }, result.RequestIds.ToArray());
     }
 
     [TestMethod]
@@ -238,8 +237,8 @@ public sealed class PamPendingServiceTests
         var expected = new PamFavoriteAccount("system-a", "WinSCP", "account-a");
         IReadOnlyList<PamPendingRequest> requests =
         [
-            CreatePending("170001"),
-            CreatePending("170002"),
+            CreatePending("170001", application: "Pending name one"),
+            CreatePending("170002", application: "Pending name two"),
             CreatePending("170003", description: "Different reason"),
             CreatePending("170004", startTime: new TimeOnly(9, 5)),
         ];
@@ -272,6 +271,7 @@ public sealed class PamPendingServiceTests
 
         Assert.IsTrue(result.IsComplete);
         Assert.AreEqual("170002", result.RequestIds[0]);
+        Assert.DoesNotContain("170001", result.RequestIds);
     }
 
     [TestMethod]
@@ -291,7 +291,7 @@ public sealed class PamPendingServiceTests
     }
 
     [TestMethod]
-    public void Compare_DifferentExpiration_RejectsFieldMismatch()
+    public void Compare_DifferentExpiration_IgnoresUnrelatedRowAndReportsMissing()
     {
         var harness = new PendingHarness([]);
         var expected = new PamFavoriteAccount("system-a", "WinSCP - Nodo1", "account-a");
@@ -300,14 +300,14 @@ public sealed class PamPendingServiceTests
             application: "WinSCP - Nodo1",
             expiresTime: new TimeOnly(11, 1));
 
-        PamPendingException exception = Assert.ThrowsExactly<PamPendingException>(
-            () => harness.Service.Compare([pending], [expected], CreateForm()));
+        PamPendingComparisonResult result = harness.Service.Compare([pending], [expected], CreateForm());
 
-        Assert.AreEqual(PamPendingErrorCode.FieldMismatch, exception.ErrorCode);
+        Assert.IsFalse(result.IsComplete);
+        Assert.AreEqual(1, result.MissingCount);
     }
 
     [TestMethod]
-    public void Compare_DifferentDescription_RejectsFieldMismatch()
+    public void Compare_DifferentDescription_IgnoresUnrelatedRowAndReportsMissing()
     {
         var harness = new PendingHarness([]);
         var expected = new PamFavoriteAccount("system-a", "WinSCP - Nodo1", "account-a");
@@ -316,10 +316,10 @@ public sealed class PamPendingServiceTests
             application: "WinSCP - Nodo1",
             description: "Another reason");
 
-        PamPendingException exception = Assert.ThrowsExactly<PamPendingException>(
-            () => harness.Service.Compare([pending], [expected], CreateForm()));
+        PamPendingComparisonResult result = harness.Service.Compare([pending], [expected], CreateForm());
 
-        Assert.AreEqual(PamPendingErrorCode.FieldMismatch, exception.ErrorCode);
+        Assert.IsFalse(result.IsComplete);
+        Assert.AreEqual(1, result.MissingCount);
     }
 
     [TestMethod]
@@ -352,6 +352,72 @@ public sealed class PamPendingServiceTests
             retryDelay: TimeSpan.FromMilliseconds(1));
 
         Assert.IsTrue(result.IsComplete);
+        Assert.AreEqual(2, portal.ReadCalls);
+        Assert.AreEqual(1, delay.Calls);
+    }
+
+    [TestMethod]
+    public async Task WaitForCompleteComparisonAsync_BaselineRemainsVisible_ReturnsOnlyNewRequestId()
+    {
+        var expected = new PamFavoriteAccount("system-a", "Favorite application", "account-a");
+        PamPendingRequest oldRequest = CreatePending("170001", application: "Old Pending application");
+        PamPendingRequest newRequest = CreatePending("170002", application: "New unrelated Pending label");
+        var portal = new SequencedPortal([[oldRequest], [oldRequest, newRequest]]);
+        var delay = new FakeDelay();
+        var session = new FakeSession();
+        var service = new PamPendingService(
+            new FakeAuthenticatedSessionFactory(session),
+            new FakePortalFactory(portal),
+            delay);
+
+        PamPendingComparisonResult result = await service.WaitForCompleteComparisonAsync(
+            session,
+            [expected],
+            CreateForm(),
+            maximumAttempts: 3,
+            retryDelay: TimeSpan.FromMilliseconds(1),
+            excludedRequestIds: ["170001"]);
+
+        Assert.IsTrue(result.IsComplete);
+        CollectionAssert.AreEqual(new[] { "170002" }, result.RequestIds.ToArray());
+        Assert.DoesNotContain("170001", result.RequestIds);
+        Assert.AreEqual(2, portal.ReadCalls);
+    }
+
+    [TestMethod]
+    public async Task WaitForCompleteComparisonAsync_RepeatedStableKeyWaitsForFullNewCount()
+    {
+        IReadOnlyList<PamFavoriteAccount> expected =
+        [
+            new PamFavoriteAccount("system-a", "Favorite application A", "account-a"),
+            new PamFavoriteAccount("system-a", "Favorite application B", "account-a"),
+        ];
+        PamPendingRequest oldRequest = CreatePending("170001", application: "Old label");
+        PamPendingRequest firstNewRequest = CreatePending("170002", application: "Pending label X");
+        PamPendingRequest secondNewRequest = CreatePending("170003", application: "Pending label Y");
+        var portal = new SequencedPortal(
+        [
+            [oldRequest, firstNewRequest],
+            [oldRequest, firstNewRequest, secondNewRequest],
+        ]);
+        var delay = new FakeDelay();
+        var session = new FakeSession();
+        var service = new PamPendingService(
+            new FakeAuthenticatedSessionFactory(session),
+            new FakePortalFactory(portal),
+            delay);
+
+        PamPendingComparisonResult result = await service.WaitForCompleteComparisonAsync(
+            session,
+            expected,
+            CreateForm(),
+            maximumAttempts: 3,
+            retryDelay: TimeSpan.FromMilliseconds(1),
+            excludedRequestIds: ["170001"]);
+
+        Assert.IsTrue(result.IsComplete);
+        CollectionAssert.AreEqual(new[] { "170002", "170003" }, result.RequestIds.ToArray());
+        Assert.DoesNotContain("170001", result.RequestIds);
         Assert.AreEqual(2, portal.ReadCalls);
         Assert.AreEqual(1, delay.Calls);
     }

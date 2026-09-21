@@ -13,6 +13,7 @@ using PamAutomation.Core.Favorites;
 using PamAutomation.Core.Interfaces.Favorites;
 using PamAutomation.Core.Interfaces.Accounts;
 using PamAutomation.Core.Accounts;
+using PamAutomation.Core.Execution;
 
 namespace PamAutomation.Tests.App;
 
@@ -172,6 +173,43 @@ public sealed class ConfigurationWindowSmokeTests
             setupWindow.Close();
             selectionWindow.Close();
             accountsWindow.Close();
+        }
+    }
+
+    [STATestMethod]
+    public void RepeatedPendingDecisionWindow_CompleteEmailSet_EnablesAllThreeActions()
+    {
+        EnsureApplicationResources();
+        var request = new RequestSettings
+        {
+            StartDate = new DateOnly(2026, 9, 21),
+            StartTime = new TimeOnly(17, 0),
+            SessionHours = 1,
+            RequestReason = "Solicitud de acceso PAM",
+        };
+        var preparation = new PamExecutionPreparation(
+            2,
+            request,
+            FinalAction.SendEmail,
+            pendingRequestIdsBeforeSubmission: ["154210", "154211"],
+            exactPendingDuplicateCount: 2,
+            reusablePendingRequestIds: ["154210", "154211"]);
+        var window = new RepeatedPendingDecisionWindow(preparation);
+
+        try
+        {
+            window.Show();
+            Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+
+            Assert.IsNotNull(window.FindName("CancelButton"));
+            Assert.IsNotNull(window.FindName("SubmitAgainButton"));
+            var reuse = Assert.IsInstanceOfType<Button>(window.FindName("ReuseButton"));
+            Assert.IsTrue(reuse.IsEnabled);
+            Assert.AreEqual(RepeatedPendingDecision.Cancel, window.Decision);
+        }
+        finally
+        {
+            window.Close();
         }
     }
 

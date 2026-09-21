@@ -93,6 +93,21 @@ public sealed class PamPendingPortalTests
         Assert.AreEqual("Pending contiene un Request Start Date inválido.", exception.Message);
     }
 
+    [TestMethod]
+    public void PendingGridRead_TransientRenderFailures_AreRetryable()
+    {
+        Assert.IsTrue(PlaywrightManagedPage.IsTransientPendingGridReadException(new ArgumentException()));
+        Assert.IsTrue(PlaywrightManagedPage.IsTransientPendingGridReadException(new InvalidOperationException()));
+        Assert.IsTrue(PlaywrightManagedPage.IsTransientPendingGridReadException(new TimeoutException()));
+    }
+
+    [TestMethod]
+    public void PendingGridRead_CancellationAndUnexpectedFailures_AreNotRetryable()
+    {
+        Assert.IsFalse(PlaywrightManagedPage.IsTransientPendingGridReadException(new OperationCanceledException()));
+        Assert.IsFalse(PlaywrightManagedPage.IsTransientPendingGridReadException(new IOException()));
+    }
+
     private static PamPendingRequest CreatePending() => new(
         "170001",
         "system",

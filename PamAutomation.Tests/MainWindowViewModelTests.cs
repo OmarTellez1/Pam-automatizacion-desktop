@@ -510,7 +510,7 @@ public sealed class MainWindowViewModelTests
     {
         TestContext context = CreateIntegratedViewModel(confirm: true);
         context.Execution.PendingDuplicateCount = 2;
-        context.Dialogs.ConfirmRepeatedRequests = false;
+        context.Dialogs.RepeatedPendingDecision = RepeatedPendingDecision.Cancel;
         await context.ViewModel.InitializeAsync();
 
         await context.ViewModel.StartAutomationCommand.ExecuteAsync(null);
@@ -527,7 +527,7 @@ public sealed class MainWindowViewModelTests
     {
         TestContext context = CreateIntegratedViewModel(confirm: true);
         context.Execution.PendingDuplicateCount = 2;
-        context.Dialogs.ConfirmRepeatedRequests = true;
+        context.Dialogs.RepeatedPendingDecision = RepeatedPendingDecision.SubmitAgain;
         await context.ViewModel.InitializeAsync();
 
         await context.ViewModel.StartAutomationCommand.ExecuteAsync(null);
@@ -536,6 +536,44 @@ public sealed class MainWindowViewModelTests
         Assert.AreEqual(1, context.Execution.PreparationCount);
         Assert.AreEqual(1, context.Dialogs.RepeatedPendingConfirmationCount);
         Assert.AreEqual(1, context.Execution.RealExecutionCount);
+    }
+
+    [TestMethod]
+    public async Task RealExecution_CompleteExactPendingSetSelected_EmailsExistingIdsWithoutSubmission()
+    {
+        TestContext context = CreateIntegratedViewModel(confirm: true, configureTestEmail: true);
+        context.Execution.PendingDuplicateCount = 1;
+        context.Execution.ReusablePendingIds = ["7001"];
+        context.Dialogs.RepeatedPendingDecision = RepeatedPendingDecision.UseExistingRequestIds;
+        await context.ViewModel.InitializeAsync();
+
+        await context.ViewModel.StartAutomationCommand.ExecuteAsync(null);
+
+        Assert.AreEqual(0, context.Execution.RealExecutionCount);
+        Assert.AreEqual(1, context.Execution.ExistingPendingCompletionCount);
+        Assert.AreEqual("Solicitudes existentes utilizadas", context.ViewModel.ResultTitle);
+        Assert.AreEqual("7001", context.ViewModel.RequestIdsText);
+        Assert.Contains("Solicitudes nuevas creadas: 0", context.ViewModel.ResultSummary);
+        Assert.AreEqual(1, context.Dialogs.ResultDisplayCount);
+        Assert.Contains("Outlook recibió correctamente", context.Dialogs.LastResultMessage);
+    }
+
+    [TestMethod]
+    public async Task ReconciliationFailureAfterSubmission_WarnsToReviewPendingBeforeRetrying()
+    {
+        TestContext context = CreateIntegratedViewModel(confirm: true);
+        context.Execution.Failure = new PamRequestSubmissionException(
+            PamRequestSubmissionErrorCode.ReconciliationFailedAfterSubmission,
+            processedCount: 10);
+        await context.ViewModel.InitializeAsync();
+
+        await context.ViewModel.StartAutomationCommand.ExecuteAsync(null);
+
+        Assert.IsTrue(context.ViewModel.HasResult);
+        Assert.AreEqual("Automatización incompleta", context.ViewModel.ResultTitle);
+        Assert.Contains("10 Favorites rows", context.ViewModel.ResultSummary);
+        Assert.Contains("Revisa Pending", context.ViewModel.StatusMessage);
+        Assert.Contains("utiliza los IDs existentes", context.ViewModel.StatusMessage);
     }
 
     [TestMethod]
@@ -915,22 +953,24 @@ public sealed class MainWindowViewModelTests
         public FakeDialogs(bool confirm)
         {
             this.confirm = confirm;
-            ConfirmRepeatedRequests = confirm;
+            RepeatedPendingDecision = confirm
+                ? RepeatedPendingDecision.SubmitAgain
+                : RepeatedPendingDecision.Cancel;
         }
 
         public string? DiagnosticPath { get; set; } = "C:\\support\\diagnostic.zip";
         public string? LastError { get; private set; }
         public int ResultDisplayCount { get; private set; }
         public string LastResultMessage { get; private set; } = string.Empty;
-        public bool ConfirmRepeatedRequests { get; set; }
+        public RepeatedPendingDecision RepeatedPendingDecision { get; set; }
         public Action? AutomationStartConfirmationAction { get; set; }
         public int AutomationStartConfirmationCount { get; private set; }
         public string? LastAutomationCollectionName { get; private set; }
         public int RepeatedPendingConfirmationCount { get; private set; }
-        public bool ConfirmRepeatedPendingRequests(PamExecutionPreparation preparation)
+        public RepeatedPendingDecision ChooseRepeatedPendingAction(PamExecutionPreparation preparation)
         {
             RepeatedPendingConfirmationCount++;
-            return ConfirmRepeatedRequests;
+            return RepeatedPendingDecision;
         }
         public bool ConfirmAutomationStart(
             AppSettings settings,
@@ -1080,6 +1120,8 @@ public sealed class MainWindowViewModelTests
         public string[] LastEmailIds { get; private set; } = [];
         public bool LastEmailWasTest { get; private set; }
         public int PendingDuplicateCount { get; set; }
+        public IReadOnlyList<string> ReusablePendingIds { get; set; } = [];
+        public int ExistingPendingCompletionCount { get; private set; }
         public int CollectionPreparationCount { get; private set; }
         public AppSettings? LastPreparedSettings { get; private set; }
         public string? LastPreparedCredentialUsername { get; private set; }
@@ -1094,7 +1136,8 @@ public sealed class MainWindowViewModelTests
                 settings.Request,
                 settings.FinalAction,
                 PendingDuplicateCount > 0 ? ["7001"] : [],
-                PendingDuplicateCount));
+                PendingDuplicateCount,
+                reusablePendingRequestIds: ReusablePendingIds));
         }
 
         public Task<PamExecutionPreparation> PrepareCollectionRealAsync(
@@ -1115,7 +1158,8 @@ public sealed class MainWindowViewModelTests
                 settings.FinalAction,
                 PendingDuplicateCount > 0 ? ["7001"] : [],
                 PendingDuplicateCount,
-                selectedAccounts));
+                selectedAccounts,
+                ReusablePendingIds));
         }
 
         public Task<PamExecutionResult> ExecuteRealAsync(PamCredentials credentials,
@@ -1134,6 +1178,23 @@ public sealed class MainWindowViewModelTests
             DateTimeOffset ecuadorNow, MailSettings? mailSettings = null, CancellationToken cancellationToken = default) =>
             Task.FromResult(new PamExecutionResult(
                 PamExecutionMode.Test, now, settings.FinalAction, 2, 2, 0, []));
+
+        public Task<PamExecutionResult> CompleteWithExistingPendingAsync(
+            PamExecutionPreparation preparation,
+            MailSettings mailSettings,
+            CancellationToken cancellationToken = default)
+        {
+            ExistingPendingCompletionCount++;
+            return Task.FromResult(new PamExecutionResult(
+                PamExecutionMode.ExistingPending,
+                now,
+                FinalAction.SendEmail,
+                preparation.FavoriteCount,
+                preparation.FavoriteCount,
+                0,
+                preparation.ReusablePendingRequestIds,
+                OutlookDeliveryResult.SubmittedUnconfirmed()));
+        }
 
         public Task<OutlookDeliveryResult> SendResultEmailAsync(MailSettings mailSettings,
             IReadOnlyList<string> requestIds, bool isTest, CancellationToken cancellationToken = default)

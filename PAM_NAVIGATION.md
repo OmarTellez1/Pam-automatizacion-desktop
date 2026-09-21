@@ -62,7 +62,7 @@ Las capturas locales `img/fase13-pending-grid.png`, `img/fase13-pending-grid-des
 
 Las filas técnicas autorizadas de 5 minutos confirmaron los identificadores DOM `RequestId`, `SystemName`, `AccessType`, `DomainName`, `AccountName`, `ReleaseDt`, `ResponseStatus`, `ResponseDt`, `ExpiresDt`, `Description`, `TicketNumber`, `Application`, `Location` y `RowContextMenu`. Para observar la tabla completa, la automatización usa `ScrollIntoViewIfNeededAsync` sobre una celda de `Description` y otra de `Application` y toma capturas completas después de cada desplazamiento horizontal. Las imágenes son evidencia local de desarrollo y pueden contener Request ID e identidades operativas; no se versionan ni se reproducen en este documento.
 
-La observación real confirmó que la columna `Application` de Pending puede usar una nomenclatura distinta de Favorites: `NOSQLBOOSTER` aparece como `NOSQLBOOSTER - …`, `PLSQL - Nodo1` como `PLSQL - BDMOVIL-…`, `PuTTY - Nodo2` como `PuTTY 0.77 - …` y `WinSCP - nodo1` como `WinSCP 5.21 N2 - …`. La regla exige `System` y `Account` exactos, la misma familia controlada de `Application`, el mismo `Request Start Date`, el `Expires` calculado desde la duración y la misma `Description`. No se deriva la familia desde `System`, no se utiliza `Ticket` para asociar y no se consulta `Approved` para completar la comparación. Dos filas de una misma familia bajo el mismo `System + Account` siguen siendo ambiguas.
+La observación real confirmó que la columna `Application` de Pending puede usar una nomenclatura distinta de Favorites. Desde la fase 24 no se compara ese campo ni se mantienen familias. La regla exige `System` y `Account` exactos, el mismo `Request Start Date`, el `Expires` calculado desde la duración y la misma `Description`; las repeticiones se resuelven por conteo. No se utiliza `Ticket`, no se consulta `Approved` y no se asocia por posición.
 
 ## Recorrido web confirmado
 
@@ -85,9 +85,18 @@ Toda la navegación de creación de solicitudes ocurre en un único contexto tem
 15. En modo de prueba, verificar todos los valores y ejecutar `Cancel` seguido de `Discard Changes`. En modo real, la confirmación general ocurre una sola vez al pulsar `Iniciar automatización`; después, la validación inmediata debe preceder a cada `Submit Request` sin mostrar otro diálogo general.
 16. Para leer resultados, navegar a `/webconsole/ps/portal?tab=requests`, exigir un único control `Status`, seleccionar la opción exacta `Pending` y comprobar que el control conserva ese valor.
 17. Recorrer el paginador desde la primera página, validar Request ID numéricos y únicos y comparar el contador dinámico cuando esté disponible. `0 items` es un resultado válido.
-18. Asociar primero por `Request Start Date + System + Account`; validar después `Application`, `Expires` y `Description`. Nunca asociar por Request ID supuesto, orden o texto truncado visible.
-19. Después de que el usuario acepte la confirmación inicial y antes de enviar solicitudes reales, leer todo `Pending` y guardar en memoria sus Request ID como línea base. Si existen filas con `System`, `Account`, familia de `Application`, `Request Start Date`, `Expires` y `Description` iguales, informar la cantidad y exigir que el usuario elija volver a pedirlas o cancelar; esta segunda pregunta aparece solo porque la decisión es necesaria.
-20. Si el usuario acepta repetirlas, enviar normalmente y excluir la línea base de la reconciliación posterior. Las filas nuevas deben seguir siendo únicas por cada `Favorites` row; una duplicación surgida después del preflight continúa siendo ambigua y bloqueante.
+18. Asociar Pending por `System + Account + Request Start Date + Expires + Description`, con conteos para claves repetidas. Nunca usar `Application`, Request ID supuesto, orden o texto truncado visible.
+19. Después de que el usuario acepte la confirmación inicial y antes de enviar solicitudes reales, leer todo `Pending` y guardar en memoria sus Request ID como línea base. Si existen filas con los cinco campos estables iguales, informar la cantidad y exigir que el usuario elija cancelar, volver a automatizar o usar los Request ID existentes para el correo.
+20. Si el usuario acepta repetirlas, enviar normalmente y excluir toda la línea base de la reconciliación posterior. Solo los Request ID nuevos cuyos campos y conteos coincidan con el lote pueden llegar al resultado o al correo; un exceso indistinguible continúa siendo ambiguo y bloqueante.
+21. Habilitar `Usar Request ID existentes y enviar correo` únicamente si la línea base contiene una coincidencia completa y no ambigua por cada solicitud de la colección y la acción final es correo. Al elegirla, no abrir formularios ni pulsar `Submit Request`; entregar esos IDs a Outlook, autorizar un correo nuevo aunque exista la misma huella previa y presentar explícitamente que se crearon cero solicitudes nuevas junto con el estado real del envío.
+
+### Cambio de fase 24
+
+La observación posterior confirmó que `System` y `Account` conservan el mismo valor entre Favorites y Pending, mientras `Application` puede cambiar para muchos de los aproximadamente 383 accesos disponibles. Esta cantidad representa el catálogo posible; cada ejecución continúa limitada a la colección activa.
+
+La fase 24 reemplazó los pasos 18–20 en su aspecto comparativo: `Application` dejó de intervenir en Pending y no existen familias, prefijos o reglas por producto. El preflight compara `System + Account + Request Start Date + Expires + Description` y mantiene la decisión de repetir o cancelar. La reconciliación posterior excluye todos los Request ID de la línea base y agrupa únicamente las filas nuevas compatibles por `System + Account`, exigiendo el mismo conteo que el lote realmente enviado. Las claves repetidas son válidas; una carga parcial se reintenta y un exceso indistinguible es ambiguo. Nunca se asignan IDs por orden visual.
+
+La identidad `System + Application + Account` se conserva sin cambios dentro de Favorites y colecciones porque allí sí identifica el formulario exacto que debe abrirse.
 
 ## Acceso interactivo persistente a PAM
 
@@ -111,6 +120,7 @@ La decisión de confiar en el certificado pertenece al usuario y queda persistid
 - La clave lógica actual es la combinación exacta y completa `System + Application + Account`.
 - Leer primero un snapshot estable y único; antes de abrir cada formulario, volver a leer la fila y comparar su identidad.
 - Tratar filas incompletas, identidades duplicadas, paginación cambiante, controles ambiguos o valores restablecidos como fallos bloqueantes.
+- Durante una transición paginada, reobservar brevemente filas todavía incompletas y aceptar la página únicamente después de dos snapshots completos e idénticos; una fila que no se estabiliza dentro del límite continúa siendo bloqueante.
 - Priorizar roles, labels y atributos estables. Los selectores CSS se limitan al grid y a Flatpickr cuando no existe una alternativa accesible suficiente.
 - Mantener autenticación, Favorites y formularios en la misma sesión temporal. No reutilizar perfiles, cookies ni sesiones persistentes de Edge.
 - No imprimir ni persistir las identidades descubiertas como diagnóstico ordinario.

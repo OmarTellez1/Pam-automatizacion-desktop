@@ -33,6 +33,8 @@ public sealed class PamRequestSubmissionException : Exception
             "PAM rechazó Submit Request con una respuesta no reconocida.",
         PamRequestSubmissionErrorCode.PortalUnavailable =>
             "No fue posible completar de forma segura las solicitudes PAM.",
+        PamRequestSubmissionErrorCode.ReconciliationFailedAfterSubmission =>
+            "PAM procesó las solicitudes, pero no fue posible recuperar sus Request ID de forma segura. Revisa Pending antes de volver a solicitar o utiliza los IDs existentes.",
         _ => "No fue posible completar las solicitudes PAM.",
     };
 }

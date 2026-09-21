@@ -308,7 +308,21 @@ internal sealed partial class PlaywrightManagedPage(IPage page) :
                 continue;
             }
 
-            string text = (await alert.InnerTextAsync().ConfigureAwait(false)).Trim();
+            string text;
+            try
+            {
+                text = (await alert.InnerTextAsync(new LocatorInnerTextOptions
+                {
+                    Timeout = 1_000,
+                }).ConfigureAwait(false)).Trim();
+            }
+            catch (TimeoutException)
+            {
+                // PAM can replace an alert between the visibility check and the text read.
+                // This is transient; the outer observation loop remains authoritative.
+                continue;
+            }
+
             if (PamLoginAlertClassifier.IsCredentialRejection(text))
             {
                 return true;

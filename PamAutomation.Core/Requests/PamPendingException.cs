@@ -20,7 +20,7 @@ public sealed class PamPendingException : Exception
         PamPendingErrorCode.AmbiguousIdentity =>
             "Pending no permite asociar de forma única todas las Favorites rows esperadas.",
         PamPendingErrorCode.FieldMismatch =>
-            "Pending no coincide con la expiración, Description o Application solicitadas.",
+            "Pending no coincide con System, Account, inicio, expiración o Description de las solicitudes enviadas.",
         _ => "No fue posible leer o comparar Pending de forma segura.",
     };
 }

@@ -11,4 +11,6 @@ public enum PamRequestSubmissionErrorCode
     RequestRejected,
     /// <summary>The portal could not safely complete the workflow.</summary>
     PortalUnavailable,
+    /// <summary>PAM accepted requests, but their new Request IDs could not be reconciled safely.</summary>
+    ReconciliationFailedAfterSubmission,
 }

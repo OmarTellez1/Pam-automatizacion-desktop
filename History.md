@@ -428,7 +428,7 @@ Cada cambio relevante debe registrar qué se decidió, por qué, qué se verific
 
 - El diagnóstico exportado de la primera ejecución completa confirmó 13 envíos correctos y un fallo posterior dentro de `PamPendingService.Compare`; el correo no llegó a ejecutarse.
 - Las capturas aportadas demostraron coincidencia exacta de inicio `05:30 PM`, expiración `06:30 PM`, `Description = Pruebas`, `System` y `Account`. La diferencia estaba en la representación de `Application` entre Favorites y Pending.
-- La comparación incorporó familias controladas para `NOSQLBOOSTER`, `PLSQL`, `PuTTY` y `WinSCP`, sin derivarlas desde `System` ni utilizar `Ticket`. Las aplicaciones desconocidas siguen requiriendo la regla estricta anterior y las colisiones de familia se rechazan como ambiguas.
+- La comparación incorporó entonces familias controladas para `NOSQLBOOSTER`, `PLSQL`, `PuTTY` y `WinSCP`, sin derivarlas desde `System` ni utilizar `Ticket`. Esta decisión histórica fue sustituida íntegramente por la reconciliación genérica de fase 24.
 - Se reprodujeron los nombres observados, incluido un mismo `System + Account` con PuTTY y WinSCP. La compilación `Release | x64` pasó y la suite terminó 307/307 sin contactar PAM, crear solicitudes ni enviar correo.
 
 ## 11 de septiembre de 2026 — Fase 18.10: aviso de inicio bloqueado
@@ -691,3 +691,46 @@ Cada cambio relevante debe registrar qué se decidió, por qué, qué se verific
 - El texto gris de estado se oculta mientras la aplicación está en reposo y aparece únicamente durante la ejecución para mostrar validación de Favorites/Pending y solicitudes creadas.
 - Se eliminó visualmente la repetición de mensajes sin modificar el contenido ni la secuencia del progreso operativo existente.
 - `Usuarios PAM` elimina el resaltado rectangular de selección propio de `ListBoxItem`; cada cuenta conserva únicamente su tarjeta blanca y sus acciones. Los botones `Renombrar` y `Eliminar` ganan ancho para evitar texto comprimido.
+
+## 21 de septiembre de 2026 — Diseño de fase 24: Pending sin familias de Application
+
+- Un diagnóstico de una ejecución de 15 solicitudes confirmó que los envíos llegaron a Pending y que el fallo ocurrió después, durante `PamPendingService.Compare`.
+- Las capturas y la comprobación del usuario confirmaron que `System` y `Account` son iguales entre Favorites y Pending, mientras `Application` puede ser diferente para múltiples accesos. `Ticket` aparece una sola vez y no aporta identidad.
+- Se aclaró que existen aproximadamente 383 accesos distintos disponibles, no que una ejecución deba pedirlos todos. La colección activa continuará determinando el subconjunto real.
+- Se aprobó retirar completamente las familias hardcodeadas de `Application`; no son escalables y no deben ampliarse con reglas por cada acceso.
+- El preflight conservará la advertencia de solicitudes ya existentes usando `System`, `Account`, `Request Start Date`, `Expires` y `Description`, con semántica de multiconjunto para claves repetidas.
+- La reconciliación posterior conservará una línea base en memoria, excluirá todos los Request ID anteriores y aceptará únicamente IDs nuevos cuyos campos estables coincidan con el lote enviado.
+- Las cargas parciales de Pending se reintentarán; nuevas filas ajenas se ignorarán y cantidades superiores indistinguibles se tratarán como ambigüedad. En esta fecha solo se documentó la fase 24; no se modificó código.
+
+## 21 de septiembre de 2026 — Implementación de fase 24
+
+- `PamPendingService` dejó de conocer familias de aplicaciones. `Application` ya no participa en el preflight ni en la reconciliación de Pending.
+- El comparador filtra los atributos exactos del lote, agrupa por `System + Account` y resuelve repeticiones por conteo. Una lectura parcial permanece incompleta y se reintenta; un exceso indistinguible se rechaza como ambiguo.
+- Todos los Request ID observados antes del primer envío continúan excluidos en cada lectura posterior. Las pruebas mantienen un ID antiguo visible junto a uno o varios IDs nuevos y demuestran que solo los nuevos llegan al resultado.
+- `PamAutomationExecutionService` incorpora defensa en profundidad antes del resultado y del correo: exige exactamente un ID por solicitud enviada y rechaza cualquier intersección con la línea base.
+- La compilación `Release | x64`, 30 pruebas específicas de Pending y modelos de ejecución y las 418 pruebas ordinarias pasaron sin abrir PAM, crear solicitudes ni enviar correo.
+
+## 21 de septiembre de 2026 — Fase 24.4: reutilización explícita de Pending
+
+- El aviso de solicitudes idénticas dejó de ser una confirmación binaria. Una ventana urgente ofrece cancelar, automatizar con solicitudes repetidas o usar los Request ID existentes y enviar el correo.
+- La tercera opción solo se habilita cuando todas las solicitudes esperadas tienen una coincidencia previa completa y no ambigua y la acción final configurada es correo. Coincidencias parciales o excesivas no pueden producir un correo incompleto.
+- Elegir IDs existentes omite por completo el envío PAM, crea un resultado `ExistingPending` y comunica cero solicitudes nuevas. Los IDs permanecen en memoria y pasan por las validaciones y protecciones de Outlook ya existentes.
+- La ruta normal mantiene la garantía de fase 24: excluye todos los IDs antiguos y solo devuelve los nuevos. Las dos rutas no pueden mezclarse.
+- La compilación `Release | x64`, 54 pruebas relacionadas y las 423 pruebas ordinarias pasaron sin abrir PAM, crear solicitudes ni enviar correo.
+
+## 21 de septiembre de 2026 — Corrección del reenvío con Pending existente
+
+- El diagnóstico `pam-automation-diagnostic-20260921-175432` demostró que los diez Request ID existentes se recuperaron correctamente, pero el correo no se creó porque la misma huella ya se había enviado durante esa sesión y actuó la barrera `DuplicateInMemory`.
+- La opción explícita de usar IDs existentes ahora prevalece sobre las barreras de correo duplicado, tanto en memoria como en la consulta de Outlook. La protección continúa intacta para ejecuciones normales y pruebas.
+- Al terminar esa ruta se muestra una confirmación modal diferenciada para `SentConfirmed`, `SubmittedUnconfirmed` y `OutboxPending`; los estados no satisfactorios se comunican como error y nunca como entrega confirmada.
+- El mismo diagnóstico registró un fallo intermitente de login al leer una alerta que PAM reemplazó durante la observación. La lectura usa ahora un plazo breve y reintenta la observación del DOM sin reenviar credenciales.
+- La compilación `Release | x64`, 38 pruebas focalizadas y la suite completa de 425 pruebas aprobaron. Las regresiones nuevas demuestran que una repetición ordinaria continúa bloqueada y que un segundo envío sí ocurre cuando fue ordenado expresamente; no se contactó PAM ni Outlook real.
+
+## 21 de septiembre de 2026 — Pending incompleto durante una transición paginada
+
+- El diagnóstico `pam-automation-diagnostic-20260921-191315` confirmó que PAM procesó diez solicitudes y que el fallo ocurrió después, durante la reconciliación de sus Request ID. No fue un problema de login ni de Outlook.
+- `WaitForPendingPageAsync` leía la firma de la página mientras el grid todavía reemplazaba sus filas. Una columna momentáneamente ausente produjo una `ArgumentException` que, a diferencia de la lectura estable posterior, no estaba clasificada como transitoria.
+- La transición verifica primero el paginador, limita cada lectura de celda a un segundo y vuelve a observar errores transitorios de estructura, formato o timeout. Cancelaciones y errores inesperados no se absorben.
+- Las filas solo se aceptan después de dos snapshots completos e idénticos; una estructura permanentemente inválida continúa terminando con un error seguro.
+- Los fallos de reconciliación posteriores a envíos PAM se comunican ahora como automatización incompleta, con el conteo procesado y la instrucción de revisar Pending o reutilizar sus IDs antes de repetir.
+- La compilación `Release | x64`, 80 pruebas focalizadas y la suite completa de 428 pruebas aprobaron. No se contactó PAM ni Outlook real.

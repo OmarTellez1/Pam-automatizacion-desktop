@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using PamAutomation.Core.Authentication;
 using PamAutomation.Core.Favorites;
+using PamAutomation.Core.Interfaces.Authentication;
 using PamAutomation.Core.Interfaces.Execution;
 using PamAutomation.Core.Interfaces.Outlook;
 using PamAutomation.Core.Models.Configuration;
@@ -37,7 +38,8 @@ public sealed class PamAutomationExecutionService : IPamAutomationExecutionServi
         TimeProvider? timeProvider = null,
         IOutlookClassicClient? outlookClient = null,
         MailSettingsValidator? mailSettingsValidator = null,
-        ILogger<PamAutomationExecutionService>? logger = null)
+        ILogger<PamAutomationExecutionService>? logger = null,
+        IAsyncDelay? outlookConfirmationDelay = null)
     {
         this.favoritesService = favoritesService ?? throw new ArgumentNullException(nameof(favoritesService));
         this.submissionService = submissionService ?? throw new ArgumentNullException(nameof(submissionService));
@@ -50,7 +52,10 @@ public sealed class PamAutomationExecutionService : IPamAutomationExecutionServi
         this.logger = logger ?? NullLogger<PamAutomationExecutionService>.Instance;
         outlookConfirmationService = outlookClient is null
             ? null
-            : new OutlookDeliveryConfirmationService(outlookClient, new TaskAsyncDelay(), this.logger);
+            : new OutlookDeliveryConfirmationService(
+                outlookClient,
+                outlookConfirmationDelay ?? new TaskAsyncDelay(),
+                this.logger);
     }
 
     public async Task<PamExecutionPreparation> PrepareRealAsync(
@@ -100,6 +105,10 @@ public sealed class PamAutomationExecutionService : IPamAutomationExecutionServi
         int duplicateCount = pendingService
             .FindExactMatches(pendingBeforeSubmission, executionAccounts, form)
             .Count;
+        IReadOnlyList<string> reusableRequestIds = FindReusablePendingRequestIds(
+            pendingBeforeSubmission,
+            executionAccounts,
+            form);
         logger.LogInformation(
             "Real execution preparation completed. FavoriteCount={FavoriteCount}, ExactPendingDuplicateCount={ExactPendingDuplicateCount}.",
             executionAccounts.Count,
@@ -110,7 +119,8 @@ public sealed class PamAutomationExecutionService : IPamAutomationExecutionServi
             settings.FinalAction,
             pendingBeforeSubmission.Select(static request => request.RequestId).ToArray(),
             duplicateCount,
-            selectedAccounts);
+            selectedAccounts,
+            reusableRequestIds);
     }
 
     public async Task<PamExecutionResult> ExecuteRealAsync(
@@ -144,26 +154,46 @@ public sealed class PamAutomationExecutionService : IPamAutomationExecutionServi
         IReadOnlyList<string> requestIds = Array.Empty<string>();
         if (submittedAccounts.Length > 0)
         {
-            logger.LogInformation("Pending reconciliation started. SubmittedCount={SubmittedCount}.", submittedAccounts.Length);
-            PamPendingComparisonResult comparison = await pendingService
-                .WaitForCompleteComparisonAsync(
-                    credentials,
-                    submittedAccounts,
-                    PamRequestFormData.FromSettings(preparation.Request),
-                    cancellationToken: cancellationToken,
-                    excludedRequestIds: preparation.PendingRequestIdsBeforeSubmission)
-                .ConfigureAwait(false);
-            if (!comparison.IsComplete)
+            try
             {
-                throw new PamPendingException(PamPendingErrorCode.FieldMismatch);
-            }
+                logger.LogInformation("Pending reconciliation started. SubmittedCount={SubmittedCount}.", submittedAccounts.Length);
+                PamPendingComparisonResult comparison = await pendingService
+                    .WaitForCompleteComparisonAsync(
+                        credentials,
+                        submittedAccounts,
+                        PamRequestFormData.FromSettings(preparation.Request),
+                        cancellationToken: cancellationToken,
+                        excludedRequestIds: preparation.PendingRequestIdsBeforeSubmission)
+                    .ConfigureAwait(false);
+                if (!comparison.IsComplete)
+                {
+                    throw new PamPendingException(PamPendingErrorCode.FieldMismatch);
+                }
 
-            requestIds = comparison.RequestIds;
-            logger.LogInformation("Pending reconciliation completed. RequestIdCount={RequestIdCount}.", requestIds.Count);
+                requestIds = comparison.RequestIds;
+                preparation.ValidateReconciledRequestIds(requestIds, submittedAccounts.Length);
+                logger.LogInformation("Pending reconciliation completed. RequestIdCount={RequestIdCount}.", requestIds.Count);
+            }
+            catch (PamPendingException exception)
+            {
+                logger.LogWarning(
+                    exception,
+                    "Pending reconciliation failed after PAM submissions. SubmittedCount={SubmittedCount}.",
+                    submittedAccounts.Length);
+                throw new PamRequestSubmissionException(
+                    PamRequestSubmissionErrorCode.ReconciliationFailedAfterSubmission,
+                    exception,
+                    submittedAccounts.Length);
+            }
         }
 
         OutlookDeliveryResult? delivery = await DeliverIfRequestedAsync(
-            preparation.FinalAction, mailSettings, requestIds, isTest: false, cancellationToken).ConfigureAwait(false);
+            preparation.FinalAction,
+            mailSettings,
+            requestIds,
+            isTest: false,
+            allowExplicitDuplicateSend: false,
+            cancellationToken).ConfigureAwait(false);
         return new PamExecutionResult(
             PamExecutionMode.Real,
             GetEcuadorNow(),
@@ -203,6 +233,41 @@ public sealed class PamAutomationExecutionService : IPamAutomationExecutionServi
             result.ValidatedCount,
             conflictCount: 0,
             requestIds: Array.Empty<string>());
+    }
+
+    /// <inheritdoc />
+    public async Task<PamExecutionResult> CompleteWithExistingPendingAsync(
+        PamExecutionPreparation preparation,
+        MailSettings mailSettings,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(preparation);
+        ArgumentNullException.ThrowIfNull(mailSettings);
+        if (!preparation.CanReusePendingRequestIdsForEmail)
+        {
+            throw new InvalidOperationException(
+                "Pending no contiene un conjunto completo y no ambiguo de Request ID reutilizables.");
+        }
+
+        logger.LogInformation(
+            "Existing Pending Request IDs selected for email. RequestIdCount={RequestIdCount}.",
+            preparation.ReusablePendingRequestIds.Count);
+        OutlookDeliveryResult? delivery = await DeliverIfRequestedAsync(
+            preparation.FinalAction,
+            mailSettings,
+            preparation.ReusablePendingRequestIds,
+            isTest: false,
+            allowExplicitDuplicateSend: true,
+            cancellationToken).ConfigureAwait(false);
+        return new PamExecutionResult(
+            PamExecutionMode.ExistingPending,
+            GetEcuadorNow(),
+            preparation.FinalAction,
+            preparation.FavoriteCount,
+            preparation.FavoriteCount,
+            conflictCount: 0,
+            preparation.ReusablePendingRequestIds,
+            delivery);
     }
 
     private void ValidateInputs(PamCredentials credentials, AppSettings settings, DateTimeOffset ecuadorNow)
@@ -248,6 +313,28 @@ public sealed class PamAutomationExecutionService : IPamAutomationExecutionServi
         return selected;
     }
 
+    private IReadOnlyList<string> FindReusablePendingRequestIds(
+        IReadOnlyList<PamPendingRequest> pendingRequests,
+        IReadOnlyList<PamFavoriteAccount> expectedAccounts,
+        PamRequestFormData form)
+    {
+        try
+        {
+            PamPendingComparisonResult comparison = pendingService.Compare(
+                pendingRequests,
+                expectedAccounts,
+                form);
+            return comparison.IsComplete ? comparison.RequestIds : [];
+        }
+        catch (PamPendingException exception) when (
+            exception.ErrorCode == PamPendingErrorCode.AmbiguousIdentity)
+        {
+            logger.LogInformation(
+                "Existing Pending requests are ambiguous and cannot be reused for email.");
+            return [];
+        }
+    }
+
     private DateTimeOffset GetEcuadorNow() => timeProvider.GetUtcNow().ToOffset(TimeSpan.FromHours(-5));
 
     private async Task<OutlookDeliveryResult?> DeliverIfRequestedAsync(
@@ -255,6 +342,7 @@ public sealed class PamAutomationExecutionService : IPamAutomationExecutionServi
         MailSettings? mailSettings,
         IReadOnlyList<string> requestIds,
         bool isTest,
+        bool allowExplicitDuplicateSend,
         CancellationToken cancellationToken)
     {
         if (action != FinalAction.SendEmail)
@@ -280,30 +368,40 @@ public sealed class PamAutomationExecutionService : IPamAutomationExecutionServi
         await mailGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            if (!attemptedMail.Add(fingerprint))
+            bool fingerprintWasAdded = attemptedMail.Add(fingerprint);
+            if (!allowExplicitDuplicateSend && !fingerprintWasAdded)
             {
                 logger.LogWarning("Email delivery was skipped by the in-memory duplicate guard.");
                 return OutlookDeliveryResult.DuplicateInMemory();
             }
+
             bool externalStateMayExist = false;
             try
             {
-                logger.LogInformation("Outlook external duplicate check started.");
-                OutlookExistingMessageStatus existing = await outlookClient
-                    .FindExistingAsync(normalized.SmtpAddress, subject, requestIds, cancellationToken)
-                    .ConfigureAwait(false);
-                OutlookDeliveryResult? duplicate = existing switch
+                if (!allowExplicitDuplicateSend)
                 {
-                    OutlookExistingMessageStatus.Sent => OutlookDeliveryResult.DuplicateSentConfirmed(),
-                    OutlookExistingMessageStatus.Draft => OutlookDeliveryResult.DuplicateDraft(),
-                    OutlookExistingMessageStatus.Outbox => OutlookDeliveryResult.DuplicateOutboxPending(),
-                    _ => null
-                };
-                if (duplicate is not null)
+                    logger.LogInformation("Outlook external duplicate check started.");
+                    OutlookExistingMessageStatus existing = await outlookClient
+                        .FindExistingAsync(normalized.SmtpAddress, subject, requestIds, cancellationToken)
+                        .ConfigureAwait(false);
+                    OutlookDeliveryResult? duplicate = existing switch
+                    {
+                        OutlookExistingMessageStatus.Sent => OutlookDeliveryResult.DuplicateSentConfirmed(),
+                        OutlookExistingMessageStatus.Draft => OutlookDeliveryResult.DuplicateDraft(),
+                        OutlookExistingMessageStatus.Outbox => OutlookDeliveryResult.DuplicateOutboxPending(),
+                        _ => null
+                    };
+                    if (duplicate is not null)
+                    {
+                        externalStateMayExist = true;
+                        logger.LogWarning("Email delivery was skipped because Outlook reported status {Status}.", duplicate.Status);
+                        return duplicate;
+                    }
+                }
+                else
                 {
-                    externalStateMayExist = true;
-                    logger.LogWarning("Email delivery was skipped because Outlook reported status {Status}.", duplicate.Status);
-                    return duplicate;
+                    logger.LogInformation(
+                        "Explicit existing-Pending email resend selected; duplicate email guards were bypassed by user choice.");
                 }
 
                 externalStateMayExist = true;
@@ -324,7 +422,7 @@ public sealed class PamAutomationExecutionService : IPamAutomationExecutionServi
             }
             catch (Exception exception)
             {
-                if (!externalStateMayExist) attemptedMail.Remove(fingerprint);
+                if (!externalStateMayExist && fingerprintWasAdded) attemptedMail.Remove(fingerprint);
                 logger.LogError(exception, "Email delivery coordination failed. ExternalStateMayExist={ExternalStateMayExist}.", externalStateMayExist);
                 throw;
             }
@@ -340,7 +438,13 @@ public sealed class PamAutomationExecutionService : IPamAutomationExecutionServi
         IReadOnlyList<string> requestIds,
         bool isTest,
         CancellationToken cancellationToken = default) =>
-        await DeliverIfRequestedAsync(FinalAction.SendEmail, mailSettings, requestIds, isTest, cancellationToken)
+        await DeliverIfRequestedAsync(
+            FinalAction.SendEmail,
+            mailSettings,
+            requestIds,
+            isTest,
+            allowExplicitDuplicateSend: false,
+            cancellationToken)
             .ConfigureAwait(false)
         ?? throw new InvalidOperationException("No fue posible preparar el correo.");
 }

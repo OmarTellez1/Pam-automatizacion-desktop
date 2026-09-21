@@ -73,6 +73,8 @@ Las fases construidas hasta ahora son:
 - Fase 21.8: progreso de solicitudes tipado por `Application` y acceso interactivo disponible durante el flujo oculto.
 - Fase 21.9: refresco temporal WPF cada minuto y doble validación local alrededor de la confirmación real.
 - Fase 21.10: margen mínimo central de 6 minutos y clasificación defensiva de respuestas PAM con JSON no estructurado como objeto.
+- Fase 24: reconciliación genérica de Pending mediante línea base de Request ID, `System + Account`, atributos exactos del lote y conteos, sin familias de `Application`.
+- Fase 24.4: decisión explícita entre cancelar, repetir solicitudes o enviar correo con un conjunto existente completo y no ambiguo.
 
 Los directorios `.git`, `.vs`, `bin` y `obj` contienen metadatos o salidas generadas y se omiten en el árbol.
 
@@ -110,6 +112,7 @@ PamAutomation\
 │   │   ├── MailConfigurationEdit.cs
 │   │   ├── RequestConfigurationEdit.cs
 │   │   ├── RequestStartTimeInput.cs
+│   │   ├── RepeatedPendingDecision.cs
 │   │   ├── RichClipboardHtmlImporter.cs
 │   │   ├── UrgentMessageBox.cs
 │   │   ├── FlowDocumentTableInserter.cs
@@ -125,7 +128,9 @@ PamAutomation\
 │   │   ├── MailSettingsWindow.xaml
 │   │   ├── MailSettingsWindow.xaml.cs
 │   │   ├── RequestSettingsWindow.xaml
-│   │   └── RequestSettingsWindow.xaml.cs
+│   │   ├── RequestSettingsWindow.xaml.cs
+│   │   ├── RepeatedPendingDecisionWindow.xaml
+│   │   └── RepeatedPendingDecisionWindow.xaml.cs
 │   ├── Resources\
 │   │   ├── Colors.xaml
 │   │   ├── pam-automation-icon.ico
@@ -478,7 +483,7 @@ Biblioteca para `net10.0`, sin dependencia de WPF o Windows. Actualmente contien
 - `Browser`: respuesta de navegación reducida a URI, estado y HTTP `Date`, junto con errores controlados de inicialización y navegación.
 - `Authentication`: servicio de autenticación simulado, espera asincrónica, errores estables y contratos del puerto ligado a una sesión.
 - `Interfaces/Favorites` y `Favorites`: lectura y validación de identidades únicas, catálogo protegido, claves exactas, colecciones nombradas, selección activa obligatoria y sincronización de `All favorites` contra `Favorites`.
-- `Interfaces/Requests` y `Requests`: contratos separados para prueba, envío y lectura; coordinación de solicitudes, preflight de coincidencias exactas, línea base de Request ID en memoria y reconciliación estricta de las filas nuevas de Pending.
+- `Interfaces/Requests` y `Requests`: contratos separados para prueba, envío y lectura; coordinación de solicitudes, preflight de coincidencias exactas, línea base de Request ID en memoria y reconciliación estricta de las filas nuevas de Pending. `PamPendingService` agrupa como multiconjunto por `System + Account`, valida inicio, expiración y descripción y no depende de `Application`; `PamAutomationExecutionService` impide que IDs de la línea base alcancen accidentalmente resultados o correo y ofrece una ruta separada, explícita y completa para reutilizarlos sin crear solicitudes. Esa ruta puede reenviar deliberadamente una huella de correo existente; las demás conservan la deduplicación.
 - `Interfaces/Outlook` y `Outlook`: contrato del cliente clásico, modelos redactados, validaciones, resultados y errores seguros; `OutlookHtmlComposer` sanea XHTML, valida el marcador y compone Request ID por línea.
 - `Interfaces/Execution` y `Execution`: preparación confirmable, selección opcional de colección, coordinación completa y resultado exclusivamente en memoria.
 - `Interfaces/Diagnostics` y `Diagnostics`: contratos y modelos de lista permitida para capturar y exportar evidencias sin identidades ni secretos.
@@ -506,7 +511,7 @@ Biblioteca para `net10.0-windows`. Referencia `PamAutomation.Core` e implementa 
 - `PamInteractiveAccessService`: ejecuta únicamente la autenticación y libera las referencias de automatización sin cerrar el navegador externo.
 - `PamBrowserSession`: valida cada navegación y libera página, contexto, navegador y runtime en orden.
 - `PamOriginPolicy`: compara esquema, host y puerto efectivo y bloquea solicitudes HTTP(S) externas o malformadas.
-- `PlaywrightEngineFactory` y `BrowserAbstractions`: adaptadores internos que encapsulan Microsoft.Playwright y permiten pruebas sin abrir Edge.
+- `PlaywrightEngineFactory` y `BrowserAbstractions`: adaptadores internos que encapsulan Microsoft.Playwright y permiten pruebas sin abrir Edge. La observación de credenciales trata como transitorio que PAM reemplace una alerta entre su comprobación de visibilidad y la lectura del texto. El lector paginado de Pending aplica la misma disciplina a filas que están renderizándose, pero exige dos snapshots completos e idénticos antes de aceptarlas.
 - `PamBrowserSession` mide monotónicamente el tiempo de ida y vuelta de cada navegación para calibrar el reloj HTTP.
 - `PamAuthenticationPortalFactory` y `PamAuthenticationPortal`: enlazan el contrato de Core únicamente con la página perteneciente a la sesión temporal.
 - `PamLoginSelectors`: centraliza roles, nombres accesibles y el texto de rechazo TOTP observados en el portal real.
@@ -597,7 +602,8 @@ Proyecto MSTest para `net10.0-windows`. Actualmente referencia `PamAutomation.Ap
 Contenido actual:
 
 - `TestExplorerSmokeTests.cs`: comprueba el descubrimiento del proyecto por el runner MSTest.
-- `MainWindowViewModelTests.cs`: valida el estado inicial seguro, el bloqueo durante una ejecución y las condiciones del botón de prueba.
+- `MainWindowViewModelTests.cs`: valida el estado inicial seguro, el bloqueo durante una ejecución, las decisiones sobre Pending y la confirmación visible del correo explícito.
+- `Core/Execution/PamAutomationExecutionServiceEmailTests.cs`: demuestra que una elección explícita con IDs existentes crea un correo nuevo aunque la huella ya haya sido enviada, sin debilitar la ruta ordinaria.
 - `App/ConfigurationWindowSmokeTests.cs`: carga y renderiza en STA las ventanas de configuración, valida el ciclo de animación bajo demanda y la recuperación de errores sin abrir servicios externos.
 - `App/RequestStartTimeInputTests.cs`: valida los límites de `hh`, `mm`, `AM/PM` y su conversión determinista a 24 horas.
 - `App/CredentialConfigurationWorkflowTests.cs`: valida guardado y login PAM no destructivo, mensajes seguros, orden verificar-guardar de Outlook y correo de prueba dirigido a la misma cuenta.
@@ -633,7 +639,7 @@ Contenido actual:
 - `Core/Favorites/PamFavoritesServiceTests.cs`: valida snapshot, identidades, duplicados, errores seguros y cierre de sesión.
 - `Core/Requests/PamRequestTestServiceTests.cs`: valida configuración previa, recorrido completo, detención segura, cierre de sesión y resultado invariablemente no enviado.
 - `Core/Requests/PamRequestSubmissionServiceTests.cs`: valida autorización por conteo y configuración, resultados, conflictos, fallos parciales, duración técnica y cierre de sesión.
-- `Core/Requests/PamPendingServiceTests.cs`: valida lectura, identidad, expiración, descripción, familias y sufijos de Application, detección de repeticiones exactas, exclusión de Request ID preexistentes, múltiples aplicaciones bajo la misma cuenta, ambigüedad y consistencia eventual.
+- `Core/Requests/PamPendingServiceTests.cs`: valida lectura, identidad estable, expiración, descripción, aplicaciones arbitrarias, detección de repeticiones exactas, exclusión de Request ID preexistentes, conteos repetidos bajo `System + Account`, ambigüedad y consistencia eventual.
 - `Core/Authentication/PamAuthenticationServiceTests.cs`: valida el flujo simulado, RTT, ventana TOTP, reintento único, errores y cancelación.
 - `Outlook/OutlookClassicClientTests.cs`: valida cuenta exacta, mensajes temporales, redacción, STA, huellas, duplicados, adjuntos CID, liberación y estados de envío mediante COM falso.
 - `Outlook/OutlookHtmlComposerTests.cs`: valida allowlist XHTML, contenido activo, recursos externos, estilos, marcador, Request ID y errores redactados.

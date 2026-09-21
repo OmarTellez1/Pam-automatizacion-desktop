@@ -186,7 +186,7 @@ Si el cursor está dentro de otra tabla, la operación se rechaza con una indica
 
 El primer flujo completo del usuario creó correctamente 13 solicitudes, pero la reconciliación se detuvo antes del correo. El diagnóstico y las capturas horizontales confirmaron que `Request Start Date`, `Expires`, `Description`, `System` y `Account` eran exactos; la divergencia estaba en `Application`. Favorites usa nombres como `PLSQL - Nodo1`, `PuTTY - Nodo2` y `WinSCP - nodo1`, mientras Pending presenta respectivamente `PLSQL - BDMOVIL-…`, `PuTTY 0.77 - …` y `WinSCP 5.21 N2 - …`.
 
-`PamPendingService` mantiene la asociación por fecha/hora más `System + Account` y admite equivalencia solamente para las familias observadas `NOSQLBOOSTER`, `PLSQL`, `PuTTY` y `WinSCP`. No usa `Ticket`, no compara aplicaciones desconocidas aproximadamente y conserva el rechazo ambiguo cuando dos filas de la misma familia compiten bajo una cuenta. Se añadieron seis ejecuciones de prueba que cubren las cuatro familias, el caso real PuTTY/WinSCP bajo el mismo `System + Account` y la ambigüedad. La compilación `Release | x64` y las 307 pruebas ordinarias pasaron. No se contactó PAM, no se crearon solicitudes y no se envió correo. **Fase completada.**
+`PamPendingService` incorporó entonces la asociación por fecha/hora más `System + Account` y equivalencias para las familias observadas `NOSQLBOOSTER`, `PLSQL`, `PuTTY` y `WinSCP`. No usaba `Ticket` y rechazaba colisiones ambiguas. Se añadieron seis ejecuciones de prueba que cubrían las cuatro familias y el caso real PuTTY/WinSCP bajo el mismo `System + Account`. La compilación `Release | x64` y las 307 pruebas ordinarias pasaron. No se contactó PAM, no se crearon solicitudes y no se envió correo. **Fase histórica completada; su estrategia de familias fue sustituida íntegramente por la fase 24.**
 
 ## Fase 18.10 — Motivo visible de automatización bloqueada
 
@@ -404,6 +404,56 @@ El arranque principal se aisló en `PrincipalIdentityBootstrapper` y se verific�
 
 La regresión de administración se volvió a validar después de corregir la plantilla WPF: compilación `Release | x64`, 63 pruebas relacionadas y la suite completa de 414 pruebas aprobaron, incluida la creación visual real de `PamAccountsWindow`. No se abrió PAM ni Outlook y no se utilizaron secretos reales.
 
+## Fase 24 — Reconciliación genérica y escalable de Pending
+
+El catálogo corporativo observado contiene aproximadamente 383 accesos PAM diferentes. Esa cifra describe las opciones disponibles —como un menú— y no implica que una ejecución intente solicitar las 383. Cada ejecución continuará procesando únicamente las filas de la colección activa. La reconciliación debe funcionar con cualquier acceso presente o futuro sin registrar nombres, prefijos, versiones ni “familias” de `Application` en código.
+
+La identidad usada para localizar una `Favorites` row y abrir su formulario no cambia: dentro de Favorites y colecciones seguirá siendo la clave exacta `System + Application + Account`. El cambio se limita a la relación entre una solicitud enviada y su representación posterior en `Pending`, porque se confirmó que `System` y `Account` se conservan entre ambas vistas mientras `Application` puede adoptar una nomenclatura diferente.
+
+### Fase 24.1 — Línea base y preflight de duplicados
+
+Antes del primer envío se leerá todo `Pending` y se conservará exclusivamente en memoria el conjunto de Request ID existentes. Esa línea base no se persistirá ni aparecerá en logs o diagnósticos. En la misma lectura se mantendrá la advertencia de duplicados: una fila previa será equivalente a una petición preparada cuando coincidan exactamente `System`, `Account`, `Request Start Date`, `Expires` y `Description`. `Application` y `Ticket` no participarán.
+
+La comparación operará como multiconjunto. Si la colección contiene varias solicitudes con el mismo `System + Account`, se compararán cantidades y no posiciones ni una supuesta unicidad. Cuando exista al menos una coincidencia previa, la aplicación informará el conteo afectado y exigirá elegir entre repetir las solicitudes o cancelar toda la automatización. Esta advertencia seguirá ocurriendo antes de cualquier `Submit Request`.
+
+### Fase 24.2 — Reconciliación exclusiva de Request ID nuevos
+
+Si el usuario autoriza continuar, después de enviar se volverá a leer `Pending` y se descartarán todas las filas cuyos Request ID estaban en la línea base. Tener un ID nuevo es necesario, pero no suficiente: para pertenecer a la ejecución, la fila también deberá coincidir en `System`, `Account`, `Request Start Date`, `Expires` y `Description` con una solicitud realmente enviada.
+
+El comparador agrupará las solicitudes esperadas y las filas nuevas por la clave estable `System + Account`, y dentro de cada grupo exigirá los valores exactos del lote y el mismo número de elementos. Las filas nuevas no relacionadas se ignorarán. Si todavía faltan filas, se repetirá la lectura durante la ventana acotada de consistencia eventual; una carga parcial no será un fallo inmediato. Una cantidad superior a la esperada con atributos indistinguibles será ambigua y bloqueará el resultado en vez de adjudicar IDs por orden.
+
+Cuando los conteos coincidan exactamente, se devolverán únicamente los Request ID nuevos del lote, numéricos y únicos. La lista permanecerá en memoria y conservará un orden determinista para la presentación y el correo.
+
+### Fase 24.3 — Eliminación de familias y aceptación
+
+Se retirarán el catálogo de familias conocidas, las coincidencias por prefijo/sufijo de `Application` y cualquier rama específica para `NOSQLBOOSTER`, `PLSQL`, `PuTTY`, `WinSCP` u otra aplicación. `Application` podrá conservarse como dato de presentación y diagnóstico de progreso, pero no decidirá una asociación en Pending.
+
+Las pruebas deberán cubrir aplicaciones conocidas y desconocidas con nombres distintos entre Favorites y Pending, claves repetidas `System + Account`, lotes parciales que se completan en lecturas posteriores, exclusión de IDs preexistentes, filas nuevas ajenas, duplicados previos, exceso ambiguo, fechas/expiraciones/descripciones diferentes y Request ID inválidos o repetidos. También demostrarán que el costo depende del tamaño real de la colección y de las páginas consultadas, no de una lista hardcodeada de los aproximadamente 383 accesos disponibles.
+
+### Fase 24.4 — Decisión sobre solicitudes existentes
+
+Cuando el preflight encuentre solicitudes exactamente iguales, una ventana urgente presenta tres acciones explícitas: `Cancelar automatización`, `Automatizar con solicitudes repetidas` y `Usar Request ID existentes y enviar correo`. Cancelar no crea solicitudes ni envía correo. Automatizar conserva el recorrido normal y la garantía de que el resultado contiene únicamente IDs nuevos. Reutilizar omite por completo `Submit Request` y compone el correo con los IDs que ya estaban en Pending.
+
+La tercera acción solo se habilita si todas las solicitudes de la colección tienen una correspondencia existente completa y no ambigua, los IDs pertenecen a la línea base y la acción final está configurada como correo. Una coincidencia parcial, un exceso indistinguible o la acción `Mostrar Request ID` no permiten enviar un conjunto incompleto. El resultado identifica que se usó Pending existente y muestra cero solicitudes nuevas.
+
+La implementación retiró las familias de `Application`, aplica la asociación multiconjunto por campos estables, espera cargas parciales y conserva una barrera adicional en la preparación de ejecución: antes de construir el resultado o el correo de una automatización nueva exige que la cantidad de IDs sea igual a las solicitudes enviadas y que ninguno pertenezca a la línea base. La ruta de reutilización aplica la regla inversa de forma explícita: admite únicamente el conjunto completo validado dentro de esa línea base y nunca lo mezcla con IDs nuevos. La compilación `Release | x64`, 54 pruebas relacionadas y las 423 pruebas ordinarias pasaron. No se abrió PAM, no se crearon solicitudes y no se envió correo. **Fase completada.**
+
+### Fase 24.5 — Reenvío explícito y tolerancia de autenticación
+
+La elección `Usar Request ID existentes y enviar correo` constituye autorización explícita para crear un correo nuevo aunque la misma huella se haya intentado durante la sesión o ya exista en Outlook. Solo esta ruta omite los bloqueos de correo duplicado; la automatización ordinaria y los envíos de prueba mantienen la protección anterior. La interfaz informa de inmediato si Outlook confirmó Enviados, aceptó la solicitud o la dejó pendiente en Bandeja de salida, sin presentar otros estados como éxito.
+
+La observación del login tolera además que PAM reemplace una alerta visible mientras Playwright intenta leerla. Esa condición transitoria ya no consume por sí sola todo el plazo ni provoca un nuevo envío ciego de credenciales: se vuelve a observar el resultado dentro del límite general y el flujo continúa solamente cuando aparece TOTP, un rechazo real o se agota la espera.
+
+La compilación `Release | x64`, 38 pruebas focalizadas y las 425 pruebas ordinarias pasaron sin abrir PAM, crear solicitudes ni enviar correos reales. **Fase completada.**
+
+### Fase 24.6 — Estabilización del grid Pending paginado
+
+El diagnóstico `pam-automation-diagnostic-20260921-191315` confirmó diez envíos correctos y un fallo posterior mientras Pending cambiaba de página. PAM actualizó el paginador antes de completar las columnas de la página nueva; la lectura estable ya toleraba ese estado, pero la comprobación de transición dejaba escapar una `ArgumentException`.
+
+La transición comprueba primero el número de página y trata columnas incompletas, valores transitoriamente inválidos y timeouts breves como estados reintentables dentro del límite general. No se aceptan snapshots parciales: cada página todavía debe producir dos lecturas completas e idénticas. Si la reconciliación falla después de enviar, el error diferencia ahora esa ejecución parcial y ordena revisar Pending antes de volver a solicitar.
+
+La compilación `Release | x64`, 80 pruebas focalizadas y las 428 pruebas ordinarias pasaron sin abrir PAM, crear solicitudes ni enviar correos reales. **Fase completada.**
+
 ## Fases pendientes
 
 La clasificación siguiente se refiere únicamente a dependencias entre fases pendientes:
@@ -414,19 +464,21 @@ La clasificación siguiente se refiere únicamente a dependencias entre fases pe
 
 | Fase | Clasificación | Dependencias pendientes | Alcance y posibilidad de paralelismo |
 |---|---|---|---|
-| 19 — Pruebas finales administradas | **Independiente** | Ninguna fase pendiente. | Es la validación final del producto publicado en el entorno Windows objetivo. |
+| 19 — Pruebas finales administradas | **Independiente** | Ninguna fase pendiente. | Es la validación final del producto publicado en el entorno Windows objetivo y se ejecutará sobre la reconciliación corregida en fase 24. |
 | 20.6+ — Administración ampliada de colecciones | **Dependiente** | Fases 20.2–20.5 implementadas. | Podrá añadir duplicación u otras mejoras que el usuario confirme; no son necesarias para crear, editar, eliminar, seleccionar y ejecutar una colección. |
 
 ## Mapa recomendado de trabajo paralelo
 
 ```text
-Fases 6 a 18 completadas ──► Fase 19
+Fases 6 a 18 y 24 completadas ──► Fase 19
 
 Fases 21–21.10 completadas de forma independiente
 
 Fases 20.1–20.5 completadas ──► validación real futura
 
 Fases 20–22 completadas ──► Fase 23.1 completada ──► 23.2 completada ──► 23.3 completada ──► 23.4 completada
+
+Fase 24.1 completada ──► 24.2 completada ──► 24.3 completada ──► 24.4 completada
 ```
 
 La fase 18 quedó completada tras validar el manifiesto GitHub real. El coordinador solo podrá paralelizar una parte futura si vuelve a demostrar independencia, contratos congelados y ausencia de archivos compartidos.

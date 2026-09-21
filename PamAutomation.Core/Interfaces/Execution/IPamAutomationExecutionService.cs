@@ -38,6 +38,12 @@ public interface IPamAutomationExecutionService
         CancellationToken cancellationToken = default,
         IProgress<PamRequestSubmissionProgress>? progress = null);
 
+    /// <summary>Sends the result email with a complete set of existing Pending Request IDs.</summary>
+    Task<PamExecutionResult> CompleteWithExistingPendingAsync(
+        PamExecutionPreparation preparation,
+        MailSettings mailSettings,
+        CancellationToken cancellationToken = default);
+
     Task<PamExecutionResult> ExecuteTestAsync(
         PamCredentials credentials,
         AppSettings settings,
