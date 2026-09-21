@@ -164,7 +164,8 @@ PamAutomation\
 │   │   │   └── IPamCredentialStore.cs
 │   │   ├── Diagnostics\
 │   │   │   ├── IDiagnosticEventSource.cs
-│   │   │   └── IDiagnosticExportService.cs
+│   │   │   ├── IDiagnosticExportService.cs
+│   │   │   └── IPendingReconciliationDiagnosticStore.cs
 │   │   ├── Favorites\
 │   │   │   ├── IFavoriteCatalogService.cs
 │   │   │   ├── IFavoriteCatalogStore.cs
@@ -198,7 +199,8 @@ PamAutomation\
 │   ├── Diagnostics\
 │   │   ├── DiagnosticExceptionInfo.cs
 │   │   ├── DiagnosticExportContext.cs
-│   │   └── DiagnosticLogEvent.cs
+│   │   ├── DiagnosticLogEvent.cs
+│   │   └── PendingReconciliationDiagnostic.cs
 │   ├── Favorites\
 │   │   ├── FavoriteCatalogEntry.cs
 │   │   ├── FavoriteCatalogException.cs
@@ -331,6 +333,7 @@ PamAutomation\
 │   ├── Diagnostics\
 │   │   ├── DevelopmentFileLoggerFactory.cs
 │   │   ├── DiagnosticExportService.cs
+│   │   ├── InMemoryPendingReconciliationDiagnosticStore.cs
 │   │   └── RuntimeDiagnosticLoggerFactory.cs
 │   └── Time\
 │       └── PamHttpDateClockFactory.cs
@@ -354,18 +357,11 @@ PamAutomation\
     │   ├── ConfigurationWindowSmokeTests.cs
     │   ├── CredentialConfigurationWorkflowTests.cs
     │   └── FlowDocumentHtmlConverterTests.cs
-    ├── Infrastructure\
-    │   ├── Configuration\
-    │   │   └── DpapiFavoriteCatalogStoreTests.cs
-    │   └── Diagnostics\
-    │       ├── DevelopmentFileLoggerFactoryTests.cs
-    │       ├── DiagnosticExportServiceTests.cs
-    │       └── RuntimeDiagnosticLoggerFactoryTests.cs
     ├── Core\
     │   ├── Authentication\
     │   │   └── PamAuthenticationServiceTests.cs
     │   ├── Configuration\
-│   │   ├── AppSettingsValidatorTests.cs
+    │   │   ├── AppSettingsValidatorTests.cs
     │   │   ├── MailSettingsValidatorTests.cs
     │   │   └── RequestSettingsValidatorTests.cs
     │   ├── Credentials\
@@ -395,11 +391,17 @@ PamAutomation\
     │   └── PamRealAuthenticationTests.cs
     ├── Infrastructure\
     │   ├── Configuration\
+    │   │   ├── DpapiFavoriteCatalogStoreTests.cs
     │   │   ├── DpapiMailSettingsStoreTests.cs
     │   │   ├── DpapiOutlookAccountSettingsStoreTests.cs
     │   │   └── JsonAppSettingsStoreTests.cs
     │   ├── Credentials\
     │   │   └── WindowsPamCredentialStoreTests.cs
+    │   ├── Diagnostics\
+    │   │   ├── DevelopmentFileLoggerFactoryTests.cs
+    │   │   ├── DiagnosticExportServiceTests.cs
+    │   │   ├── InMemoryPendingReconciliationDiagnosticStoreTests.cs
+    │   │   └── RuntimeDiagnosticLoggerFactoryTests.cs
     │   └── Time\
     │       └── PamHttpDateClockFactoryTests.cs
     └── Outlook\
@@ -489,7 +491,7 @@ Biblioteca para `net10.0`, sin dependencia de WPF o Windows. Actualmente contien
 - `Interfaces/Outlook` y `Outlook`: contrato del cliente clásico, modelos redactados, validaciones, resultados y errores seguros; `OutlookHtmlComposer` sanea XHTML, valida el marcador y compone Request ID por línea.
 - `Resilience/PamOperationTimingPolicy`: fuente única de límites, intervalos y cantidades de observación adaptativa para PAM, Pending, Edge interactivo y Outlook; no autoriza reintentos de acciones irreversibles.
 - `Interfaces/Execution` y `Execution`: preparación confirmable, selección opcional de colección, coordinación completa y resultado exclusivamente en memoria.
-- `Interfaces/Diagnostics` y `Diagnostics`: contratos y modelos de lista permitida para capturar y exportar evidencias sin identidades ni secretos.
+- `Interfaces/Diagnostics` y `Diagnostics`: contratos y modelos para el buffer seguro habitual y para una traza detallada de Pending autorizada explícitamente. Esta última puede contener identidades operativas, pero nunca secretos de autenticación, y solo se materializa mediante exportación manual.
 
 Los validadores reciben explícitamente la hora actual de Ecuador y no acceden al reloj, sistema de archivos o servicios externos.
 
@@ -529,8 +531,8 @@ Biblioteca para `net10.0-windows`. Referencia `PamAutomation.Core` e implementa 
 - `PlaywrightManagedPage.RequestSubmission`: reutiliza el llenado validado, vuelve a comprobar el formulario justo antes del clic y espera el `POST` de creación.
 - `PamSubmissionResponseClassifier`: reconoce solo respuestas 2xx y el conflicto de acceso aprobado conocido; rechaza el resto sin propagar payloads.
 - `PamPendingPortalFactory` y `PamPendingPortal`: enlazan el lector de Pending con una sesión autenticada existente.
-- `PamPendingSelectors`, `PamPendingPagination` y `PamPendingStartParser`: centralizan columnas, paginación y fechas inglesas observadas.
-- `PlaywrightManagedPage.Pending`: filtra `Status = Pending`, estabiliza y pagina filas, lee todas las columnas requeridas y captura vistas horizontales de desarrollo.
+- `PamPendingSelectors`, `PamPendingPagination` y `PamPendingStartParser`: centralizan columnas, selector de filas por página, paginación y fechas inglesas observadas.
+- `PlaywrightManagedPage.Pending`: espera la carga completa de `Status = Pending`, selecciona la mayor cantidad de filas disponible, estabiliza el grid, conserva paginación de respaldo, lee todas las columnas requeridas y captura vistas horizontales de desarrollo.
 
 Dependencia NuGet actual: `Microsoft.Playwright` 1.62.0. Los adaptadores internos se exponen únicamente a `PamAutomation.Tests` mediante `InternalsVisibleTo`.
 
@@ -574,7 +576,8 @@ Responsabilidad objetivo:
 - Diagnóstico acotado en memoria y exportación explícita, sin persistencia operativa automática en producción.
 - `Diagnostics/DevelopmentFileLoggerFactory`: proveedor estructurado activado solo bajo depurador o variable explícita, escribe archivos diarios seguros en `logs` y elimina los que superan dos días.
 - `Diagnostics/RuntimeDiagnosticLoggerFactory`: buffer circular de 500 eventos, lista permitida de propiedades y metadatos de excepción sin mensajes o rutas locales.
-- `Diagnostics/DiagnosticExportService`: paquete ZIP manual con escritura atómica, limpieza de temporales y contenido estrictamente tipado.
+- `Diagnostics/InMemoryPendingReconciliationDiagnosticStore`: conserva defensivamente una sola traza detallada por proceso y nunca escribe archivos por sí mismo.
+- `Diagnostics/DiagnosticExportService`: paquete ZIP manual con escritura atómica, limpieza de temporales, versión exacta de compilación y `pending-reconciliation.json` opcional.
 
 No debe conocer controles WPF, selectores PAM ni objetos COM de Outlook.
 
@@ -624,7 +627,8 @@ Contenido actual:
 - `Infrastructure/Configuration/DpapiMailSettingsStoreTests.cs`: valida cifrado CurrentUser, ida y vuelta y rechazo de ciphertext corrupto en una carpeta temporal.
 - `Infrastructure/Configuration/DpapiOutlookAccountSettingsStoreTests.cs`: valida el documento separado de cuenta Outlook, su cifrado CurrentUser y el rechazo de SMTP inválido o contenido corrupto.
 - `Infrastructure/Diagnostics/RuntimeDiagnosticLoggerFactoryTests.cs`: valida capacidad, lista permitida y metadatos de excepción sin información privada.
-- `Infrastructure/Diagnostics/DiagnosticExportServiceTests.cs`: valida ZIP, exclusión de identificadores, cancelación y limpieza atómica.
+- `Infrastructure/Diagnostics/DiagnosticExportServiceTests.cs`: valida ZIP básico, detalle Pending autorizado, manifiesto versionado, cancelación y limpieza atómica.
+- `Infrastructure/Diagnostics/InMemoryPendingReconciliationDiagnosticStoreTests.cs`: valida decisiones, intentos, errores y copias defensivas de la traza temporal.
 - `Infrastructure/Credentials/WindowsPamCredentialStoreTests.cs`: valida creación, actualización parcial, límites, corrupción, borrado y limpieza de buffers mediante una API de Windows falsa.
 - `Infrastructure/Time/PamHttpDateClockFactoryTests.cs`: valida calibración, avance monotónico y errores sin consultar el reloj local.
 - `Browser/PamBrowserSessionFactoryTests.cs`: valida Edge `headless`, contexto temporal, origen exacto, respuesta segura, cancelación y liberación con adaptadores falsos.

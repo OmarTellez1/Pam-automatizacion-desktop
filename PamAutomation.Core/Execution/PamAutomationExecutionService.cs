@@ -1,8 +1,10 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using PamAutomation.Core.Authentication;
+using PamAutomation.Core.Diagnostics;
 using PamAutomation.Core.Favorites;
 using PamAutomation.Core.Interfaces.Authentication;
+using PamAutomation.Core.Interfaces.Diagnostics;
 using PamAutomation.Core.Interfaces.Execution;
 using PamAutomation.Core.Interfaces.Outlook;
 using PamAutomation.Core.Models.Configuration;
@@ -26,6 +28,7 @@ public sealed class PamAutomationExecutionService : IPamAutomationExecutionServi
     private readonly MailSettingsValidator mailSettingsValidator;
     private readonly OutlookDeliveryConfirmationService? outlookConfirmationService;
     private readonly ILogger<PamAutomationExecutionService> logger;
+    private readonly IPendingReconciliationDiagnosticSink? pendingDiagnosticSink;
     private readonly SemaphoreSlim mailGate = new(1, 1);
     private readonly HashSet<string> attemptedMail = new(StringComparer.Ordinal);
 
@@ -39,7 +42,8 @@ public sealed class PamAutomationExecutionService : IPamAutomationExecutionServi
         IOutlookClassicClient? outlookClient = null,
         MailSettingsValidator? mailSettingsValidator = null,
         ILogger<PamAutomationExecutionService>? logger = null,
-        IAsyncDelay? outlookConfirmationDelay = null)
+        IAsyncDelay? outlookConfirmationDelay = null,
+        IPendingReconciliationDiagnosticSink? pendingDiagnosticSink = null)
     {
         this.favoritesService = favoritesService ?? throw new ArgumentNullException(nameof(favoritesService));
         this.submissionService = submissionService ?? throw new ArgumentNullException(nameof(submissionService));
@@ -50,6 +54,7 @@ public sealed class PamAutomationExecutionService : IPamAutomationExecutionServi
         this.outlookClient = outlookClient;
         this.mailSettingsValidator = mailSettingsValidator ?? new MailSettingsValidator();
         this.logger = logger ?? NullLogger<PamAutomationExecutionService>.Instance;
+        this.pendingDiagnosticSink = pendingDiagnosticSink;
         outlookConfirmationService = outlookClient is null
             ? null
             : new OutlookDeliveryConfirmationService(
@@ -109,10 +114,37 @@ public sealed class PamAutomationExecutionService : IPamAutomationExecutionServi
             pendingBeforeSubmission,
             executionAccounts,
             form);
+        PendingRequestDiagnostic[] baselineRows = pendingBeforeSubmission
+            .Select(PendingRequestDiagnostic.Create)
+            .ToArray();
+        int baselineRequestIdCount = baselineRows
+            .Select(static row => row.RequestId)
+            .Distinct(StringComparer.Ordinal)
+            .Count();
+        string pendingDiagnosticExecutionId = Guid.NewGuid().ToString("D");
+        pendingDiagnosticSink?.Begin(new PendingReconciliationDiagnostic(
+            SchemaVersion: 1,
+            ExecutionId: pendingDiagnosticExecutionId,
+            StartedAtUtc: timeProvider.GetUtcNow(),
+            Decision: duplicateCount > 0 ? "AwaitingRepeatedPendingDecision" : "Submit",
+            ExactPendingDuplicateCount: duplicateCount,
+            ExpectedRequests: executionAccounts
+                .Select(account => PendingExpectedRequestDiagnostic.Create(account, form))
+                .ToArray(),
+            BeforeSubmission: new PendingSnapshotDiagnostic(
+                timeProvider.GetUtcNow(),
+                baselineRows.Length,
+                baselineRequestIdCount,
+                baselineRows),
+            SubmittedCount: 0,
+            Attempts: Array.Empty<PendingComparisonAttemptDiagnostic>(),
+            FailureCode: null));
         logger.LogInformation(
-            "Real execution preparation completed. FavoriteCount={FavoriteCount}, ExactPendingDuplicateCount={ExactPendingDuplicateCount}.",
+            "Real execution preparation completed. FavoriteCount={FavoriteCount}, ExactPendingDuplicateCount={ExactPendingDuplicateCount}, BaselineRequestIdCount={BaselineRequestIdCount}, PendingDiagnosticExecutionId={PendingDiagnosticExecutionId}.",
             executionAccounts.Count,
-            duplicateCount);
+            duplicateCount,
+            baselineRequestIdCount,
+            pendingDiagnosticExecutionId);
         return new PamExecutionPreparation(
             executionAccounts.Count,
             settings.Request,
@@ -133,6 +165,8 @@ public sealed class PamAutomationExecutionService : IPamAutomationExecutionServi
     {
         ArgumentNullException.ThrowIfNull(credentials);
         ArgumentNullException.ThrowIfNull(preparation);
+        pendingDiagnosticSink?.RecordDecision(
+            preparation.HasExactPendingDuplicates ? "SubmitAgain" : "Submit");
         logger.LogInformation("Real execution submission started. FavoriteCount={FavoriteCount}.", preparation.FavoriteCount);
 
         PamRequestRunAuthorization authorization = PamRequestRunAuthorization.Confirm(
@@ -151,6 +185,7 @@ public sealed class PamAutomationExecutionService : IPamAutomationExecutionServi
             .Where(static result => result.Status == PamRequestSubmissionStatus.Submitted)
             .Select(static result => result.Account)
             .ToArray();
+        pendingDiagnosticSink?.RecordSubmittedCount(submittedAccounts.Length);
         IReadOnlyList<string> requestIds = Array.Empty<string>();
         if (submittedAccounts.Length > 0)
         {
@@ -176,10 +211,12 @@ public sealed class PamAutomationExecutionService : IPamAutomationExecutionServi
             }
             catch (PamPendingException exception)
             {
+                pendingDiagnosticSink?.RecordFailure(exception.ErrorCode.ToString());
                 logger.LogWarning(
                     exception,
-                    "Pending reconciliation failed after PAM submissions. SubmittedCount={SubmittedCount}.",
-                    submittedAccounts.Length);
+                    "Pending reconciliation failed after PAM submissions. SubmittedCount={SubmittedCount}, PendingErrorCode={PendingErrorCode}.",
+                    submittedAccounts.Length,
+                    exception.ErrorCode);
                 throw new PamRequestSubmissionException(
                     PamRequestSubmissionErrorCode.ReconciliationFailedAfterSubmission,
                     exception,
@@ -248,6 +285,9 @@ public sealed class PamAutomationExecutionService : IPamAutomationExecutionServi
             throw new InvalidOperationException(
                 "Pending no contiene un conjunto completo y no ambiguo de Request ID reutilizables.");
         }
+
+        pendingDiagnosticSink?.RecordDecision("UseExistingRequestIds");
+        pendingDiagnosticSink?.RecordSubmittedCount(0);
 
         logger.LogInformation(
             "Existing Pending Request IDs selected for email. RequestIdCount={RequestIdCount}.",

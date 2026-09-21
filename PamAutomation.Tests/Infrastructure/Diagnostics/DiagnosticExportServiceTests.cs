@@ -50,6 +50,85 @@ public sealed class DiagnosticExportServiceTests : IDisposable
     }
 
     [TestMethod]
+    public async Task ExportAsync_PendingTraceAvailable_IncludesAuthorizedDetailedJson()
+    {
+        Directory.CreateDirectory(directory);
+        string destination = Path.Combine(directory, "diagnostic.zip");
+        using var loggerFactory = new RuntimeDiagnosticLoggerFactory();
+        var pendingStore = new InMemoryPendingReconciliationDiagnosticStore();
+        var row = new PendingRequestDiagnostic(
+            "154359",
+            "SYSTEM-A",
+            "Application A",
+            "account-a",
+            new DateOnly(2026, 9, 21),
+            new TimeOnly(16, 30),
+            new DateOnly(2026, 9, 21),
+            new TimeOnly(17, 30),
+            "Solicitud autorizada");
+        pendingStore.Begin(new PendingReconciliationDiagnostic(
+            1,
+            "execution-1",
+            DateTimeOffset.UtcNow,
+            "SubmitAgain",
+            1,
+            [new PendingExpectedRequestDiagnostic(
+                row.System,
+                row.Application,
+                row.Account,
+                row.StartDate,
+                row.StartTime,
+                row.ExpiresDate,
+                row.ExpiresTime,
+                row.Description)],
+            new PendingSnapshotDiagnostic(DateTimeOffset.UtcNow, 1, 1, [row]),
+            1,
+            [],
+            null));
+        pendingStore.RecordAttempt(new PendingComparisonAttemptDiagnostic(
+            1,
+            DateTimeOffset.UtcNow,
+            2,
+            2,
+            1,
+            0,
+            1,
+            1,
+            0,
+            0,
+            0,
+            "AmbiguousIdentity",
+            [new PendingGroupMultiplicityDiagnostic("SYSTEM-A", "account-a", 1, 2)],
+            [row, row with { RequestId = "154360" }],
+            [row with { RequestId = "154360" }]));
+        pendingStore.RecordFailure("AmbiguousIdentity");
+        var service = new DiagnosticExportService(
+            loggerFactory,
+            new FixedTimeProvider(new DateTimeOffset(2026, 9, 21, 21, 0, 0, TimeSpan.Zero)),
+            pendingStore);
+
+        await service.ExportAsync(
+            destination,
+            new DiagnosticExportContext(true, true, true, null));
+
+        using ZipArchive archive = ZipFile.OpenRead(destination);
+        Assert.Contains("pending-reconciliation.json", archive.Entries.Select(static entry => entry.FullName));
+        ZipArchiveEntry? detailEntry = archive.GetEntry("pending-reconciliation.json");
+        Assert.IsNotNull(detailEntry);
+        string detail = ReadEntry(detailEntry);
+        Assert.Contains("154359", detail);
+        Assert.Contains("SYSTEM-A", detail);
+        Assert.Contains("account-a", detail);
+        Assert.Contains("Solicitud autorizada", detail);
+        Assert.Contains("AmbiguousIdentity", detail);
+        Assert.DoesNotContain("password", detail, StringComparison.OrdinalIgnoreCase);
+        ZipArchiveEntry? manifestEntry = archive.GetEntry("manifest.json");
+        Assert.IsNotNull(manifestEntry);
+        string manifest = ReadEntry(manifestEntry);
+        Assert.Contains("\"schemaVersion\": 2", manifest);
+    }
+
+    [TestMethod]
     public async Task ExportAsync_Cancelled_DoesNotLeaveDestinationOrTemporaryFile()
     {
         Directory.CreateDirectory(directory);

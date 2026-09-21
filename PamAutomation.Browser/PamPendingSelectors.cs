@@ -10,6 +10,7 @@ internal static partial class PamPendingSelectors
     public const string Pending = "Pending";
     public const string FirstPage = "First page";
     public const string NextPage = "Next page";
+    public const string ItemsPerPage = "items per page";
     public const string Rows = "tr[aria-label^=\"Row \"]";
     public const string PageInput = "input[type=\"number\"][aria-label^=\"Page \"]";
     public const string RequestIdCell = "td[data-column-id=\"RequestId\"]";
@@ -23,4 +24,7 @@ internal static partial class PamPendingSelectors
 
     [GeneratedRegex("^(\\d+)\\s+items?$", RegexOptions.IgnoreCase)]
     public static partial Regex ItemCountExpression();
+
+    [GeneratedRegex("^" + ItemsPerPage + "$", RegexOptions.IgnoreCase)]
+    public static partial Regex ItemsPerPageExpression();
 }

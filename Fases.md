@@ -464,6 +464,18 @@ Pending amplía a diez las lecturas completas de consistencia eventual, separada
 
 La política solo reintenta observaciones y operaciones de lectura idempotentes. Usuario/contraseña, TOTP, `Submit Request` y `Send()` siguen ejecutándose una sola vez. Rechazos explícitos, cancelaciones, estructuras permanentemente inválidas y errores no clasificados terminan el flujo sin reintentos ciegos. La compilación `Release | x64` y las 431 pruebas ordinarias pasaron sin abrir PAM, crear solicitudes ni enviar correos reales. **Fase completada.**
 
+### Ajuste posterior a la fase 25 — Pending en una sola página cuando sea posible
+
+El lector de Pending selecciona automáticamente la mayor opción numérica de `items per page`, actualmente 200. Antes de leer espera que la selección `Status = Pending` cierre su menú y termine de habilitar el grid; después confirma que el paginador representa el total publicado. Esto reduce los cambios de página y, con ellos, la posibilidad de omitir o repetir un Request ID en los límites de página.
+
+La paginación no fue eliminada: continúa como respaldo si existen más filas que el máximo ofrecido o si otra versión del portal no expone el selector. Cada snapshot sigue necesitando dos lecturas completas e idénticas, IDs únicos y coincidencia con el contador total. La prueba real exclusivamente de lectura confirmó mediante captura `200 items per page`, una página y `1–56 of 56 items`; no creó solicitudes ni abrió Outlook. **Ajuste implementado y validado.**
+
+### Ajuste posterior a la fase 25 — Diagnóstico detallado de reconciliación
+
+La aplicación mantiene una única traza detallada de Pending en memoria y la sustituye al preparar cada ejecución. Conserva los Request ID y campos del portal autorizados, las solicitudes esperadas, la decisión `Submit`/`SubmitAgain`/`UseExistingRequestIds`, el conteo realmente enviado y todos los intentos de reconciliación. Cada intento calcula intersección y ausencias de la línea base, IDs nuevos, candidatos exactos, filas inesperadas y multiplicidades por `System + Account`; el error final conserva su `PamPendingErrorCode`.
+
+La información no se agrega al log persistente ni se escribe automáticamente. Solo una exportación solicitada crea `pending-reconciliation.json` dentro del ZIP y eleva el manifiesto a esquema 2. `environment.json` incorpora la versión informativa y el `ModuleVersionId` para distinguir compilaciones que todavía compartan la versión visible. Se excluyen credenciales, contraseña, semilla y código TOTP, cookies, tokens y correo. La compilación `Release | x64`, 30 pruebas focalizadas y las 434 pruebas ordinarias aprobaron. **Ajuste completado.**
+
 ## Fases pendientes
 
 La clasificación siguiente se refiere únicamente a dependencias entre fases pendientes:

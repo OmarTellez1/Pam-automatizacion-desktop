@@ -18,23 +18,13 @@ internal sealed partial class PlaywrightManagedPage
             .WaitAsync(cancellationToken)
             .ConfigureAwait(false);
         await SelectPendingStatusAsync(cancellationToken).ConfigureAwait(false);
-        await CaptureAsync(captureDirectory, PendingCaptureName, cancellationToken).ConfigureAwait(false);
-        await CapturePendingColumnViewAsync(
-            captureDirectory,
-            PamPendingSelectors.DescriptionCell,
-            "fase13-pending-grid-description-and-expiration.png",
-            cancellationToken).ConfigureAwait(false);
-        await CapturePendingColumnViewAsync(
-            captureDirectory,
-            PamPendingSelectors.ApplicationCell,
-            "fase13-pending-grid-application.png",
-            cancellationToken).ConfigureAwait(false);
 
         ILocator rows = page.Locator(PamPendingSelectors.Rows);
         ILocator pageInput = page.Locator(PamPendingSelectors.PageInput);
         int paginatorCount = await pageInput.CountAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
         if (paginatorCount == 0)
         {
+            await CapturePendingViewsAsync(captureDirectory, cancellationToken).ConfigureAwait(false);
             IReadOnlyList<PamPendingRequest> current = await ReadStablePendingPageAsync(rows, cancellationToken)
                 .ConfigureAwait(false);
             int? expectedCount = await ReadVisibleItemCountAsync(cancellationToken).ConfigureAwait(false);
@@ -50,6 +40,10 @@ internal sealed partial class PlaywrightManagedPage
         {
             throw new InvalidOperationException("Pending presentó más de un paginador.");
         }
+
+        await SelectLargestPendingPageSizeAsync(pageInput, cancellationToken)
+            .ConfigureAwait(false);
+        await CapturePendingViewsAsync(captureDirectory, cancellationToken).ConfigureAwait(false);
 
         for (int scanAttempt = 1;
              scanAttempt <= PamOperationTimingPolicy.GridScanMaximumAttempts;
@@ -76,6 +70,116 @@ internal sealed partial class PlaywrightManagedPage
         throw new InvalidOperationException("Pending cambió repetidamente durante la lectura paginada.");
     }
 
+    private async Task CapturePendingViewsAsync(
+        string? captureDirectory,
+        CancellationToken cancellationToken)
+    {
+        await CaptureAsync(captureDirectory, PendingCaptureName, cancellationToken).ConfigureAwait(false);
+        await CapturePendingColumnViewAsync(
+            captureDirectory,
+            PamPendingSelectors.DescriptionCell,
+            "fase13-pending-grid-description-and-expiration.png",
+            cancellationToken).ConfigureAwait(false);
+        await CapturePendingColumnViewAsync(
+            captureDirectory,
+            PamPendingSelectors.ApplicationCell,
+            "fase13-pending-grid-application.png",
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task SelectLargestPendingPageSizeAsync(
+        ILocator pageInput,
+        CancellationToken cancellationToken)
+    {
+        ILocator labels = page.GetByText(PamPendingSelectors.ItemsPerPageExpression());
+        ILocator? visibleLabel = null;
+        int labelCount = await labels.CountAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
+        for (int index = 0; index < labelCount; index++)
+        {
+            ILocator candidate = labels.Nth(index);
+            if (await candidate.IsVisibleAsync().ConfigureAwait(false))
+            {
+                if (visibleLabel is not null)
+                {
+                    throw new InvalidOperationException("Pending presentó más de un selector de filas por página.");
+                }
+
+                visibleLabel = candidate;
+            }
+        }
+
+        // Older PAM variants may not expose this selector. Their paginated traversal remains supported.
+        if (visibleLabel is null)
+        {
+            return;
+        }
+
+        ILocator selectorRegion = visibleLabel.Locator(
+            "xpath=ancestor::*[.//*[@role='combobox']][1]");
+        ILocator selectors = selectorRegion.GetByRole(AriaRole.Combobox);
+        int selectorCount = await selectors.CountAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
+        if (selectorCount != 1)
+        {
+            throw new InvalidOperationException("Pending no presentó un selector único de filas por página.");
+        }
+
+        ILocator selector = selectors.First;
+        await selector.ClickAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
+
+        ILocator options = page.GetByRole(AriaRole.Option);
+        ILocator? largestOption = null;
+        int largestPageSize = 0;
+        int optionCount = await options.CountAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
+        for (int index = 0; index < optionCount; index++)
+        {
+            ILocator option = options.Nth(index);
+            if (!await option.IsVisibleAsync().ConfigureAwait(false))
+            {
+                continue;
+            }
+
+            string text = (await option.InnerTextAsync().WaitAsync(cancellationToken).ConfigureAwait(false)).Trim();
+            if (int.TryParse(text, out int pageSize) && pageSize > largestPageSize)
+            {
+                largestOption = option;
+                largestPageSize = pageSize;
+            }
+        }
+
+        if (largestOption is null)
+        {
+            await page.Keyboard.PressAsync("Escape").WaitAsync(cancellationToken).ConfigureAwait(false);
+            throw new InvalidOperationException("Pending no presentó opciones válidas de filas por página.");
+        }
+
+        int? itemCount = await ReadVisibleItemCountAsync(cancellationToken).ConfigureAwait(false);
+        await largestOption.ClickAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
+
+        if (itemCount is null)
+        {
+            return;
+        }
+
+        int expectedPages = Math.Max(1, (itemCount.Value + largestPageSize - 1) / largestPageSize);
+        bool pageSizeConfirmed = await WaitUntilAsync(async () =>
+        {
+            try
+            {
+                (_, int totalPages) = await ReadPendingPageInfoAsync(pageInput, cancellationToken)
+                    .ConfigureAwait(false);
+                return totalPages == expectedPages;
+            }
+            catch (Exception exception) when (IsTransientPortalReadException(exception))
+            {
+                return false;
+            }
+        }, cancellationToken).ConfigureAwait(false);
+        if (!pageSizeConfirmed)
+        {
+            throw new InvalidOperationException("Pending no confirmó el nuevo tamaño de página.");
+        }
+    }
+
     private async Task SelectPendingStatusAsync(CancellationToken cancellationToken)
     {
         ILocator status = page.GetByLabel(PamPendingSelectors.Status, new() { Exact = true });
@@ -91,10 +195,16 @@ internal sealed partial class PlaywrightManagedPage
         await pending.ClickAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
 
         bool selected = await WaitUntilAsync(
-            async () => string.Equals(
-                await status.GetAttributeAsync("title").ConfigureAwait(false),
-                PamPendingSelectors.Pending,
-                StringComparison.Ordinal),
+            async () =>
+            {
+                bool titleConfirmed = string.Equals(
+                    await status.GetAttributeAsync("title").ConfigureAwait(false),
+                    PamPendingSelectors.Pending,
+                    StringComparison.Ordinal);
+                return titleConfirmed &&
+                    !await pending.IsVisibleAsync().ConfigureAwait(false) &&
+                    await status.IsEnabledAsync().ConfigureAwait(false);
+            },
             cancellationToken).ConfigureAwait(false);
         if (!selected)
         {

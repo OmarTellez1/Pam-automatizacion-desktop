@@ -21,15 +21,21 @@ public sealed class DiagnosticExportService : IDiagnosticExportService
     };
 
     private readonly IDiagnosticEventSource eventSource;
+    private readonly IPendingReconciliationDiagnosticSource? pendingDiagnosticSource;
     private readonly TimeProvider timeProvider;
 
     /// <summary>Initializes the exporter from a safe in-memory event source.</summary>
     /// <param name="eventSource">Source of already filtered diagnostic events.</param>
     /// <param name="timeProvider">Clock used for package metadata.</param>
-    public DiagnosticExportService(IDiagnosticEventSource eventSource, TimeProvider? timeProvider = null)
+    /// <param name="pendingDiagnosticSource">Optional source of explicitly authorized Pending details.</param>
+    public DiagnosticExportService(
+        IDiagnosticEventSource eventSource,
+        TimeProvider? timeProvider = null,
+        IPendingReconciliationDiagnosticSource? pendingDiagnosticSource = null)
     {
         this.eventSource = eventSource ?? throw new ArgumentNullException(nameof(eventSource));
         this.timeProvider = timeProvider ?? TimeProvider.System;
+        this.pendingDiagnosticSource = pendingDiagnosticSource;
     }
 
     /// <inheritdoc />
@@ -56,7 +62,17 @@ public sealed class DiagnosticExportService : IDiagnosticExportService
             destinationDirectory,
             $".{Path.GetFileName(fullDestinationPath)}.{Guid.NewGuid():N}.tmp");
         IReadOnlyList<DiagnosticLogEvent> events = eventSource.CaptureSnapshot();
+        PendingReconciliationDiagnostic? pendingDiagnostic = pendingDiagnosticSource?.CaptureSnapshot();
         DateTimeOffset generatedAtUtc = timeProvider.GetUtcNow();
+        string[] files = pendingDiagnostic is null
+            ? ["manifest.json", "environment.json", "execution-summary.json", "diagnostic.log"]
+            : [
+                "manifest.json",
+                "environment.json",
+                "execution-summary.json",
+                "diagnostic.log",
+                "pending-reconciliation.json",
+            ];
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -72,14 +88,17 @@ public sealed class DiagnosticExportService : IDiagnosticExportService
                 await WriteJsonEntryAsync(
                     archive,
                     "manifest.json",
-                    new DiagnosticManifest(1, generatedAtUtc, events.Count,
-                        ["manifest.json", "environment.json", "execution-summary.json", "diagnostic.log"]),
+                    new DiagnosticManifest(pendingDiagnostic is null ? 1 : 2, generatedAtUtc, events.Count, files),
                     cancellationToken).ConfigureAwait(false);
                 await WriteJsonEntryAsync(
                     archive,
                     "environment.json",
                     new DiagnosticEnvironment(
                         Assembly.GetEntryAssembly()?.GetName().Version?.ToString() ?? "Unknown",
+                        Assembly.GetEntryAssembly()?
+                            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?
+                            .InformationalVersion ?? "Unknown",
+                        Assembly.GetEntryAssembly()?.ManifestModule.ModuleVersionId.ToString("D") ?? "Unknown",
                         Environment.Version.ToString(),
                         RuntimeInformation.OSDescription,
                         RuntimeInformation.ProcessArchitecture.ToString(),
@@ -96,6 +115,14 @@ public sealed class DiagnosticExportService : IDiagnosticExportService
                         context.LastExecution),
                     cancellationToken).ConfigureAwait(false);
                 await WriteLogEntryAsync(archive, events, cancellationToken).ConfigureAwait(false);
+                if (pendingDiagnostic is not null)
+                {
+                    await WriteJsonEntryAsync(
+                        archive,
+                        "pending-reconciliation.json",
+                        pendingDiagnostic,
+                        cancellationToken).ConfigureAwait(false);
+                }
             }
 
             cancellationToken.ThrowIfCancellationRequested();
@@ -161,6 +188,8 @@ public sealed class DiagnosticExportService : IDiagnosticExportService
 
     private sealed record DiagnosticEnvironment(
         string ApplicationVersion,
+        string ApplicationInformationalVersion,
+        string ApplicationModuleVersionId,
         string DotNetVersion,
         string OperatingSystem,
         string ProcessArchitecture,

@@ -57,7 +57,10 @@ namespace PamAutomation.App
 
             runtimeLoggerFactory = RuntimeDiagnosticLoggerFactory.CreateForCurrentProcess();
             loggerFactory = runtimeLoggerFactory;
-            diagnosticExportService = new DiagnosticExportService(runtimeLoggerFactory);
+            var pendingDiagnosticStore = new InMemoryPendingReconciliationDiagnosticStore();
+            diagnosticExportService = new DiagnosticExportService(
+                runtimeLoggerFactory,
+                pendingDiagnosticSource: pendingDiagnosticStore);
             userDialogs = new WpfUserDialogService();
             logger = loggerFactory.CreateLogger<App>();
             DispatcherUnhandledException += LogDispatcherUnhandledException;
@@ -129,7 +132,11 @@ namespace PamAutomation.App
                     favorites,
                     new PamRequestSubmissionPortalFactory(),
                     requestValidator),
-                new PamPendingService(authentication, new PamPendingPortalFactory(), delay),
+                new PamPendingService(
+                    authentication,
+                    new PamPendingPortalFactory(),
+                    delay,
+                    pendingDiagnosticStore),
                 new PamRequestTestService(
                     authentication,
                     favorites,
@@ -139,7 +146,8 @@ namespace PamAutomation.App
                 TimeProvider.System,
                 outlookClient,
                 new MailSettingsValidator(),
-                loggerFactory.CreateLogger<PamAutomationExecutionService>());
+                loggerFactory.CreateLogger<PamAutomationExecutionService>(),
+                pendingDiagnosticSink: pendingDiagnosticStore);
             var viewModel = new MainWindowViewModel(
                 execution,
                 new JsonAppSettingsStore(),

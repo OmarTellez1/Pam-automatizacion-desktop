@@ -1,11 +1,13 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PamAutomation.Core.Browser;
+using PamAutomation.Core.Diagnostics;
 using PamAutomation.Core.Favorites;
 using PamAutomation.Core.Interfaces.Authentication;
 using PamAutomation.Core.Interfaces.Browser;
 using PamAutomation.Core.Interfaces.Requests;
 using PamAutomation.Core.Models.Credentials;
 using PamAutomation.Core.Requests;
+using PamAutomation.Infrastructure.Diagnostics;
 
 namespace PamAutomation.Tests.Core.Requests;
 
@@ -382,6 +384,56 @@ public sealed class PamPendingServiceTests
         CollectionAssert.AreEqual(new[] { "170002" }, result.RequestIds.ToArray());
         Assert.DoesNotContain("170001", result.RequestIds);
         Assert.AreEqual(2, portal.ReadCalls);
+    }
+
+    [TestMethod]
+    public async Task WaitForCompleteComparisonAsync_AmbiguousNewRows_RecordsDetailedSetDifference()
+    {
+        PamPendingRequest oldRequest = CreatePending("170000");
+        IReadOnlyList<PamPendingRequest> current =
+        [
+            oldRequest,
+            CreatePending("170001"),
+            CreatePending("170002"),
+        ];
+        var store = new InMemoryPendingReconciliationDiagnosticStore();
+        PendingRequestDiagnostic oldDiagnostic = PendingRequestDiagnostic.Create(oldRequest);
+        store.Begin(new PendingReconciliationDiagnostic(
+            1,
+            "execution",
+            DateTimeOffset.UtcNow,
+            "SubmitAgain",
+            1,
+            [],
+            new PendingSnapshotDiagnostic(DateTimeOffset.UtcNow, 1, 1, [oldDiagnostic]),
+            1,
+            [],
+            null));
+        var service = new PamPendingService(
+            new FakeAuthenticatedSessionFactory(new FakeSession()),
+            new FakePortalFactory(new FakePortal(current)),
+            new FakeDelay(),
+            store);
+
+        PamPendingException exception = await Assert.ThrowsExactlyAsync<PamPendingException>(() =>
+            service.WaitForCompleteComparisonAsync(
+                new FakeSession(),
+                [new PamFavoriteAccount("system-a", "WinSCP", "account-a")],
+                CreateForm(),
+                maximumAttempts: 1,
+                excludedRequestIds: ["170000"]));
+
+        Assert.AreEqual(PamPendingErrorCode.AmbiguousIdentity, exception.ErrorCode);
+        PendingReconciliationDiagnostic? trace = store.CaptureSnapshot();
+        Assert.IsNotNull(trace);
+        PendingComparisonAttemptDiagnostic attempt = Assert.ContainsSingle(trace.Attempts);
+        Assert.AreEqual(3, attempt.RowCount);
+        Assert.AreEqual(3, attempt.UniqueRequestIdCount);
+        Assert.AreEqual(1, attempt.BaselineIntersectionCount);
+        Assert.AreEqual(0, attempt.MissingBaselineCount);
+        Assert.AreEqual(2, attempt.NewRequestCount);
+        Assert.AreEqual("AmbiguousIdentity", attempt.ErrorCode);
+        Assert.HasCount(2, attempt.NewRequests);
     }
 
     [TestMethod]

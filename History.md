@@ -744,3 +744,18 @@ Cada cambio relevante debe registrar qué se decidió, por qué, qué se verific
 - Outlook observa Enviados inmediatamente, amplía su ventana acotada de confirmación y recupera un arranque COM lento mediante comprobaciones de un segundo. `Send()` no se repite.
 - El acceso visible amplió a 60 segundos el arranque de Edge y las respuestas del portal, conservando una ventana distinta para la decisión manual del certificado.
 - La compilación `Release | x64` y las 431 pruebas ordinarias aprobaron. No se contactó PAM ni Outlook real.
+
+## 21 de septiembre de 2026 — Lectura de Pending con tamaño máximo de página
+
+- El diagnóstico con 56 filas motivó retirar la paginación innecesaria de los lotes que caben en una sola página.
+- Browser espera ahora que `Status = Pending` cierre y vuelva a estar habilitado; esto evita aceptar el `0 items` transitorio que PAM muestra mientras reemplaza el grid.
+- El lector abre `items per page`, elige la mayor opción numérica disponible, confirma el total de páginas y conserva el recorrido paginado para cantidades superiores o versiones sin selector.
+- Una prueba real autorizada y de solo lectura confirmó mediante captura `200 items per page`, `Page 1 of 1` y `1-56 of 56 items`. El navegador temporal permaneció oculto como exige el flujo automático; no se crearon solicitudes ni se abrió Outlook.
+
+## 21 de septiembre de 2026 — Diagnóstico explícito de Request ID y reconciliación
+
+- El usuario autorizó incluir Request ID, `System`, `Application`, `Account`, descripción, inicio y expiración para diagnosticar las ambigüedades que los conteos anteriores no podían distinguir.
+- Cada ejecución preparada reemplaza una traza en memoria con línea base, valores esperados, decisión, conteo enviado e intentos completos posteriores. La diferencia identifica intersección, IDs ausentes y nuevos, candidatos exactos, filas inesperadas y multiplicidades por identidad estable.
+- Las excepciones de Pending registran ahora `PendingErrorCode` en el log estructurado y en la traza. El ZIP explícito incorpora `pending-reconciliation.json`; ninguna evidencia detallada se persiste automáticamente.
+- `environment.json` identifica la compilación mediante versión informativa y `ModuleVersionId`. Siguen excluidos credenciales, contraseña, semilla y código TOTP, cookies, tokens y contenido del correo.
+- La compilación `Release | x64`, 30 pruebas focalizadas y la suite completa de 434 pruebas aprobaron sin contactar PAM ni Outlook.

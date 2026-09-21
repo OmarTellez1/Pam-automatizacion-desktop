@@ -1,6 +1,8 @@
+using PamAutomation.Core.Diagnostics;
 using PamAutomation.Core.Favorites;
 using PamAutomation.Core.Interfaces.Authentication;
 using PamAutomation.Core.Interfaces.Browser;
+using PamAutomation.Core.Interfaces.Diagnostics;
 using PamAutomation.Core.Interfaces.Requests;
 using PamAutomation.Core.Models.Credentials;
 using PamAutomation.Core.Resilience;
@@ -13,17 +15,23 @@ public sealed class PamPendingService
     private readonly IPamAuthenticatedSessionFactory authenticatedSessionFactory;
     private readonly IPamPendingPortalFactory portalFactory;
     private readonly IAsyncDelay asyncDelay;
+    private readonly IPendingReconciliationDiagnosticSink? diagnosticSink;
+    private readonly TimeProvider timeProvider;
 
     /// <summary>Initializes the read-only workflow.</summary>
     public PamPendingService(
         IPamAuthenticatedSessionFactory authenticatedSessionFactory,
         IPamPendingPortalFactory portalFactory,
-        IAsyncDelay asyncDelay)
+        IAsyncDelay asyncDelay,
+        IPendingReconciliationDiagnosticSink? diagnosticSink = null,
+        TimeProvider? timeProvider = null)
     {
         this.authenticatedSessionFactory = authenticatedSessionFactory
             ?? throw new ArgumentNullException(nameof(authenticatedSessionFactory));
         this.portalFactory = portalFactory ?? throw new ArgumentNullException(nameof(portalFactory));
         this.asyncDelay = asyncDelay ?? throw new ArgumentNullException(nameof(asyncDelay));
+        this.diagnosticSink = diagnosticSink;
+        this.timeProvider = timeProvider ?? TimeProvider.System;
     }
 
     /// <summary>Authenticates, reads every <c>Pending</c> page and closes the temporary session.</summary>
@@ -189,9 +197,43 @@ public sealed class PamPendingService
         PamPendingComparisonResult? latest = null;
         for (int attempt = 1; attempt <= maximumAttempts; attempt++)
         {
-            IReadOnlyList<PamPendingRequest> requests = await ReadAllAsync(session, cancellationToken)
-                .ConfigureAwait(false);
-            latest = Compare(requests, expectedAccounts, form, excludedRequestIds);
+            IReadOnlyList<PamPendingRequest> requests;
+            try
+            {
+                requests = await ReadAllAsync(session, cancellationToken).ConfigureAwait(false);
+            }
+            catch (PamPendingException exception)
+            {
+                diagnosticSink?.RecordFailure(exception.ErrorCode.ToString());
+                throw;
+            }
+
+            try
+            {
+                latest = Compare(requests, expectedAccounts, form, excludedRequestIds);
+                diagnosticSink?.RecordAttempt(CreateDiagnosticAttempt(
+                    attempt,
+                    requests,
+                    excludedRequestIds,
+                    expectedAccounts,
+                    form,
+                    latest,
+                    errorCode: null));
+            }
+            catch (PamPendingException exception)
+            {
+                diagnosticSink?.RecordAttempt(CreateDiagnosticAttempt(
+                    attempt,
+                    requests,
+                    excludedRequestIds,
+                    expectedAccounts,
+                    form,
+                    comparison: null,
+                    exception.ErrorCode));
+                diagnosticSink?.RecordFailure(exception.ErrorCode.ToString());
+                throw;
+            }
+
             if (latest.IsComplete || attempt == maximumAttempts)
             {
                 return latest;
@@ -201,6 +243,59 @@ public sealed class PamPendingService
         }
 
         throw new InvalidOperationException("No se completó la comparación de Pending.");
+    }
+
+    private PendingComparisonAttemptDiagnostic CreateDiagnosticAttempt(
+        int attempt,
+        IReadOnlyList<PamPendingRequest> requests,
+        IReadOnlyCollection<string>? excludedRequestIds,
+        IReadOnlyList<PamFavoriteAccount> expectedAccounts,
+        PamRequestFormData form,
+        PamPendingComparisonResult? comparison,
+        PamPendingErrorCode? errorCode)
+    {
+        HashSet<string> baseline = excludedRequestIds?.ToHashSet(StringComparer.Ordinal) ?? [];
+        HashSet<string> currentIds = requests.Select(static request => request.RequestId)
+            .ToHashSet(StringComparer.Ordinal);
+        PamPendingRequest[] newRequests = requests
+            .Where(request => !baseline.Contains(request.RequestId))
+            .ToArray();
+        DateTime expectedExpiration = form.StartDate
+            .ToDateTime(form.StartTime)
+            .AddMinutes(form.TotalMinutes);
+        HashSet<string> expectedKeys = expectedAccounts
+            .Select(AccountKey)
+            .ToHashSet(StringComparer.Ordinal);
+        PamPendingRequest[] exactCandidates = newRequests
+            .Where(request =>
+                IsExactBatchRequest(request, form, expectedExpiration) &&
+                expectedKeys.Contains(AccountKey(request)))
+            .ToArray();
+        PendingGroupMultiplicityDiagnostic[] groups = expectedAccounts
+            .GroupBy(AccountKey, StringComparer.Ordinal)
+            .Select(group => new PendingGroupMultiplicityDiagnostic(
+                group.First().SystemName,
+                group.First().AccountName,
+                group.Count(),
+                exactCandidates.Count(request =>
+                    string.Equals(AccountKey(request), group.Key, StringComparison.Ordinal))))
+            .ToArray();
+        return new(
+            attempt,
+            timeProvider.GetUtcNow(),
+            requests.Count,
+            currentIds.Count,
+            baseline.Count(currentIds.Contains),
+            baseline.Count(id => !currentIds.Contains(id)),
+            newRequests.Length,
+            exactCandidates.Length,
+            newRequests.Length - exactCandidates.Length,
+            comparison?.MatchedCount ?? 0,
+            comparison?.MissingCount ?? 0,
+            errorCode?.ToString(),
+            groups,
+            requests.Select(PendingRequestDiagnostic.Create).ToArray(),
+            newRequests.Select(PendingRequestDiagnostic.Create).ToArray());
     }
 
     /// <summary>Authenticates once and polls <c>Pending</c> until all expected rows are present.</summary>
