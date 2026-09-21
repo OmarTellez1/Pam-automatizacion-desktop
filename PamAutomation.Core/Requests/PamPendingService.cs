@@ -3,6 +3,7 @@ using PamAutomation.Core.Interfaces.Authentication;
 using PamAutomation.Core.Interfaces.Browser;
 using PamAutomation.Core.Interfaces.Requests;
 using PamAutomation.Core.Models.Credentials;
+using PamAutomation.Core.Resilience;
 
 namespace PamAutomation.Core.Requests;
 
@@ -166,7 +167,7 @@ public sealed class PamPendingService
         IPamBrowserSession session,
         IReadOnlyList<PamFavoriteAccount> expectedAccounts,
         PamRequestFormData form,
-        int maximumAttempts = 6,
+        int maximumAttempts = PamOperationTimingPolicy.PendingComparisonMaximumAttempts,
         TimeSpan? retryDelay = null,
         CancellationToken cancellationToken = default,
         IReadOnlyCollection<string>? excludedRequestIds = null)
@@ -179,7 +180,7 @@ public sealed class PamPendingService
             throw new ArgumentOutOfRangeException(nameof(maximumAttempts));
         }
 
-        TimeSpan delay = retryDelay ?? TimeSpan.FromSeconds(2);
+        TimeSpan delay = retryDelay ?? PamOperationTimingPolicy.PendingComparisonRetryDelay;
         if (delay <= TimeSpan.Zero)
         {
             throw new ArgumentOutOfRangeException(nameof(retryDelay));
@@ -207,7 +208,7 @@ public sealed class PamPendingService
         PamCredentials credentials,
         IReadOnlyList<PamFavoriteAccount> expectedAccounts,
         PamRequestFormData form,
-        int maximumAttempts = 6,
+        int maximumAttempts = PamOperationTimingPolicy.PendingComparisonMaximumAttempts,
         TimeSpan? retryDelay = null,
         CancellationToken cancellationToken = default,
         IReadOnlyCollection<string>? excludedRequestIds = null)

@@ -1,4 +1,5 @@
 using Microsoft.Playwright;
+using PamAutomation.Core.Resilience;
 using PamAutomation.Core.Requests;
 
 namespace PamAutomation.Browser;
@@ -6,8 +7,6 @@ namespace PamAutomation.Browser;
 internal sealed partial class PlaywrightManagedPage
 {
     private const int MaximumPendingPages = 500;
-    private const int MaximumPendingScanAttempts = 3;
-    private const float PendingCellReadTimeoutMilliseconds = 1_000;
     private const string PendingCaptureName = "fase13-pending-grid.png";
 
     public async Task<IReadOnlyList<PamPendingRequest>> ReadAllPendingAsync(
@@ -19,7 +18,6 @@ internal sealed partial class PlaywrightManagedPage
             .WaitAsync(cancellationToken)
             .ConfigureAwait(false);
         await SelectPendingStatusAsync(cancellationToken).ConfigureAwait(false);
-        await Task.Delay(TimeSpan.FromMilliseconds(750), cancellationToken).ConfigureAwait(false);
         await CaptureAsync(captureDirectory, PendingCaptureName, cancellationToken).ConfigureAwait(false);
         await CapturePendingColumnViewAsync(
             captureDirectory,
@@ -53,7 +51,9 @@ internal sealed partial class PlaywrightManagedPage
             throw new InvalidOperationException("Pending presentó más de un paginador.");
         }
 
-        for (int scanAttempt = 1; scanAttempt <= MaximumPendingScanAttempts; scanAttempt++)
+        for (int scanAttempt = 1;
+             scanAttempt <= PamOperationTimingPolicy.GridScanMaximumAttempts;
+             scanAttempt++)
         {
             IReadOnlyList<PamPendingRequest> requests = await ScanAllPendingPagesAsync(
                 rows,
@@ -65,13 +65,15 @@ internal sealed partial class PlaywrightManagedPage
                 return requests;
             }
 
-            if (scanAttempt < MaximumPendingScanAttempts)
+            if (scanAttempt < PamOperationTimingPolicy.GridScanMaximumAttempts)
             {
-                await Task.Delay(TimeSpan.FromMilliseconds(750), cancellationToken).ConfigureAwait(false);
+                await Task.Delay(
+                    PamOperationTimingPolicy.GridScanRetryDelay,
+                    cancellationToken).ConfigureAwait(false);
             }
         }
 
-        throw new InvalidOperationException("Pending cambió durante los tres intentos de lectura paginada.");
+        throw new InvalidOperationException("Pending cambió repetidamente durante la lectura paginada.");
     }
 
     private async Task SelectPendingStatusAsync(CancellationToken cancellationToken)
@@ -202,7 +204,7 @@ internal sealed partial class PlaywrightManagedPage
                 string signature = await ReadPendingSignatureAsync(rows, cancellationToken).ConfigureAwait(false);
                 return !string.Equals(signature, previousSignature, StringComparison.Ordinal);
             }
-            catch (Exception exception) when (IsTransientPendingGridReadException(exception))
+            catch (Exception exception) when (IsTransientPortalReadException(exception))
             {
                 return false;
             }
@@ -233,7 +235,7 @@ internal sealed partial class PlaywrightManagedPage
 
                 previous = current;
             }
-            catch (Exception exception) when (IsTransientPendingGridReadException(exception))
+            catch (Exception exception) when (IsTransientPortalReadException(exception))
             {
                 previous = null;
             }
@@ -316,7 +318,7 @@ internal sealed partial class PlaywrightManagedPage
 
         string value = (await cell.InnerTextAsync(new LocatorInnerTextOptions
         {
-            Timeout = PendingCellReadTimeoutMilliseconds,
+            Timeout = (float)PamOperationTimingPolicy.TransientProbeTimeout.TotalMilliseconds,
         }).WaitAsync(cancellationToken).ConfigureAwait(false)).Trim();
         if (!allowEmpty && value.Length == 0)
         {
@@ -326,7 +328,7 @@ internal sealed partial class PlaywrightManagedPage
         return value;
     }
 
-    internal static bool IsTransientPendingGridReadException(Exception exception) =>
+    internal static bool IsTransientPortalReadException(Exception exception) =>
         exception is ArgumentException or InvalidOperationException or TimeoutException;
 
     private static async Task<string> ReadPendingSignatureAsync(

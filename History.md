@@ -734,3 +734,13 @@ Cada cambio relevante debe registrar qué se decidió, por qué, qué se verific
 - Las filas solo se aceptan después de dos snapshots completos e idénticos; una estructura permanentemente inválida continúa terminando con un error seguro.
 - Los fallos de reconciliación posteriores a envíos PAM se comunican ahora como automatización incompleta, con el conteo procesado y la instrucción de revisar Pending o reutilizar sus IDs antes de repetir.
 - La compilación `Release | x64`, 80 pruebas focalizadas y la suite completa de 428 pruebas aprobaron. No se contactó PAM ni Outlook real.
+
+## 21 de septiembre de 2026 — Fase 25: esperas adaptativas
+
+- Se creó `PamOperationTimingPolicy` para retirar decisiones temporales dispersas y diferenciar observación rápida, probe transitorio y límite máximo.
+- Playwright usa 60 segundos como techo de navegación y controles, pero sondea cada 200 ms y continúa inmediatamente cuando PAM está listo. Las lecturas DOM individuales no pueden consumir toda la ventana.
+- Favorites y Pending toleran renderizados parciales sin aceptar filas incompletas. Pending amplió sus refrescos de consistencia eventual a diez y sus reescaneos por cambios de total a cinco.
+- La verificación del formulario reemplazó pausas fijas por una comprobación adaptativa de todos los valores. `Submit Request` permanece fuera de cualquier reintento.
+- Outlook observa Enviados inmediatamente, amplía su ventana acotada de confirmación y recupera un arranque COM lento mediante comprobaciones de un segundo. `Send()` no se repite.
+- El acceso visible amplió a 60 segundos el arranque de Edge y las respuestas del portal, conservando una ventana distinta para la decisión manual del certificado.
+- La compilación `Release | x64` y las 431 pruebas ordinarias aprobaron. No se contactó PAM ni Outlook real.

@@ -96,16 +96,16 @@ public sealed class PamPendingPortalTests
     [TestMethod]
     public void PendingGridRead_TransientRenderFailures_AreRetryable()
     {
-        Assert.IsTrue(PlaywrightManagedPage.IsTransientPendingGridReadException(new ArgumentException()));
-        Assert.IsTrue(PlaywrightManagedPage.IsTransientPendingGridReadException(new InvalidOperationException()));
-        Assert.IsTrue(PlaywrightManagedPage.IsTransientPendingGridReadException(new TimeoutException()));
+        Assert.IsTrue(PlaywrightManagedPage.IsTransientPortalReadException(new ArgumentException()));
+        Assert.IsTrue(PlaywrightManagedPage.IsTransientPortalReadException(new InvalidOperationException()));
+        Assert.IsTrue(PlaywrightManagedPage.IsTransientPortalReadException(new TimeoutException()));
     }
 
     [TestMethod]
     public void PendingGridRead_CancellationAndUnexpectedFailures_AreNotRetryable()
     {
-        Assert.IsFalse(PlaywrightManagedPage.IsTransientPendingGridReadException(new OperationCanceledException()));
-        Assert.IsFalse(PlaywrightManagedPage.IsTransientPendingGridReadException(new IOException()));
+        Assert.IsFalse(PlaywrightManagedPage.IsTransientPortalReadException(new OperationCanceledException()));
+        Assert.IsFalse(PlaywrightManagedPage.IsTransientPortalReadException(new IOException()));
     }
 
     private static PamPendingRequest CreatePending() => new(

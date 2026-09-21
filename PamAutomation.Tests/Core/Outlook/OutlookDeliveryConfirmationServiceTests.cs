@@ -2,6 +2,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PamAutomation.Core.Interfaces.Authentication;
 using PamAutomation.Core.Interfaces.Outlook;
 using PamAutomation.Core.Outlook;
+using PamAutomation.Core.Resilience;
 
 namespace PamAutomation.Tests.Core.Outlook;
 
@@ -27,7 +28,7 @@ public sealed class OutlookDeliveryConfirmationServiceTests
 
         Assert.AreEqual(OutlookDeliveryStatus.SentConfirmed, result.Status);
         Assert.AreEqual(3, client.LookupCount);
-        Assert.AreEqual(3, delay.Delays.Count);
+        Assert.AreEqual(2, delay.Delays.Count);
         Assert.IsTrue(delay.Delays.All(static value => value == TimeSpan.FromSeconds(4)));
     }
 
@@ -46,7 +47,7 @@ public sealed class OutlookDeliveryConfirmationServiceTests
 
         Assert.AreEqual(OutlookDeliveryStatus.OutboxPending, result.Status);
         Assert.Contains("Bandeja de salida", result.Message);
-        Assert.AreEqual(10, client.LookupCount);
+        Assert.AreEqual(PamOperationTimingPolicy.OutlookConfirmationMaximumAttempts, client.LookupCount);
         Assert.AreEqual(0, client.SendCount);
     }
 

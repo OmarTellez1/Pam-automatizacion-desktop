@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using PamAutomation.Core.Interfaces.Authentication;
 using PamAutomation.Core.Interfaces.Outlook;
+using PamAutomation.Core.Resilience;
 
 namespace PamAutomation.Core.Outlook;
 
@@ -10,9 +11,6 @@ namespace PamAutomation.Core.Outlook;
 /// </summary>
 public sealed class OutlookDeliveryConfirmationService
 {
-    private const int DefaultMaximumAttempts = 10;
-    private static readonly TimeSpan DefaultPollInterval = TimeSpan.FromSeconds(4);
-
     private readonly IOutlookClassicClient outlookClient;
     private readonly IAsyncDelay delay;
     private readonly ILogger logger;
@@ -23,7 +21,12 @@ public sealed class OutlookDeliveryConfirmationService
         IOutlookClassicClient outlookClient,
         IAsyncDelay delay,
         ILogger? logger = null)
-        : this(outlookClient, delay, DefaultMaximumAttempts, DefaultPollInterval, logger)
+        : this(
+            outlookClient,
+            delay,
+            PamOperationTimingPolicy.OutlookConfirmationMaximumAttempts,
+            PamOperationTimingPolicy.OutlookConfirmationPollInterval,
+            logger)
     {
     }
 
@@ -59,7 +62,6 @@ public sealed class OutlookDeliveryConfirmationService
 
         for (int attempt = 1; attempt <= maximumAttempts; attempt++)
         {
-            await delay.DelayAsync(pollInterval, cancellationToken).ConfigureAwait(false);
             try
             {
                 lastStatus = await outlookClient
@@ -90,6 +92,11 @@ public sealed class OutlookDeliveryConfirmationService
                     "Outlook post-send observation failed transiently. Attempt={Attempt}, MaximumAttempts={MaximumAttempts}.",
                     attempt,
                     maximumAttempts);
+            }
+
+            if (attempt < maximumAttempts)
+            {
+                await delay.DelayAsync(pollInterval, cancellationToken).ConfigureAwait(false);
             }
         }
 

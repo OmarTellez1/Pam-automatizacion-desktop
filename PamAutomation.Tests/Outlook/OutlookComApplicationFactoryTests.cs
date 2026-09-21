@@ -1,5 +1,6 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PamAutomation.Core.Interfaces.Outlook;
+using PamAutomation.Core.Resilience;
 using PamAutomation.Outlook.Interop;
 using System.Runtime.InteropServices;
 
@@ -65,7 +66,7 @@ public sealed class OutlookComApplicationFactoryTests
         Assert.AreEqual(1, activator.CreateCount);
         Assert.AreEqual(2, activator.RunningLookupCount);
         Assert.AreEqual(1, launcher.StartCount);
-        Assert.AreEqual(1, waiter.WaitCount);
+        Assert.AreEqual(0, waiter.WaitCount);
     }
 
     [TestMethod]
@@ -102,7 +103,28 @@ public sealed class OutlookComApplicationFactoryTests
             Assert.ThrowsExactly<OutlookComUnavailableException>(() => factory.Create());
 
         Assert.AreEqual(unchecked((int)0x80080005), exception.HResult);
-        Assert.AreEqual(2, activator.CreateCount);
+        Assert.AreEqual(1 + PamOperationTimingPolicy.OutlookStartupMaximumAttempts, activator.CreateCount);
+    }
+
+    [TestMethod]
+    public void Create_OutlookStartsSlowly_ObservesUntilRunningInstanceAppears()
+    {
+        var nativeApplication = new FakeApplication("sender@example.test");
+        var activator = new FakeActivator(nativeApplication)
+        {
+            CreateFailure = new COMException("Synthetic server failure.", unchecked((int)0x80080005))
+        };
+        var waiter = new FakeWaiter(attempt =>
+        {
+            if (attempt == 3) activator.RunningApplication = nativeApplication;
+        });
+        var factory = new OutlookComApplicationFactory(activator, new FakeLauncher(), waiter);
+
+        using IOutlookComApplication application = factory.Create();
+
+        Assert.AreEqual(3, waiter.WaitCount);
+        Assert.AreEqual(5, activator.RunningLookupCount);
+        Assert.AreEqual(4, activator.CreateCount);
     }
 
     private sealed class FakeActivator(FakeApplication application) : IOutlookComActivator
@@ -137,10 +159,14 @@ public sealed class OutlookComApplicationFactoryTests
         }
     }
 
-    private sealed class FakeWaiter : IOutlookStartupWaiter
+    private sealed class FakeWaiter(Action<int>? onWait = null) : IOutlookStartupWaiter
     {
         public int WaitCount { get; private set; }
-        public void Wait() => WaitCount++;
+        public void Wait()
+        {
+            WaitCount++;
+            onWait?.Invoke(WaitCount);
+        }
     }
 
     public sealed class FakeApplication(string smtpAddress)

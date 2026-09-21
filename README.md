@@ -157,6 +157,8 @@ Cuando el preflight encuentra un conjunto completo de solicitudes idénticas en 
 
 Si PAM procesa solicitudes pero Pending no puede estabilizarse para recuperar sus IDs, la aplicación identifica la ejecución como incompleta y pide revisar Pending antes de reintentar. En el siguiente preflight, un conjunto completo puede reutilizarse para enviar esos IDs por correo sin volver a crear solicitudes.
 
+La aplicación usa esperas adaptativas: comprueba inmediatamente cada estado y solo espera si PAM u Outlook aún están procesando. Navegación, grids, formularios, consistencia eventual y confirmación de correo tienen límites centralizados; credenciales, TOTP, `Submit Request` y `Send()` nunca se repiten automáticamente.
+
 ### Publicar una nueva versión portable
 
 1. Actualizar `Version`, `AssemblyVersion`, `FileVersion` e `InformationalVersion` en `PamAutomation.App/PamAutomation.App.csproj`. Para `1.0.2`, las versiones de ensamblado y archivo son `1.0.2.0`.

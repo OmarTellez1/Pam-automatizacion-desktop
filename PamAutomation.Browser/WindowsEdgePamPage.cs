@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using System.Windows.Automation;
 using Microsoft.Extensions.Logging;
 using PamAutomation.Core.Authentication;
+using PamAutomation.Core.Resilience;
 using PamAutomation.Core.Browser;
 
 namespace PamAutomation.Browser;
@@ -11,9 +12,9 @@ namespace PamAutomation.Browser;
 /// <summary>Controls only the PAM login controls in a normal Microsoft Edge window.</summary>
 internal sealed class WindowsEdgePamPage : IManagedPage, IPamLoginPage
 {
-    private static readonly TimeSpan BrowserStartTimeout = TimeSpan.FromSeconds(30);
-    private static readonly TimeSpan LoginControlTimeout = TimeSpan.FromMinutes(3);
-    private static readonly TimeSpan PortalResponseTimeout = TimeSpan.FromSeconds(40);
+    private static TimeSpan BrowserStartTimeout => PamOperationTimingPolicy.InteractiveBrowserStartTimeout;
+    private static TimeSpan LoginControlTimeout => PamOperationTimingPolicy.InteractiveLoginControlTimeout;
+    private static TimeSpan PortalResponseTimeout => PamOperationTimingPolicy.InteractivePortalResponseTimeout;
     private static readonly string[] AddressBarNames =
     [
         "Address and search bar",
@@ -244,7 +245,7 @@ internal sealed class WindowsEdgePamPage : IManagedPage, IPamLoginPage
                 TrySetFocus(window);
             }
 
-            await Task.Delay(200, cancellationToken).ConfigureAwait(false);
+            await Task.Delay(PamOperationTimingPolicy.ObservationInterval, cancellationToken).ConfigureAwait(false);
         }
 
         throw new InvalidOperationException(
@@ -277,7 +278,7 @@ internal sealed class WindowsEdgePamPage : IManagedPage, IPamLoginPage
             ServerCertificateCustomValidationCallback = (request, _, _, _) =>
                 request.RequestUri is not null && originPolicy.IsAllowed(request.RequestUri)
         };
-        return new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(20) };
+        return new HttpClient(handler) { Timeout = PamOperationTimingPolicy.PortalReadinessTimeout };
     }
 
     private AutomationElement GetWindow()
@@ -555,7 +556,7 @@ internal sealed class WindowsEdgePamPage : IManagedPage, IPamLoginPage
                 // The accessibility tree is refreshed during browser navigation.
             }
 
-            await Task.Delay(200, cancellationToken).ConfigureAwait(false);
+            await Task.Delay(PamOperationTimingPolicy.ObservationInterval, cancellationToken).ConfigureAwait(false);
         }
 
         return false;

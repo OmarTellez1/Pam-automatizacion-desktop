@@ -1,4 +1,5 @@
 using Microsoft.Playwright;
+using PamAutomation.Core.Resilience;
 
 namespace PamAutomation.Browser;
 
@@ -89,6 +90,8 @@ internal sealed class PlaywrightManagedBrowserContext(IBrowserContext context) :
     {
         cancellationToken.ThrowIfCancellationRequested();
         IPage page = await context.NewPageAsync().ConfigureAwait(false);
+        page.SetDefaultTimeout((float)PamOperationTimingPolicy.PortalReadinessTimeout.TotalMilliseconds);
+        page.SetDefaultNavigationTimeout((float)PamOperationTimingPolicy.PortalReadinessTimeout.TotalMilliseconds);
         return new PlaywrightManagedPage(page);
     }
 
@@ -107,8 +110,8 @@ internal sealed partial class PlaywrightManagedPage(IPage page) :
     IPamRequestSubmissionPage,
     IPamPendingPage
 {
-    private static readonly TimeSpan PortalTimeout = TimeSpan.FromSeconds(30);
-    private static readonly TimeSpan ObservationInterval = TimeSpan.FromMilliseconds(100);
+    private static TimeSpan PortalTimeout => PamOperationTimingPolicy.PortalReadinessTimeout;
+    private static TimeSpan ObservationInterval => PamOperationTimingPolicy.ObservationInterval;
 
     public async Task<PamAutomation.Core.Browser.PamNavigationResponse> NavigateAsync(
         Uri uri,
@@ -313,7 +316,7 @@ internal sealed partial class PlaywrightManagedPage(IPage page) :
             {
                 text = (await alert.InnerTextAsync(new LocatorInnerTextOptions
                 {
-                    Timeout = 1_000,
+                    Timeout = (float)PamOperationTimingPolicy.TransientProbeTimeout.TotalMilliseconds,
                 }).ConfigureAwait(false)).Trim();
             }
             catch (TimeoutException)

@@ -2,6 +2,7 @@ using System.Globalization;
 using Microsoft.Playwright;
 using PamAutomation.Core.Favorites;
 using PamAutomation.Core.Models.Configuration;
+using PamAutomation.Core.Resilience;
 using PamAutomation.Core.Requests;
 
 namespace PamAutomation.Browser;
@@ -222,7 +223,6 @@ internal sealed partial class PlaywrightManagedPage
         CancellationToken cancellationToken)
     {
         RequestFormLocators fields = GetRequestFormLocators();
-        await Task.Delay(TimeSpan.FromMilliseconds(500), cancellationToken).ConfigureAwait(false);
         await SelectStartDateAsync(fields.StartDate, form.StartDate, cancellationToken)
             .ConfigureAwait(false);
         string expectedTime = form.StartTime.ToString("HH:mm", CultureInfo.InvariantCulture);
@@ -249,8 +249,6 @@ internal sealed partial class PlaywrightManagedPage
             .WaitAsync(cancellationToken)
             .ConfigureAwait(false);
         await fields.Reason.FillAsync(form.Reason).WaitAsync(cancellationToken).ConfigureAwait(false);
-        await Task.Delay(TimeSpan.FromMilliseconds(750), cancellationToken).ConfigureAwait(false);
-
         await VerifyRequestFormAsync(form, cancellationToken).ConfigureAwait(false);
     }
 
@@ -258,52 +256,86 @@ internal sealed partial class PlaywrightManagedPage
         PamRequestFormData form,
         CancellationToken cancellationToken)
     {
+        IReadOnlyList<string> lastMismatches = [];
+        long startedAt = Environment.TickCount64;
+        while (Environment.TickCount64 - startedAt <
+               PamOperationTimingPolicy.FormStabilityTimeout.TotalMilliseconds)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                lastMismatches = await ReadRequestFormMismatchesAsync(form).ConfigureAwait(false);
+                if (lastMismatches.Count == 0)
+                {
+                    return;
+                }
+            }
+            catch (Exception exception) when (IsTransientPortalReadException(exception))
+            {
+                lastMismatches = [];
+            }
+
+            await Task.Delay(ObservationInterval, cancellationToken).ConfigureAwait(false);
+        }
+
+        string details = lastMismatches.Count == 0
+            ? "el formulario no produjo una lectura estable"
+            : string.Join(", ", lastMismatches);
+        throw new InvalidOperationException(
+            $"El formulario no conservó estos campos: {details}; el envío permanece bloqueado.");
+    }
+
+    private async Task<IReadOnlyList<string>> ReadRequestFormMismatchesAsync(PamRequestFormData form)
+    {
         RequestFormLocators fields = GetRequestFormLocators();
         string expectedDate = form.StartDate.ToString("MMMM dd, yyyy", CultureInfo.InvariantCulture);
         string expectedTime = form.StartTime.ToString("HH:mm", CultureInfo.InvariantCulture);
         var mismatches = new List<string>();
+        var inputOptions = new LocatorInputValueOptions
+        {
+            Timeout = (float)PamOperationTimingPolicy.TransientProbeTimeout.TotalMilliseconds,
+        };
+        var attributeOptions = new LocatorGetAttributeOptions
+        {
+            Timeout = (float)PamOperationTimingPolicy.TransientProbeTimeout.TotalMilliseconds,
+        };
         AddMismatch(
             mismatches,
             PamRequestTestSelectors.StartDate,
-            await fields.StartDate.InputValueAsync().ConfigureAwait(false),
+            await fields.StartDate.InputValueAsync(inputOptions).ConfigureAwait(false),
             expectedDate);
         AddMismatch(
             mismatches,
             PamRequestTestSelectors.StartTime,
-            await fields.StartTime.InputValueAsync().ConfigureAwait(false),
+            await fields.StartTime.InputValueAsync(inputOptions).ConfigureAwait(false),
             expectedTime);
         AddMismatch(
             mismatches,
             PamRequestTestSelectors.Days,
-            await fields.Days.InputValueAsync().ConfigureAwait(false),
+            await fields.Days.InputValueAsync(inputOptions).ConfigureAwait(false),
             form.DurationDays.ToString(CultureInfo.InvariantCulture));
         AddMismatch(
             mismatches,
             PamRequestTestSelectors.Hours,
-            await fields.Hours.InputValueAsync().ConfigureAwait(false),
+            await fields.Hours.InputValueAsync(inputOptions).ConfigureAwait(false),
             form.DurationHours.ToString(CultureInfo.InvariantCulture));
         AddMismatch(
             mismatches,
             PamRequestTestSelectors.Minutes,
-            await fields.Minutes.InputValueAsync().ConfigureAwait(false),
+            await fields.Minutes.InputValueAsync(inputOptions).ConfigureAwait(false),
             form.DurationMinutes.ToString(CultureInfo.InvariantCulture));
         AddMismatch(
             mismatches,
             PamRequestTestSelectors.Reason,
-            await fields.Reason.InputValueAsync().ConfigureAwait(false),
+            await fields.Reason.InputValueAsync(inputOptions).ConfigureAwait(false),
             form.Reason);
         AddMismatch(
             mismatches,
             PamRequestTestSelectors.ApplicationSession,
-            await fields.ApplicationSession.GetAttributeAsync("aria-checked").ConfigureAwait(false),
+            await fields.ApplicationSession.GetAttributeAsync("aria-checked", attributeOptions).ConfigureAwait(false),
             "true",
             StringComparison.OrdinalIgnoreCase);
-        cancellationToken.ThrowIfCancellationRequested();
-        if (mismatches.Count > 0)
-        {
-            throw new InvalidOperationException(
-                $"El formulario no conservó estos campos: {string.Join(", ", mismatches)}; el envío permanece bloqueado.");
-        }
+        return mismatches;
     }
 
     private static void AddMismatch(

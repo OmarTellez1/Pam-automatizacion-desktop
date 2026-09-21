@@ -5,6 +5,7 @@ using System.Runtime.InteropServices;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using PamAutomation.Core.Outlook;
+using PamAutomation.Core.Resilience;
 
 namespace PamAutomation.Outlook.Interop;
 
@@ -85,9 +86,7 @@ internal sealed class OutlookApplicationLauncher : IOutlookApplicationLauncher
 
 internal sealed class OutlookStartupWaiter : IOutlookStartupWaiter
 {
-    private static readonly TimeSpan StartupDelay = TimeSpan.FromSeconds(3);
-
-    public void Wait() => Thread.Sleep(StartupDelay);
+    public void Wait() => Thread.Sleep(PamOperationTimingPolicy.OutlookStartupRetryDelay);
 }
 
 internal sealed class OutlookComUnavailableException : Exception
@@ -155,11 +154,41 @@ internal sealed class OutlookComApplicationFactory : IOutlookComApplicationFacto
         try
         {
             launcher.Start();
-            startupWaiter.Wait();
+            Exception lastFailure = originalException;
+            for (int attempt = 1;
+                 attempt <= PamOperationTimingPolicy.OutlookStartupMaximumAttempts;
+                 attempt++)
+            {
+                try
+                {
+                    object application = activator.TryGetRunningApplication() ?? activator.CreateApplication();
+                    logger.LogInformation(
+                        "Outlook COM recovery completed. Status={Status}, Attempt={Attempt}.",
+                        "Recovered",
+                        attempt);
+                    return new OutlookComApplication(application);
+                }
+                catch (COMException exception) when (exception.HResult == ServerExecutionFailureHResult)
+                {
+                    lastFailure = exception;
+                    logger.LogInformation(
+                        "Outlook COM is still starting. Attempt={Attempt}, MaximumAttempts={MaximumAttempts}.",
+                        attempt,
+                        PamOperationTimingPolicy.OutlookStartupMaximumAttempts);
+                }
 
-            object application = activator.TryGetRunningApplication() ?? activator.CreateApplication();
-            logger.LogInformation("Outlook COM recovery completed. Status={Status}.", "Recovered");
-            return new OutlookComApplication(application);
+                if (attempt < PamOperationTimingPolicy.OutlookStartupMaximumAttempts)
+                {
+                    startupWaiter.Wait();
+                }
+            }
+
+            throw new OutlookComUnavailableException(
+                new AggregateException(originalException, lastFailure));
+        }
+        catch (OutlookComUnavailableException)
+        {
+            throw;
         }
         catch (Exception recoveryException)
         {

@@ -1,5 +1,6 @@
 using Microsoft.Playwright;
 using PamAutomation.Core.Favorites;
+using PamAutomation.Core.Resilience;
 
 namespace PamAutomation.Browser;
 
@@ -114,7 +115,7 @@ internal sealed partial class PlaywrightManagedPage
                     .ConfigureAwait(false);
                 return currentPage == expectedPage;
             }
-            catch (InvalidOperationException)
+            catch (Exception exception) when (IsTransientPortalReadException(exception))
             {
                 return false;
             }
@@ -148,10 +149,10 @@ internal sealed partial class PlaywrightManagedPage
                 previous = current;
                 lastIncompleteRowException = null;
             }
-            catch (ArgumentException exception)
+            catch (Exception exception) when (IsTransientPortalReadException(exception))
             {
                 previous = null;
-                lastIncompleteRowException = exception;
+                lastIncompleteRowException = exception as ArgumentException;
             }
 
             await Task.Delay(ObservationInterval, cancellationToken).ConfigureAwait(false);
@@ -218,7 +219,10 @@ internal sealed partial class PlaywrightManagedPage
                 $"Columnas técnicas disponibles: {availableColumns}.");
         }
 
-        return (await cell.InnerTextAsync().WaitAsync(cancellationToken).ConfigureAwait(false)).Trim();
+        return (await cell.InnerTextAsync(new LocatorInnerTextOptions
+        {
+            Timeout = (float)PamOperationTimingPolicy.TransientProbeTimeout.TotalMilliseconds,
+        }).WaitAsync(cancellationToken).ConfigureAwait(false)).Trim();
     }
 
     private static async Task<string> ReadAvailableColumnIdsAsync(

@@ -121,6 +121,7 @@ La decisión de confiar en el certificado pertenece al usuario y queda persistid
 - Leer primero un snapshot estable y único; antes de abrir cada formulario, volver a leer la fila y comparar su identidad.
 - Tratar filas incompletas, identidades duplicadas, paginación cambiante, controles ambiguos o valores restablecidos como fallos bloqueantes.
 - Durante una transición paginada, reobservar brevemente filas todavía incompletas y aceptar la página únicamente después de dos snapshots completos e idénticos; una fila que no se estabiliza dentro del límite continúa siendo bloqueante.
+- Aplicar la política temporal central: observación inmediata, sondeo breve y límite máximo. Reintentar solo navegación, lectura y comprobaciones idempotentes; nunca volver a pulsar automáticamente `Submit Request` ni reenviar credenciales, TOTP o correo.
 - Priorizar roles, labels y atributos estables. Los selectores CSS se limitan al grid y a Flatpickr cuando no existe una alternativa accesible suficiente.
 - Mantener autenticación, Favorites y formularios en la misma sesión temporal. No reutilizar perfiles, cookies ni sesiones persistentes de Edge.
 - No imprimir ni persistir las identidades descubiertas como diagnóstico ordinario.

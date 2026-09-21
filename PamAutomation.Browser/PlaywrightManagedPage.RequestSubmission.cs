@@ -43,7 +43,6 @@ internal sealed partial class PlaywrightManagedPage
             new() { Name = PamRequestTestSelectors.SubmitRequest, Exact = true });
         await RequireUniqueVisibleAsync(submit, "botón Submit Request", cancellationToken)
             .ConfigureAwait(false);
-        await Task.Delay(TimeSpan.FromMilliseconds(500), cancellationToken).ConfigureAwait(false);
         await VerifyRequestFormAsync(form, cancellationToken).ConfigureAwait(false);
         cancellationToken.ThrowIfCancellationRequested();
 

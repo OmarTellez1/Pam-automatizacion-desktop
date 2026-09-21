@@ -454,6 +454,16 @@ La transición comprueba primero el número de página y trata columnas incomple
 
 La compilación `Release | x64`, 80 pruebas focalizadas y las 428 pruebas ordinarias pasaron sin abrir PAM, crear solicitudes ni enviar correos reales. **Fase completada.**
 
+## Fase 25 — Esperas adaptativas y resiliencia operacional
+
+Los tiempos de PAM y Outlook se centralizaron en `PamOperationTimingPolicy`. La aplicación observa de inmediato y continúa tan pronto como aparece el estado esperado; solo espera entre observaciones cuando la página, el grid, el formulario o Outlook todavía están procesando. La disponibilidad normal no paga demoras fijas innecesarias.
+
+Playwright dispone de hasta 60 segundos para navegación y controles, con sondeo liviano cada 200 ms y probes DOM breves de dos segundos. Favorites y Pending reintentan únicamente lecturas transitorias, exigen snapshots completos y estables y conservan límites de páginas e intentos. Los valores del formulario se verifican adaptativamente durante un máximo de 15 segundos; no se habilita el envío mientras difieran de la configuración autorizada.
+
+Pending amplía a diez las lecturas completas de consistencia eventual, separadas por dos segundos, y puede repetir hasta cinco escaneos cuando el total cambia durante una paginación. Outlook consulta Enviados de inmediato después de `Send()` y solo espera cuatro segundos si aún no aparece; puede observar hasta quince veces. Si Outlook clásico necesita arrancar, COM se comprueba de inmediato y después una vez por segundo durante una ventana acotada. El acceso interactivo dispone de 60 segundos para Edge y respuestas del portal, manteniendo tres minutos exclusivamente para la intervención manual del certificado.
+
+La política solo reintenta observaciones y operaciones de lectura idempotentes. Usuario/contraseña, TOTP, `Submit Request` y `Send()` siguen ejecutándose una sola vez. Rechazos explícitos, cancelaciones, estructuras permanentemente inválidas y errores no clasificados terminan el flujo sin reintentos ciegos. La compilación `Release | x64` y las 431 pruebas ordinarias pasaron sin abrir PAM, crear solicitudes ni enviar correos reales. **Fase completada.**
+
 ## Fases pendientes
 
 La clasificación siguiente se refiere únicamente a dependencias entre fases pendientes:
@@ -464,13 +474,13 @@ La clasificación siguiente se refiere únicamente a dependencias entre fases pe
 
 | Fase | Clasificación | Dependencias pendientes | Alcance y posibilidad de paralelismo |
 |---|---|---|---|
-| 19 — Pruebas finales administradas | **Independiente** | Ninguna fase pendiente. | Es la validación final del producto publicado en el entorno Windows objetivo y se ejecutará sobre la reconciliación corregida en fase 24. |
+| 19 — Pruebas finales administradas | **Independiente** | Ninguna fase pendiente. | Es la validación final del producto publicado en el entorno Windows objetivo y se ejecutará sobre la reconciliación de fase 24 y las esperas adaptativas de fase 25. |
 | 20.6+ — Administración ampliada de colecciones | **Dependiente** | Fases 20.2–20.5 implementadas. | Podrá añadir duplicación u otras mejoras que el usuario confirme; no son necesarias para crear, editar, eliminar, seleccionar y ejecutar una colección. |
 
 ## Mapa recomendado de trabajo paralelo
 
 ```text
-Fases 6 a 18 y 24 completadas ──► Fase 19
+Fases 6 a 18, 24 y 25 completadas ──► Fase 19
 
 Fases 21–21.10 completadas de forma independiente
 
@@ -479,6 +489,8 @@ Fases 20.1–20.5 completadas ──► validación real futura
 Fases 20–22 completadas ──► Fase 23.1 completada ──► 23.2 completada ──► 23.3 completada ──► 23.4 completada
 
 Fase 24.1 completada ──► 24.2 completada ──► 24.3 completada ──► 24.4 completada
+
+Fase 25 completada ──► validación real administrada en fase 19
 ```
 
 La fase 18 quedó completada tras validar el manifiesto GitHub real. El coordinador solo podrá paralelizar una parte futura si vuelve a demostrar independencia, contratos congelados y ausencia de archivos compartidos.
