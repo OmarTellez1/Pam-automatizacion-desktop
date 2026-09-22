@@ -94,7 +94,7 @@ public sealed record PamExecutionPreparation
     /// <summary>Gets a complete and unambiguous set of existing Pending IDs, or an empty list.</summary>
     public IReadOnlyList<string> ReusablePendingRequestIds { get; }
 
-    /// <summary>Gets whether the user must explicitly decide if exact Pending rows should be repeated.</summary>
+    /// <summary>Gets whether existing exact Pending rows require reuse-or-cancel handling.</summary>
     public bool HasExactPendingDuplicates => ExactPendingDuplicateCount > 0;
 
     /// <summary>Gets whether the existing Pending set can replace submission and be emailed safely.</summary>

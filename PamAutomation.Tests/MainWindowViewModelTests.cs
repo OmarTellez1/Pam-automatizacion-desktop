@@ -519,23 +519,7 @@ public sealed class MainWindowViewModelTests
         Assert.AreEqual(1, context.Execution.PreparationCount);
         Assert.AreEqual(1, context.Dialogs.RepeatedPendingConfirmationCount);
         Assert.AreEqual(0, context.Execution.RealExecutionCount);
-        Assert.Contains("no se volvieron a crear", context.ViewModel.StatusMessage);
-    }
-
-    [TestMethod]
-    public async Task RealExecution_ExactPendingDuplicatesAccepted_SubmitsAgain()
-    {
-        TestContext context = CreateIntegratedViewModel(confirm: true);
-        context.Execution.PendingDuplicateCount = 2;
-        context.Dialogs.RepeatedPendingDecision = RepeatedPendingDecision.SubmitAgain;
-        await context.ViewModel.InitializeAsync();
-
-        await context.ViewModel.StartAutomationCommand.ExecuteAsync(null);
-
-        Assert.AreEqual(1, context.Dialogs.AutomationStartConfirmationCount);
-        Assert.AreEqual(1, context.Execution.PreparationCount);
-        Assert.AreEqual(1, context.Dialogs.RepeatedPendingConfirmationCount);
-        Assert.AreEqual(1, context.Execution.RealExecutionCount);
+        Assert.Contains("Cambia la fecha u hora de inicio, la duración o el motivo", context.ViewModel.StatusMessage);
     }
 
     [TestMethod]
@@ -953,9 +937,7 @@ public sealed class MainWindowViewModelTests
         public FakeDialogs(bool confirm)
         {
             this.confirm = confirm;
-            RepeatedPendingDecision = confirm
-                ? RepeatedPendingDecision.SubmitAgain
-                : RepeatedPendingDecision.Cancel;
+            RepeatedPendingDecision = RepeatedPendingDecision.Cancel;
         }
 
         public string? DiagnosticPath { get; set; } = "C:\\support\\diagnostic.zip";

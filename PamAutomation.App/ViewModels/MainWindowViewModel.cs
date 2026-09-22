@@ -437,30 +437,29 @@ public sealed partial class MainWindowViewModel : ObservableObject
             if (preparation.HasExactPendingDuplicates)
             {
                 RepeatedPendingDecision decision = dialogs!.ChooseRepeatedPendingAction(preparation);
-                if (decision == RepeatedPendingDecision.Cancel)
+                if (decision != RepeatedPendingDecision.UseExistingRequestIds)
                 {
                     logger.LogInformation(
                         "Real PAM execution was cancelled because exact Pending duplicates were found. DuplicateCount={DuplicateCount}.",
                         preparation.ExactPendingDuplicateCount);
-                    StatusMessage = "Ejecución cancelada. Las solicitudes repetidas de Pending no se volvieron a crear.";
+                    StatusMessage = preparation.CanReusePendingRequestIdsForEmail
+                        ? "Ejecución cancelada. No se crearon solicitudes repetidas ni se envió correo."
+                        : "Ejecución cancelada. Cambia la fecha u hora de inicio, la duración o el motivo antes de volver a intentarlo.";
                     return;
                 }
 
-                if (decision == RepeatedPendingDecision.UseExistingRequestIds)
+                if (mailSettings is null)
                 {
-                    if (mailSettings is null)
-                    {
-                        throw new InvalidOperationException("La configuración de correo no está disponible.");
-                    }
-
-                    StatusMessage = "Enviando correo con los Request ID existentes en Pending…";
-                    PamExecutionResult existingResult = await executionService
-                        .CompleteWithExistingPendingAsync(preparation, mailSettings)
-                        .ConfigureAwait(true);
-                    PresentResult(existingResult);
-                    PresentExistingPendingMailOutcome(existingResult.MailDelivery);
-                    return;
+                    throw new InvalidOperationException("La configuración de correo no está disponible.");
                 }
+
+                StatusMessage = "Enviando correo con los Request ID existentes en Pending…";
+                PamExecutionResult existingResult = await executionService
+                    .CompleteWithExistingPendingAsync(preparation, mailSettings)
+                    .ConfigureAwait(true);
+                PresentResult(existingResult);
+                PresentExistingPendingMailOutcome(existingResult.MailDelivery);
+                return;
             }
 
             var progress = new Progress<PamRequestSubmissionProgress>(PresentSubmissionProgress);

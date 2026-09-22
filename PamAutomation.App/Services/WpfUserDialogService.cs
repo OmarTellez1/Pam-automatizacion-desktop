@@ -72,7 +72,7 @@ public sealed class WpfUserDialogService : IUserDialogService
                 : string.Empty,
             string.Empty,
             "Después de confirmar, las validaciones se ejecutarán en segundo plano.",
-            "Solo se solicitará otra decisión si existen solicitudes idénticas en Pending.");
+            "Solo se solicitará otra decisión si existen solicitudes idénticas en Pending; podrás reutilizar un conjunto completo para el correo o cancelar.");
     }
 
     public bool ConfirmTestEmail(string recipient) => UrgentMessageBox.Show(

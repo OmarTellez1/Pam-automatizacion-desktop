@@ -39,8 +39,10 @@ public sealed class PamAutomationExecutionServicePendingTests
     public async Task PrepareAndExecute_RecoveryInBothStages_SubmitsOnceAndKeepsRecoveredBaseline()
     {
         var ports = new RecordingPorts(
-            new TimeoutException(), new TimeoutException(), Rows("700001"),
-            new TimeoutException(), new TimeoutException(), Rows("700001", "700002"));
+            new TimeoutException(), new TimeoutException(),
+            (IReadOnlyList<PamPendingRequest>)[UnrelatedRow("700001")],
+            new TimeoutException(), new TimeoutException(),
+            (IReadOnlyList<PamPendingRequest>)[UnrelatedRow("700001"), ExactRow("700002")]);
         using var logs = new RuntimeDiagnosticLoggerFactory();
         var store = new InMemoryPendingReconciliationDiagnosticStore();
         PamAutomationExecutionService service = CreateService(ports, store, logs);
@@ -52,8 +54,8 @@ public sealed class PamAutomationExecutionServicePendingTests
         Assert.AreEqual("700001", Assert.ContainsSingle(preparation.PendingRequestIdsBeforeSubmission));
         PendingReconciliationDiagnostic preparedTrace = store.CaptureSnapshot()!;
         Assert.AreEqual("Preflight", preparedTrace.Stage);
-        Assert.AreEqual(1, preparedTrace.ExactPendingDuplicateCount);
-        Assert.AreEqual("AwaitingRepeatedPendingDecision", preparedTrace.Decision);
+        Assert.AreEqual(0, preparedTrace.ExactPendingDuplicateCount);
+        Assert.AreEqual("Submit", preparedTrace.Decision);
         Assert.IsNotNull(preparedTrace.BeforeSubmission);
         Assert.AreEqual("700001", Assert.ContainsSingle(preparedTrace.BeforeSubmission.Requests).RequestId);
 
@@ -68,7 +70,7 @@ public sealed class PamAutomationExecutionServicePendingTests
         PendingReconciliationDiagnostic trace = store.CaptureSnapshot()!;
         Assert.AreEqual(preparedTrace.ExecutionId, trace.ExecutionId);
         Assert.AreEqual("Reconciliation", trace.Stage);
-        Assert.AreEqual("SubmitAgain", trace.Decision);
+        Assert.AreEqual("Submit", trace.Decision);
         Assert.AreEqual(1, trace.SubmittedCount);
         Assert.IsNull(trace.FailureCode);
         Assert.HasCount(6, trace.Reads);
@@ -89,6 +91,25 @@ public sealed class PamAutomationExecutionServicePendingTests
         {
             Assert.DoesNotContain(privateValue, normalLog);
         }
+    }
+
+    [TestMethod]
+    public async Task ExecuteRealAsync_ExactPendingDuplicateExists_BlocksBeforeSubmission()
+    {
+        var ports = new RecordingPorts(Rows("700001"));
+        using var logs = new RuntimeDiagnosticLoggerFactory();
+        var store = new InMemoryPendingReconciliationDiagnosticStore();
+        PamAutomationExecutionService service = CreateService(ports, store, logs);
+        PamExecutionPreparation preparation = await service.PrepareRealAsync(Credentials, Settings, Now);
+
+        InvalidOperationException exception = await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            () => service.ExecuteRealAsync(Credentials, preparation, Now));
+
+        Assert.Contains("No se permite crear solicitudes exactamente iguales", exception.Message);
+        Assert.AreEqual(1, preparation.ExactPendingDuplicateCount);
+        Assert.AreEqual(0, ports.SubmitCalls);
+        Assert.AreEqual(0, ports.SubmissionFactoryCalls);
+        Assert.AreEqual("BlockedExistingPending", store.CaptureSnapshot()!.Decision);
     }
 
     [TestMethod]
@@ -164,10 +185,18 @@ public sealed class PamAutomationExecutionServicePendingTests
             pendingDiagnosticSink: store);
     }
 
-    private static IReadOnlyList<PamPendingRequest> Rows(params string[] ids) => ids.Select(id =>
-        new PamPendingRequest(id, "private-fixture-system", "arbitrary-label", "private-fixture-account",
+    private static IReadOnlyList<PamPendingRequest> Rows(params string[] ids) =>
+        ids.Select(ExactRow).ToArray();
+
+    private static PamPendingRequest ExactRow(string id) =>
+        new(id, "private-fixture-system", "arbitrary-label", "private-fixture-account",
             new DateOnly(2026, 9, 22), new TimeOnly(9, 0), new DateOnly(2026, 9, 22), new TimeOnly(10, 0),
-            "Pending", "private-fixture-reason")).ToArray();
+            "Pending", "private-fixture-reason");
+
+    private static PamPendingRequest UnrelatedRow(string id) =>
+        new(id, "unrelated-system", "unrelated-application", "unrelated-account",
+            new DateOnly(2026, 9, 22), new TimeOnly(9, 0), new DateOnly(2026, 9, 22), new TimeOnly(10, 0),
+            "Pending", "private-fixture-reason");
 
     private sealed class RecordingPorts(params object[] outcomes) :
         IPamAuthenticatedSessionFactory, IPamFavoritesPortalFactory, IPamFavoritesPortal,

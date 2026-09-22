@@ -70,7 +70,7 @@ public sealed class DiagnosticExportServiceTests : IDisposable
             2,
             "execution-1",
             DateTimeOffset.UtcNow,
-            "SubmitAgain",
+            "UseExistingRequestIds",
             1,
             [new PendingExpectedRequestDiagnostic(
                 row.System,

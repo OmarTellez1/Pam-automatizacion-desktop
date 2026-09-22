@@ -177,7 +177,7 @@ public sealed class ConfigurationWindowSmokeTests
     }
 
     [STATestMethod]
-    public void RepeatedPendingDecisionWindow_CompleteEmailSet_EnablesAllThreeActions()
+    public void RepeatedPendingDecisionWindow_CompleteEmailSet_OffersOnlyCancelOrReuse()
     {
         EnsureApplicationResources();
         var request = new RequestSettings
@@ -202,7 +202,7 @@ public sealed class ConfigurationWindowSmokeTests
             Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
 
             Assert.IsNotNull(window.FindName("CancelButton"));
-            Assert.IsNotNull(window.FindName("SubmitAgainButton"));
+            Assert.IsNull(window.FindName("SubmitAgainButton"));
             var reuse = Assert.IsInstanceOfType<Button>(window.FindName("ReuseButton"));
             Assert.IsTrue(reuse.IsEnabled);
             Assert.AreEqual(RepeatedPendingDecision.Cancel, window.Decision);
@@ -211,6 +211,68 @@ public sealed class ConfigurationWindowSmokeTests
         {
             window.Close();
         }
+    }
+
+    [STATestMethod]
+    public void RepeatedPendingDecisionWindow_PartialSet_RequiresConfigurationChange()
+    {
+        EnsureApplicationResources();
+        var preparation = new PamExecutionPreparation(
+            2,
+            new RequestSettings
+            {
+                StartDate = new DateOnly(2026, 9, 21),
+                StartTime = new TimeOnly(17, 0),
+                SessionHours = 1,
+                RequestReason = "Solicitud de acceso PAM",
+            },
+            FinalAction.SendEmail,
+            pendingRequestIdsBeforeSubmission: ["154210"],
+            exactPendingDuplicateCount: 1,
+            reusablePendingRequestIds: []);
+        var window = new RepeatedPendingDecisionWindow(preparation);
+
+        try
+        {
+            window.Show();
+            Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+
+            var reuse = Assert.IsInstanceOfType<Button>(window.FindName("ReuseButton"));
+            var availability = Assert.IsInstanceOfType<TextBlock>(window.FindName("ReuseAvailabilityText"));
+            Assert.IsFalse(reuse.IsEnabled);
+            Assert.AreEqual(Visibility.Collapsed, reuse.Visibility);
+            var cancel = Assert.IsInstanceOfType<Button>(window.FindName("CancelButton"));
+            Assert.AreEqual(2, Grid.GetColumnSpan(cancel));
+            Assert.Contains("fecha u hora de inicio", availability.Text);
+            Assert.Contains("duración", availability.Text);
+            Assert.Contains("motivo", availability.Text);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    [TestMethod]
+    public void RepeatedPendingDecisionWindow_CompleteSetWithoutEmail_RequiresOutlook()
+    {
+        var preparation = new PamExecutionPreparation(
+            2,
+            new RequestSettings
+            {
+                StartDate = new DateOnly(2026, 9, 21),
+                StartTime = new TimeOnly(17, 0),
+                SessionHours = 1,
+                RequestReason = "Solicitud de acceso PAM",
+            },
+            FinalAction.DisplayRequestIds,
+            pendingRequestIdsBeforeSubmission: ["154210", "154211"],
+            exactPendingDuplicateCount: 2,
+            reusablePendingRequestIds: ["154210", "154211"]);
+
+        string message = RepeatedPendingDecisionWindow.BuildAvailabilityMessage(preparation);
+
+        Assert.Contains("activa el envío con Outlook", message);
     }
 
     [STATestMethod]

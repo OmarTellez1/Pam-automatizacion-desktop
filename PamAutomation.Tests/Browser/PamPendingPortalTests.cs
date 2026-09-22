@@ -108,6 +108,66 @@ public sealed class PamPendingPortalTests
         Assert.IsFalse(PlaywrightManagedPage.IsTransientPortalReadException(new IOException()));
     }
 
+    [TestMethod]
+    public void PendingGridSnapshot_CompleteAtomicRows_ReturnsTypedRequests()
+    {
+        PendingGridRowSnapshot[] snapshot =
+        [
+            CreateSnapshotRow(),
+            CreateSnapshotRow(requestId: "170002", description: string.Empty),
+        ];
+
+        IReadOnlyList<PamPendingRequest> result = PlaywrightManagedPage.ParsePendingGridSnapshot(snapshot);
+
+        Assert.HasCount(2, result);
+        Assert.AreEqual("170001", result[0].RequestId);
+        Assert.AreEqual("system", result[0].SystemName);
+        Assert.AreEqual("application", result[0].ApplicationName);
+        Assert.AreEqual("account", result[0].AccountName);
+        Assert.AreEqual(new DateOnly(2026, 9, 10), result[0].StartDate);
+        Assert.AreEqual(new TimeOnly(8, 20), result[0].StartTime);
+        Assert.AreEqual(new TimeOnly(9, 20), result[0].ExpiresTime);
+        Assert.AreEqual("Pending", result[0].Status);
+        Assert.AreEqual("description", result[0].Description);
+        Assert.AreEqual(string.Empty, result[1].Description);
+    }
+
+    [TestMethod]
+    public void PendingGridSnapshot_MissingRequiredColumn_IsRejected()
+    {
+        PendingGridRowSnapshot row = CreateSnapshotRow();
+        row = new PendingGridRowSnapshot
+        {
+            Cells = row.Cells
+                .Where(static cell => cell.ColumnId != PamPendingSelectors.AccountColumn)
+                .ToArray(),
+        };
+
+        ArgumentException exception = Assert.ThrowsExactly<ArgumentException>(
+            () => PlaywrightManagedPage.ParsePendingGridSnapshot([row]));
+
+        Assert.AreEqual("La fila Pending no contiene todas las columnas requeridas.", exception.Message);
+    }
+
+    [TestMethod]
+    public void PendingGridSnapshot_DuplicateTechnicalColumn_IsRejected()
+    {
+        PendingGridRowSnapshot row = CreateSnapshotRow();
+        row = new PendingGridRowSnapshot
+        {
+            Cells = [.. row.Cells, new PendingGridCellSnapshot
+            {
+                ColumnId = PamPendingSelectors.RequestIdColumn,
+                Value = "170099",
+            }],
+        };
+
+        ArgumentException exception = Assert.ThrowsExactly<ArgumentException>(
+            () => PlaywrightManagedPage.ParsePendingGridSnapshot([row]));
+
+        Assert.AreEqual("La fila Pending contiene columnas técnicas inválidas o repetidas.", exception.Message);
+    }
+
     private static PamPendingRequest CreatePending() => new(
         "170001",
         "system",
@@ -119,6 +179,29 @@ public sealed class PamPendingPortalTests
         new TimeOnly(8, 25),
         "Pending",
         "description");
+
+    private static PendingGridRowSnapshot CreateSnapshotRow(
+        string requestId = "170001",
+        string description = "description") => new()
+        {
+            Cells =
+            [
+                CreateSnapshotCell(PamPendingSelectors.RequestIdColumn, requestId),
+                CreateSnapshotCell(PamPendingSelectors.SystemColumn, "system"),
+                CreateSnapshotCell(PamPendingSelectors.ApplicationColumn, "application"),
+                CreateSnapshotCell(PamPendingSelectors.AccountColumn, "account"),
+                CreateSnapshotCell(PamPendingSelectors.ReleaseColumn, "Sep 10, 2026, 8:20 AM"),
+                CreateSnapshotCell(PamPendingSelectors.ExpiresColumn, "Sep 10, 2026, 9:20 AM"),
+                CreateSnapshotCell(PamPendingSelectors.ResponseStatusColumn, "Pending"),
+                CreateSnapshotCell(PamPendingSelectors.DescriptionColumn, description),
+            ],
+        };
+
+    private static PendingGridCellSnapshot CreateSnapshotCell(string columnId, string value) => new()
+    {
+        ColumnId = columnId,
+        Value = value,
+    };
 
     private sealed class FakePendingPage(IReadOnlyList<PamPendingRequest> requests) : IPamPendingPage
     {

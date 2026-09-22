@@ -63,7 +63,7 @@ Las fases construidas hasta ahora son:
 - Fase 20.5: eliminación confirmada de colecciones personalizadas con protección de `All favorites` y reasignación segura de la selección activa.
 - Ajuste posterior a fase 20: normalización y persistencia de una hora vencida únicamente durante la inicialización de `MainWindowViewModel`.
 - Fase 21: acceso interactivo persistente separado del flujo de solicitudes.
-- Fase 21.1: preflight de Pending con repetición o cancelación explícitas; el intento WebSocket/CDP quedó sustituido en fase 21.2.
+- Fase 21.1: preflight de Pending para detectar solicitudes existentes; su política original de repetición fue sustituida por el bloqueo seguro posterior a fase 25.
 - Fase 21.2: Edge normal mediante Windows UI Automation, confianza manual del certificado y liberación sin cerrar el navegador.
 - Fase 21.3: zoom seguro y verificado al 67 % únicamente sobre la ventana PAM autenticada.
 - Fase 21.4: contexto temporal `headless` para ocultar la navegación de creación de solicitudes; acceso interactivo visible sin cambios.
@@ -74,7 +74,8 @@ Las fases construidas hasta ahora son:
 - Fase 21.9: refresco temporal WPF cada minuto y doble validación local alrededor de la confirmación real.
 - Fase 21.10: margen mínimo central de 6 minutos y clasificación defensiva de respuestas PAM con JSON no estructurado como objeto.
 - Fase 24: reconciliación genérica de Pending mediante línea base de Request ID, `System + Account`, atributos exactos del lote y conteos, sin familias de `Application`.
-- Fase 24.4: decisión explícita entre cancelar, repetir solicitudes o enviar correo con un conjunto existente completo y no ambiguo.
+- Fase 24.4: reutilización explícita para correo de un conjunto existente completo y no ambiguo.
+- Ajuste posterior a fase 25: bloqueo de toda nueva solicitud idéntica; solo permite reutilizar un conjunto completo para correo o cancelar y cambiar inicio, duración o motivo.
 
 Los directorios `.git`, `.vs`, `bin` y `obj` contienen metadatos o salidas generadas y se omiten en el árbol.
 
@@ -295,6 +296,7 @@ PamAutomation\
 │   ├── PamPendingPortal.cs
 │   ├── PamPendingSelectors.cs
 │   ├── PamPendingStartParser.cs
+│   ├── PendingGridSnapshot.cs
 │   ├── PamRequestTestPortal.cs
 │   ├── PamRequestTestSelectors.cs
 │   ├── PamRequestSubmissionPortal.cs
@@ -376,6 +378,7 @@ PamAutomation\
     │   └── Totp\
     │       └── TotpGeneratorTests.cs
     ├── Browser\
+    │   ├── PamPendingAtomicGridLoadTests.cs
     │   ├── PamAuthenticationPortalTests.cs
     │   ├── PamFavoritesPortalTests.cs
     │   ├── PamPendingPortalTests.cs
@@ -531,8 +534,9 @@ Biblioteca para `net10.0-windows`. Referencia `PamAutomation.Core` e implementa 
 - `PlaywrightManagedPage.RequestSubmission`: reutiliza el llenado validado, vuelve a comprobar el formulario justo antes del clic y espera el `POST` de creación.
 - `PamSubmissionResponseClassifier`: reconoce solo respuestas 2xx y el conflicto de acceso aprobado conocido; rechaza el resto sin propagar payloads.
 - `PamPendingPortalFactory` y `PamPendingPortal`: enlazan el lector de Pending con una sesión autenticada existente.
-- `PamPendingSelectors`, `PamPendingPagination` y `PamPendingStartParser`: centralizan columnas, selector de filas por página, paginación y fechas inglesas observadas.
-- `PlaywrightManagedPage.Pending`: espera la carga completa de `Status = Pending`, selecciona la mayor cantidad de filas disponible, estabiliza el grid, conserva paginación de respaldo, lee todas las columnas requeridas y captura vistas horizontales de desarrollo.
+- `PamPendingSelectors`, `PamPendingPagination` y `PamPendingStartParser`: centralizan identificadores de columnas, selectores, filas por página, paginación y fechas inglesas observadas.
+- `PendingGridSnapshot`: DTO interno y no persistente para transportar en una sola operación todas las celdas visibles desde el DOM de PAM hacia C#.
+- `PlaywrightManagedPage.Pending`: espera la carga completa de `Status = Pending`, selecciona la mayor cantidad de filas disponible, conserva paginación de respaldo y captura cada página de forma masiva y atómica. C# rechaza columnas ausentes o repetidas, valores obligatorios vacíos, fechas o estados inválidos, exige dos snapshots completos e iguales y mantiene las capturas horizontales de desarrollo.
 
 Dependencia NuGet actual: `Microsoft.Playwright` 1.62.0. Los adaptadores internos se exponen únicamente a `PamAutomation.Tests` mediante `InternalsVisibleTo`.
 
@@ -640,7 +644,8 @@ Contenido actual:
 - `Browser/PamRealRequestTestTests.cs`: integración opt-in visible que valida y descarta todos los formularios y exige cero envíos.
 - `Browser/PamRequestSubmissionPortalTests.cs`: valida el enlace del contrato real y la clasificación estricta de respuestas sin abrir Edge.
 - `Browser/PamRealSingleRequestSubmissionTests.cs`: integración destructiva separada, con opt-in exacto y límite de un solo intento autorizado.
-- `Browser/PamPendingPortalTests.cs`: valida enlace de sesión, paginación y parseo temporal sin abrir Edge.
+- `Browser/PamPendingPortalTests.cs`: valida enlace de sesión, paginación, parseo temporal y conversión estricta de snapshots masivos de Pending sin abrir Edge.
+- `Browser/PamPendingAtomicGridLoadTests.cs`: prueba snapshots de 30, 60, 100 y 200 filas, una agregación paginada de 200 + 50 y una integración local opt-in que ejecuta la captura masiva real sobre Edge sin contactar PAM.
 - `Browser/PamRealPendingTests.cs`: integración opt-in exclusivamente de lectura sobre Pending.
 - `Browser/PamRealPendingMatchTests.cs`: integración opt-in que crea como máximo una solicitud cuando no existe la solicitud autorizada y reconcilia todos sus campos.
 - `Browser/PamRealAuthenticationTests.cs`: integración explícitamente opt-in que lee Credential Manager y valida solo el login visible autorizado.

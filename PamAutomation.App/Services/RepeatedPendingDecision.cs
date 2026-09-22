@@ -4,6 +4,5 @@ namespace PamAutomation.App.Services;
 public enum RepeatedPendingDecision
 {
     Cancel,
-    SubmitAgain,
     UseExistingRequestIds,
 }

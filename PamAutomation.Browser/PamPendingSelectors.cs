@@ -13,14 +13,22 @@ internal static partial class PamPendingSelectors
     public const string ItemsPerPage = "items per page";
     public const string Rows = "tr[aria-label^=\"Row \"]";
     public const string PageInput = "input[type=\"number\"][aria-label^=\"Page \"]";
-    public const string RequestIdCell = "td[data-column-id=\"RequestId\"]";
-    public const string SystemCell = "td[data-column-id=\"SystemName\"]";
-    public const string AccountCell = "td[data-column-id=\"AccountName\"]";
-    public const string ApplicationCell = "td[data-column-id=\"Application\"]";
-    public const string ReleaseCell = "td[data-column-id=\"ReleaseDt\"]";
-    public const string ResponseStatusCell = "td[data-column-id=\"ResponseStatus\"]";
-    public const string ExpiresCell = "td[data-column-id=\"ExpiresDt\"]";
-    public const string DescriptionCell = "td[data-column-id=\"Description\"]";
+    public const string RequestIdColumn = "RequestId";
+    public const string SystemColumn = "SystemName";
+    public const string AccountColumn = "AccountName";
+    public const string ApplicationColumn = "Application";
+    public const string ReleaseColumn = "ReleaseDt";
+    public const string ResponseStatusColumn = "ResponseStatus";
+    public const string ExpiresColumn = "ExpiresDt";
+    public const string DescriptionColumn = "Description";
+    public const string RequestIdCell = "td[data-column-id=\"" + RequestIdColumn + "\"]";
+    public const string SystemCell = "td[data-column-id=\"" + SystemColumn + "\"]";
+    public const string AccountCell = "td[data-column-id=\"" + AccountColumn + "\"]";
+    public const string ApplicationCell = "td[data-column-id=\"" + ApplicationColumn + "\"]";
+    public const string ReleaseCell = "td[data-column-id=\"" + ReleaseColumn + "\"]";
+    public const string ResponseStatusCell = "td[data-column-id=\"" + ResponseStatusColumn + "\"]";
+    public const string ExpiresCell = "td[data-column-id=\"" + ExpiresColumn + "\"]";
+    public const string DescriptionCell = "td[data-column-id=\"" + DescriptionColumn + "\"]";
 
     [GeneratedRegex("^(\\d+)\\s+items?$", RegexOptions.IgnoreCase)]
     public static partial Regex ItemCountExpression();

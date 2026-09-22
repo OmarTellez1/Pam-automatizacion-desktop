@@ -143,7 +143,7 @@ public sealed class PamAutomationExecutionService : IPamAutomationExecutionServi
                 baselineRows),
             duplicateCount);
         pendingDiagnosticSink?.RecordDecision(
-            duplicateCount > 0 ? "AwaitingRepeatedPendingDecision" : "Submit");
+            duplicateCount > 0 ? "AwaitingExistingPendingDecision" : "Submit");
         logger.LogInformation(
             "Real execution preparation completed. FavoriteCount={FavoriteCount}, ExactPendingDuplicateCount={ExactPendingDuplicateCount}, BaselineRequestIdCount={BaselineRequestIdCount}, PendingDiagnosticExecutionId={PendingDiagnosticExecutionId}.",
             executionAccounts.Count,
@@ -170,8 +170,17 @@ public sealed class PamAutomationExecutionService : IPamAutomationExecutionServi
     {
         ArgumentNullException.ThrowIfNull(credentials);
         ArgumentNullException.ThrowIfNull(preparation);
-        pendingDiagnosticSink?.RecordDecision(
-            preparation.HasExactPendingDuplicates ? "SubmitAgain" : "Submit");
+        if (preparation.HasExactPendingDuplicates)
+        {
+            pendingDiagnosticSink?.RecordDecision("BlockedExistingPending");
+            logger.LogWarning(
+                "Real execution submission was blocked because exact Pending duplicates exist. DuplicateCount={DuplicateCount}.",
+                preparation.ExactPendingDuplicateCount);
+            throw new InvalidOperationException(
+                "No se permite crear solicitudes exactamente iguales a otras que ya existen en Pending.");
+        }
+
+        pendingDiagnosticSink?.RecordDecision("Submit");
         logger.LogInformation("Real execution submission started. FavoriteCount={FavoriteCount}.", preparation.FavoriteCount);
 
         PamRequestRunAuthorization authorization = PamRequestRunAuthorization.Confirm(

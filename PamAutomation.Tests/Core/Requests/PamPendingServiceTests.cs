@@ -403,7 +403,7 @@ public sealed class PamPendingServiceTests
             1,
             "execution",
             DateTimeOffset.UtcNow,
-            "SubmitAgain",
+            "Submit",
             1,
             [],
             new PendingSnapshotDiagnostic(DateTimeOffset.UtcNow, 1, 1, [oldDiagnostic]),

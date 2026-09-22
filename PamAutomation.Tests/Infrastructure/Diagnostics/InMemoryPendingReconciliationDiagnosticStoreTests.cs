@@ -60,7 +60,7 @@ public sealed class InMemoryPendingReconciliationDiagnosticStoreTests
             2,
             "execution",
             DateTimeOffset.UtcNow,
-            "AwaitingRepeatedPendingDecision",
+            "AwaitingExistingPendingDecision",
             1,
             [],
             new PendingSnapshotDiagnostic(DateTimeOffset.UtcNow, 1, 1, [baseline]),
@@ -69,7 +69,7 @@ public sealed class InMemoryPendingReconciliationDiagnosticStoreTests
             [],
             null));
 
-        store.RecordDecision("SubmitAgain");
+        store.RecordDecision("UseExistingRequestIds");
         store.RecordSubmittedCount(1);
         store.RecordAttempt(new PendingComparisonAttemptDiagnostic(
             1,
@@ -98,7 +98,7 @@ public sealed class InMemoryPendingReconciliationDiagnosticStoreTests
 
         PendingReconciliationDiagnostic? snapshot = store.CaptureSnapshot();
         Assert.IsNotNull(snapshot);
-        Assert.AreEqual("SubmitAgain", snapshot.Decision);
+        Assert.AreEqual("UseExistingRequestIds", snapshot.Decision);
         Assert.AreEqual(1, snapshot.SubmittedCount);
         Assert.AreEqual("FieldMismatch", snapshot.FailureCode);
         PendingComparisonAttemptDiagnostic attempt = Assert.ContainsSingle(snapshot.Attempts);

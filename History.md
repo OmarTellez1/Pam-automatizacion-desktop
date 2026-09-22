@@ -468,7 +468,7 @@ Cada cambio relevante debe registrar qué se decidió, por qué, qué se verific
 - Un segundo diagnóstico mostró tres fallos `TimeoutException` dentro de `ConnectOverCDPAsync`: Edge sí había iniciado, pero la conexión no superaba el endpoint HTTP de descubrimiento.
 - `PamInteractiveBrowserSessionFactory` ahora lee y valida puerto y ruta desde `DevToolsActivePort` y conecta al WebSocket exacto sobre `127.0.0.1`. Los timeouts transitorios participan en los reintentos controlados.
 - La integración real autorizada inició sesión, confirmó el dashboard y terminó dejando abierto el Edge dedicado. No creó solicitudes ni envió correo.
-- La ejecución real incorpora un preflight de `Pending`. Si existen filas exactamente iguales, muestra una decisión explícita para repetir o cancelar antes del primer envío.
+- La ejecución real incorporó un preflight de `Pending`. Su decisión original permitía repetir o cancelar; la política posterior bloquea crear solicitudes idénticas y solo permite reutilizar un conjunto completo para correo o cancelar.
 - Los Request ID preexistentes se conservan solo en memoria y se excluyen de la reconciliación posterior. Esto permite identificar las nuevas filas cuando PAM admite varias solicitudes Pending iguales, sin confundirlas con las anteriores.
 - La compilación `Release | x64` pasó y la suite ordinaria terminó 323/323; solo permanece `MSTEST0032`, heredada y ajena al cambio.
 
@@ -501,7 +501,7 @@ Cada cambio relevante debe registrar qué se decidió, por qué, qué se verific
 - La confirmación general se movió al primer momento del comando `Iniciar automatización`, usando únicamente la configuración local que ya está disponible.
 - Rechazarla evita por completo `PrepareRealAsync`; por tanto, no autentica, no lee `Favorites` ni `Pending` y no crea solicitudes.
 - Aceptarla inicia todas las validaciones en segundo plano y elimina la confirmación general que antes aparecía al terminar la preparación.
-- El aviso de solicitudes idénticas en `Pending` permanece porque requiere elegir explícitamente entre repetir o cancelar; solo aparece cuando se detectan coincidencias reales.
+- El aviso de solicitudes idénticas en `Pending` permanece porque requiere una decisión explícita; la política vigente no permite repetirlas y solo aparece cuando se detectan coincidencias reales.
 - La compilación `Release | x64` y las 22 pruebas de `MainWindowViewModel` pasaron.
 
 ## 12 de septiembre de 2026 — Fase 21.6: confirmación y configuración más claras
@@ -712,7 +712,7 @@ Cada cambio relevante debe registrar qué se decidió, por qué, qué se verific
 
 ## 21 de septiembre de 2026 — Fase 24.4: reutilización explícita de Pending
 
-- El aviso de solicitudes idénticas dejó de ser una confirmación binaria. Una ventana urgente ofrece cancelar, automatizar con solicitudes repetidas o usar los Request ID existentes y enviar el correo.
+- El aviso de solicitudes idénticas dejó de ser una confirmación binaria. Inicialmente ofrecía cancelar, automatizar con solicitudes repetidas o usar los Request ID existentes; la opción de repetir fue retirada por el ajuste seguro del 22 de septiembre.
 - La tercera opción solo se habilita cuando todas las solicitudes esperadas tienen una coincidencia previa completa y no ambigua y la acción final configurada es correo. Coincidencias parciales o excesivas no pueden producir un correo incompleto.
 - Elegir IDs existentes omite por completo el envío PAM, crea un resultado `ExistingPending` y comunica cero solicitudes nuevas. Los IDs permanecen en memoria y pasan por las validaciones y protecciones de Outlook ya existentes.
 - La ruta normal mantiene la garantía de fase 24: excluye todos los IDs antiguos y solo devuelve los nuevos. Las dos rutas no pueden mezclarse.
@@ -778,3 +778,19 @@ Cada cambio relevante debe registrar qué se decidió, por qué, qué se verific
 - Una prueba de coordinación recupera tanto preflight como reconciliación con sesiones nuevas y demuestra exactamente un envío simulado, conservando y excluyendo el ID antiguo. Otra exporta el fallo persistente anterior a todo envío. Se validaron cancelación, fallos definitivos, autenticación sin reintento, aislamiento de copias y ausencia de campos privados o secretos en el log.
 - La primera comprobación de exportación esperaba un nulo explícito; se corrigió la prueba para respetar el comportamiento existente del exportador, que omite propiedades nulas. El exportador no necesitó cambios.
 - Validación final: compilación `Release | x64` sin errores, 74 pruebas focalizadas y 453 pruebas ordinarias aprobadas. Solo permanece la advertencia heredada `MSTEST0032` de `TestExplorerSmokeTests.cs`, fuera del alcance. No se contactó PAM ni Outlook ni se utilizaron credenciales reales; no se publicó una nueva distribución.
+
+## 22 de septiembre de 2026 — Captura atómica de Pending
+
+- El diagnóstico `pam-automation-diagnostic-20260922-071241` confirmó que las cuatro lecturas de preflight agotaban o desestabilizaban el grid incluso después de recargar y reconstruir la sesión; ninguna solicitud llegó a enviarse.
+- La comparación con el aplicativo anterior identificó la diferencia decisiva: .NET realizaba una llamada Playwright por cada celda y exigía después repetir todo el recorrido, mientras la versión anterior capturaba la tabla visible en una sola operación DOM.
+- `PlaywrightManagedPage.Pending` obtiene ahora todas las filas y columnas técnicas visibles en una única captura. La instantánea solo transporta texto hacia C#; allí se rechazan columnas ausentes, duplicadas o vacías, Request ID y fechas inválidos y estados distintos de Pending.
+- Permanecen dos capturas completas e iguales, conteo total, IDs únicos, paginación de respaldo, exclusión de la línea base y los reintentos seguros incorporados previamente. `Submit Request` y Outlook siguen fuera de cualquier reintento de lectura.
+- La compilación `Release | x64` y 83 pruebas focalizadas aprobaron. Se verificaron snapshots de 30, 60, 100 y 200 filas, además de 250 registros repartidos en 200 + 50, sin pérdida ni repetición de IDs. Una integración local ejecutó la captura masiva real con Edge sobre esos tamaños en 3,4 segundos y sin red. La integración real opt-in de solo lectura inició sesión, capturó Pending y terminó correctamente en 22,6 segundos; no abrió formularios, no creó ni modificó solicitudes y no usó Outlook.
+
+## 22 de septiembre de 2026 — Eliminación del reenvío de solicitudes idénticas
+
+- Se retiró la opción `Automatizar con solicitudes repetidas`. Una coincidencia exacta en Pending nunca puede continuar por la ruta normal de `Submit Request`.
+- Un conjunto completo y no ambiguo para toda la colección ofrece únicamente reutilizar sus Request ID para el correo o cancelar. La reutilización sigue requiriendo que Outlook esté habilitado.
+- Coincidencias parciales, ambiguas o sin correo habilitado solo permiten cancelar. El aviso instruye cambiar la fecha u hora de inicio, la duración de la sesión o el motivo antes de intentarlo otra vez.
+- `PamAutomationExecutionService` aplica la misma barrera antes de crear una sesión de envío, como defensa independiente de la UI, y registra `BlockedExistingPending` si una llamada intenta evadirla.
+- La compilación `Release | x64` y 97 pruebas focalizadas aprobaron. No se abrió PAM ni Outlook y no se creó ninguna solicitud o correo real.

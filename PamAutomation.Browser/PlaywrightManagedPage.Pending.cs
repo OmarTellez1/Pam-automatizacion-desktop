@@ -8,6 +8,14 @@ internal sealed partial class PlaywrightManagedPage
 {
     private const int MaximumPendingPages = 500;
     private const string PendingCaptureName = "fase13-pending-grid.png";
+    internal const string PendingGridSnapshotExpression = """
+        rows => rows.map(row => ({
+            cells: Array.from(row.querySelectorAll('td[data-column-id]')).map(cell => ({
+                columnId: cell.getAttribute('data-column-id') ?? '',
+                value: (cell.textContent ?? '').replace(/\s+/g, ' ').trim()
+            }))
+        }))
+        """;
 
     public async Task<IReadOnlyList<PamPendingRequest>> ReadAllPendingAsync(
         string? captureDirectory,
@@ -368,35 +376,39 @@ internal sealed partial class PlaywrightManagedPage
         ILocator rows,
         CancellationToken cancellationToken)
     {
-        int count = await rows.CountAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
-        var requests = new List<PamPendingRequest>(count);
-        for (int index = 0; index < count; index++)
+        PendingGridRowSnapshot[] snapshot = await CapturePendingGridSnapshotAsync(rows, cancellationToken)
+            .ConfigureAwait(false);
+        return ParsePendingGridSnapshot(snapshot);
+    }
+
+    internal static async Task<PendingGridRowSnapshot[]> CapturePendingGridSnapshotAsync(
+        ILocator rows,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(rows);
+        return await rows
+            .EvaluateAllAsync<PendingGridRowSnapshot[]>(PendingGridSnapshotExpression)
+            .WaitAsync(cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    internal static IReadOnlyList<PamPendingRequest> ParsePendingGridSnapshot(
+        IReadOnlyList<PendingGridRowSnapshot> snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        var requests = new List<PamPendingRequest>(snapshot.Count);
+        foreach (PendingGridRowSnapshot row in snapshot)
         {
-            ILocator row = rows.Nth(index);
-            string requestId = await ReadPendingCellAsync(row, PamPendingSelectors.RequestIdCell, cancellationToken)
-                .ConfigureAwait(false);
-            string system = await ReadPendingCellAsync(row, PamPendingSelectors.SystemCell, cancellationToken)
-                .ConfigureAwait(false);
-            string account = await ReadPendingCellAsync(row, PamPendingSelectors.AccountCell, cancellationToken)
-                .ConfigureAwait(false);
-            string application = await ReadPendingCellAsync(row, PamPendingSelectors.ApplicationCell, cancellationToken)
-                .ConfigureAwait(false);
-            string release = await ReadPendingCellAsync(row, PamPendingSelectors.ReleaseCell, cancellationToken)
-                .ConfigureAwait(false);
-            string response = await ReadPendingCellAsync(
-                row,
-                PamPendingSelectors.ResponseStatusCell,
-                cancellationToken).ConfigureAwait(false);
-            string expires = await ReadPendingCellAsync(
-                row,
-                PamPendingSelectors.ExpiresCell,
-                cancellationToken).ConfigureAwait(false);
-            string description = await ReadPendingCellAsync(
-                row,
-                PamPendingSelectors.DescriptionCell,
-                cancellationToken,
-                allowEmpty: true,
-                allowMissing: true).ConfigureAwait(false);
+            ArgumentNullException.ThrowIfNull(row);
+            Dictionary<string, string> cells = CreatePendingCellMap(row.Cells);
+            string requestId = ReadRequiredPendingCell(cells, PamPendingSelectors.RequestIdColumn);
+            string system = ReadRequiredPendingCell(cells, PamPendingSelectors.SystemColumn);
+            string account = ReadRequiredPendingCell(cells, PamPendingSelectors.AccountColumn);
+            string application = ReadRequiredPendingCell(cells, PamPendingSelectors.ApplicationColumn);
+            string release = ReadRequiredPendingCell(cells, PamPendingSelectors.ReleaseColumn);
+            string response = ReadRequiredPendingCell(cells, PamPendingSelectors.ResponseStatusColumn);
+            string expires = ReadRequiredPendingCell(cells, PamPendingSelectors.ExpiresColumn);
+            string description = ReadOptionalPendingCell(cells, PamPendingSelectors.DescriptionColumn);
             (DateOnly startDate, TimeOnly startTime) = PamPendingStartParser.Parse(release);
             (DateOnly expiresDate, TimeOnly expiresTime) = PamPendingStartParser.Parse(expires);
             requests.Add(new PamPendingRequest(
@@ -415,36 +427,44 @@ internal sealed partial class PlaywrightManagedPage
         return requests;
     }
 
-    private static async Task<string> ReadPendingCellAsync(
-        ILocator row,
-        string selector,
-        CancellationToken cancellationToken,
-        bool allowEmpty = false,
-        bool allowMissing = false)
+    private static Dictionary<string, string> CreatePendingCellMap(
+        IReadOnlyList<PendingGridCellSnapshot> cells)
     {
-        ILocator cell = row.Locator(selector);
-        int count = await cell.CountAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
-        if (allowMissing && count == 0)
+        ArgumentNullException.ThrowIfNull(cells);
+        var result = new Dictionary<string, string>(cells.Count, StringComparer.Ordinal);
+        foreach (PendingGridCellSnapshot cell in cells)
         {
-            return string.Empty;
+            ArgumentNullException.ThrowIfNull(cell);
+            string columnId = cell.ColumnId.Trim();
+            if (columnId.Length == 0 || !result.TryAdd(columnId, cell.Value.Trim()))
+            {
+                throw new ArgumentException("La fila Pending contiene columnas técnicas inválidas o repetidas.");
+            }
         }
 
-        if (count != 1)
+        return result;
+    }
+
+    private static string ReadRequiredPendingCell(
+        IReadOnlyDictionary<string, string> cells,
+        string columnId)
+    {
+        if (!cells.TryGetValue(columnId, out string? value))
         {
             throw new ArgumentException("La fila Pending no contiene todas las columnas requeridas.");
         }
 
-        string value = (await cell.InnerTextAsync(new LocatorInnerTextOptions
-        {
-            Timeout = (float)PamOperationTimingPolicy.TransientProbeTimeout.TotalMilliseconds,
-        }).WaitAsync(cancellationToken).ConfigureAwait(false)).Trim();
-        if (!allowEmpty && value.Length == 0)
+        if (value.Length == 0)
         {
             throw new ArgumentException("La fila Pending contiene un valor obligatorio vacío.");
         }
 
         return value;
     }
+
+    private static string ReadOptionalPendingCell(
+        IReadOnlyDictionary<string, string> cells,
+        string columnId) => cells.TryGetValue(columnId, out string? value) ? value : string.Empty;
 
     internal static bool IsTransientPortalReadException(Exception exception) =>
         exception is ArgumentException or InvalidOperationException or TimeoutException;
@@ -453,17 +473,9 @@ internal sealed partial class PlaywrightManagedPage
         ILocator rows,
         CancellationToken cancellationToken)
     {
-        int count = await rows.CountAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
-        var values = new string[count];
-        for (int index = 0; index < count; index++)
-        {
-            values[index] = await ReadPendingCellAsync(
-                rows.Nth(index),
-                PamPendingSelectors.RequestIdCell,
-                cancellationToken).ConfigureAwait(false);
-        }
-
-        return string.Join('|', values);
+        IReadOnlyList<PamPendingRequest> requests = await ReadCurrentPendingPageAsync(rows, cancellationToken)
+            .ConfigureAwait(false);
+        return string.Join('|', requests.Select(static request => request.RequestId));
     }
 
     private async Task<int?> ReadVisibleItemCountAsync(CancellationToken cancellationToken)
