@@ -759,3 +759,22 @@ Cada cambio relevante debe registrar qué se decidió, por qué, qué se verific
 - Las excepciones de Pending registran ahora `PendingErrorCode` en el log estructurado y en la traza. El ZIP explícito incorpora `pending-reconciliation.json`; ninguna evidencia detallada se persiste automáticamente.
 - `environment.json` identifica la compilación mediante versión informativa y `ModuleVersionId`. Siguen excluidos credenciales, contraseña, semilla y código TOTP, cookies, tokens y contenido del correo.
 - La compilación `Release | x64`, 30 pruebas focalizadas y la suite completa de 434 pruebas aprobaron sin contactar PAM ni Outlook.
+
+## 22 de septiembre de 2026 — Recuperación segura de la lectura posterior de Pending
+
+- El diagnóstico `pam-automation-diagnostic-20260922-061148` registró 24 Request ID en la línea base, 12 solicitudes confirmadas por el flujo de envío y cero intentos de comparación. La primera lectura posterior agotó el tiempo dentro de `ScanAllPendingPagesAsync` y terminó como `PortalUnavailable`; no fue una ambigüedad ni una confusión entre IDs antiguos y nuevos.
+- `PamPendingService` reintenta ahora una lectura fallida volviendo a navegar a Pending dentro de la misma sesión. Si dos lecturas fallan, cierra esa sesión temporal y crea una segunda sesión autenticada exclusivamente para recuperar los IDs.
+- La línea base, las solicitudes esperadas y los campos temporales permanecen inmutables entre sesiones. La recuperación no tiene acceso al servicio de envío y nunca vuelve a ejecutar `Submit Request`.
+- Solo `PortalUnavailable` y `InvalidRequest` transitorio participan en la recuperación; cancelaciones, IDs duplicados, ambigüedad y errores no clasificados conservan el fallo inmediato. Todos los límites y pausas quedaron centralizados en `PamOperationTimingPolicy`.
+- `pending-reconciliation.json` registra recargas, sesiones fallidas y reconstrucciones sin trasladar Request ID ni identidades al log general. Si se agotan los intentos, conserva el código final y el mensaje existente pide revisar Pending antes de repetir.
+- La compilación `Release | x64` y la suite completa de 437 pruebas aprobaron. No se abrió PAM ni Outlook, no se creó ninguna solicitud y no se envió correo durante esta corrección.
+
+## 22 de septiembre de 2026 — Recuperación integral del preflight de Pending
+
+- Se verificó en el código la brecha descrita en `PENDING_PREFLIGHT_RECOVERY_HANDOFF.md`: el preflight tenía una sola lectura y el diagnóstico se inicializaba después de obtener la línea base.
+- Se extrajeron bucles privados compartidos de recuperación para preflight y reconciliación: dos intentos de lectura y como máximo dos sesiones temporales. Cada sesión se dispone antes de crear su reemplazo y la autenticación fallida no se reintenta.
+- Browser identifica `SnapshotUnstable` de forma explícita. `InvalidRequest`, errores no clasificados, IDs duplicados, ambigüedad, diferencias definitivas y cancelación ya no disparan reconstrucción. Se mantienen las validaciones de integridad y estabilidad.
+- La traza empieza antes de leer Pending, distingue etapas y registra todas las lecturas, errores y recuperaciones. La línea base se incorpora mediante copia defensiva sin borrar el historial. El detalle usa esquema 3 y omite la línea base todavía desconocida; el manifiesto del ZIP mantiene esquema 2.
+- Una prueba de coordinación recupera tanto preflight como reconciliación con sesiones nuevas y demuestra exactamente un envío simulado, conservando y excluyendo el ID antiguo. Otra exporta el fallo persistente anterior a todo envío. Se validaron cancelación, fallos definitivos, autenticación sin reintento, aislamiento de copias y ausencia de campos privados o secretos en el log.
+- La primera comprobación de exportación esperaba un nulo explícito; se corrigió la prueba para respetar el comportamiento existente del exportador, que omite propiedades nulas. El exportador no necesitó cambios.
+- Validación final: compilación `Release | x64` sin errores, 74 pruebas focalizadas y 453 pruebas ordinarias aprobadas. Solo permanece la advertencia heredada `MSTEST0032` de `TestExplorerSmokeTests.cs`, fuera del alcance. No se contactó PAM ni Outlook ni se utilizaron credenciales reales; no se publicó una nueva distribución.

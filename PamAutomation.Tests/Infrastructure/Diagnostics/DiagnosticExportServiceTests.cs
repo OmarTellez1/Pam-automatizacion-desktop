@@ -67,7 +67,7 @@ public sealed class DiagnosticExportServiceTests : IDisposable
             new TimeOnly(17, 30),
             "Solicitud autorizada");
         pendingStore.Begin(new PendingReconciliationDiagnostic(
-            1,
+            2,
             "execution-1",
             DateTimeOffset.UtcNow,
             "SubmitAgain",
@@ -83,6 +83,7 @@ public sealed class DiagnosticExportServiceTests : IDisposable
                 row.Description)],
             new PendingSnapshotDiagnostic(DateTimeOffset.UtcNow, 1, 1, [row]),
             1,
+            [],
             [],
             null));
         pendingStore.RecordAttempt(new PendingComparisonAttemptDiagnostic(
@@ -101,6 +102,13 @@ public sealed class DiagnosticExportServiceTests : IDisposable
             [new PendingGroupMultiplicityDiagnostic("SYSTEM-A", "account-a", 1, 2)],
             [row, row with { RequestId = "154360" }],
             [row with { RequestId = "154360" }]));
+        pendingStore.RecordRecovery(new PendingReadRecoveryDiagnostic(
+            DateTimeOffset.UtcNow,
+            1,
+            1,
+            1,
+            "ReloadPendingView",
+            "PortalUnavailable"));
         pendingStore.RecordFailure("AmbiguousIdentity");
         var service = new DiagnosticExportService(
             loggerFactory,
@@ -121,6 +129,8 @@ public sealed class DiagnosticExportServiceTests : IDisposable
         Assert.Contains("account-a", detail);
         Assert.Contains("Solicitud autorizada", detail);
         Assert.Contains("AmbiguousIdentity", detail);
+        Assert.Contains("ReloadPendingView", detail);
+        Assert.Contains("PortalUnavailable", detail);
         Assert.DoesNotContain("password", detail, StringComparison.OrdinalIgnoreCase);
         ZipArchiveEntry? manifestEntry = archive.GetEntry("manifest.json");
         Assert.IsNotNull(manifestEntry);

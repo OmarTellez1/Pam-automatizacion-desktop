@@ -30,7 +30,7 @@ internal sealed partial class PlaywrightManagedPage
             int? expectedCount = await ReadVisibleItemCountAsync(cancellationToken).ConfigureAwait(false);
             if (expectedCount is not null && expectedCount != current.Count)
             {
-                throw new InvalidOperationException("Pending cambió durante la lectura.");
+                throw new PamPendingException(PamPendingErrorCode.SnapshotUnstable);
             }
 
             return current;
@@ -67,7 +67,7 @@ internal sealed partial class PlaywrightManagedPage
             }
         }
 
-        throw new InvalidOperationException("Pending cambió repetidamente durante la lectura paginada.");
+        throw new PamPendingException(PamPendingErrorCode.SnapshotUnstable);
     }
 
     private async Task CapturePendingViewsAsync(
@@ -176,7 +176,7 @@ internal sealed partial class PlaywrightManagedPage
         }, cancellationToken).ConfigureAwait(false);
         if (!pageSizeConfirmed)
         {
-            throw new InvalidOperationException("Pending no confirmó el nuevo tamaño de página.");
+            throw new PamPendingException(PamPendingErrorCode.SnapshotUnstable);
         }
     }
 
@@ -208,7 +208,7 @@ internal sealed partial class PlaywrightManagedPage
             cancellationToken).ConfigureAwait(false);
         if (!selected)
         {
-            throw new InvalidOperationException("PAM no confirmó el filtro Status = Pending.");
+            throw new PamPendingException(PamPendingErrorCode.SnapshotUnstable);
         }
     }
 
@@ -245,7 +245,7 @@ internal sealed partial class PlaywrightManagedPage
                 .ConfigureAwait(false);
             if (currentPage != expectedPage || observedTotalPages != totalPages)
             {
-                throw new InvalidOperationException("La paginación de Pending cambió durante la lectura.");
+                throw new PamPendingException(PamPendingErrorCode.SnapshotUnstable);
             }
 
             IReadOnlyList<PamPendingRequest> current = await ReadStablePendingPageAsync(rows, cancellationToken)
@@ -321,7 +321,7 @@ internal sealed partial class PlaywrightManagedPage
         }, cancellationToken).ConfigureAwait(false);
         if (!observed)
         {
-            throw new InvalidOperationException("Pending no confirmó el cambio de página.");
+            throw new PamPendingException(PamPendingErrorCode.SnapshotUnstable);
         }
     }
 
@@ -330,6 +330,7 @@ internal sealed partial class PlaywrightManagedPage
         CancellationToken cancellationToken)
     {
         IReadOnlyList<PamPendingRequest>? previous = null;
+        Exception? lastReadFailure = null;
         long startedAt = Environment.TickCount64;
         while (Environment.TickCount64 - startedAt < PortalTimeout.TotalMilliseconds)
         {
@@ -338,6 +339,7 @@ internal sealed partial class PlaywrightManagedPage
             {
                 IReadOnlyList<PamPendingRequest> current = await ReadCurrentPendingPageAsync(rows, cancellationToken)
                     .ConfigureAwait(false);
+                lastReadFailure = null;
                 if (previous is not null && current.SequenceEqual(previous))
                 {
                     return current;
@@ -348,12 +350,18 @@ internal sealed partial class PlaywrightManagedPage
             catch (Exception exception) when (IsTransientPortalReadException(exception))
             {
                 previous = null;
+                lastReadFailure = exception;
             }
 
             await Task.Delay(ObservationInterval, cancellationToken).ConfigureAwait(false);
         }
 
-        throw new PamPendingException(PamPendingErrorCode.InvalidRequest);
+        // An invalid row that never became readable is terminal after the local probe window.
+        throw new PamPendingException(
+            lastReadFailure is ArgumentException or InvalidOperationException
+                ? PamPendingErrorCode.InvalidRequest
+                : PamPendingErrorCode.SnapshotUnstable,
+            lastReadFailure);
     }
 
     private static async Task<IReadOnlyList<PamPendingRequest>> ReadCurrentPendingPageAsync(

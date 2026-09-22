@@ -102,11 +102,26 @@ public sealed class PamAutomationExecutionService : IPamAutomationExecutionServi
             .ReadAllAsync(credentials, cancellationToken)
             .ConfigureAwait(false);
         IReadOnlyList<PamFavoriteAccount> executionAccounts = SelectExecutionAccounts(accounts, selectedAccounts);
+        PamRequestFormData form = PamRequestFormData.FromSettings(settings.Request);
+        string pendingDiagnosticExecutionId = Guid.NewGuid().ToString("D");
+        pendingDiagnosticSink?.Begin(new PendingReconciliationDiagnostic(
+            SchemaVersion: 3,
+            ExecutionId: pendingDiagnosticExecutionId,
+            StartedAtUtc: timeProvider.GetUtcNow(),
+            Decision: "ReadingPreflight",
+            ExactPendingDuplicateCount: 0,
+            ExpectedRequests: executionAccounts
+                .Select(account => PendingExpectedRequestDiagnostic.Create(account, form))
+                .ToArray(),
+            BeforeSubmission: null,
+            SubmittedCount: 0,
+            Attempts: [],
+            Recoveries: [],
+            FailureCode: null) { Stage = "Preflight" });
         logger.LogInformation("Pending preflight read started before real submissions.");
         IReadOnlyList<PamPendingRequest> pendingBeforeSubmission = await pendingService
             .ReadAllAsync(credentials, cancellationToken)
             .ConfigureAwait(false);
-        PamRequestFormData form = PamRequestFormData.FromSettings(settings.Request);
         int duplicateCount = pendingService
             .FindExactMatches(pendingBeforeSubmission, executionAccounts, form)
             .Count;
@@ -121,24 +136,14 @@ public sealed class PamAutomationExecutionService : IPamAutomationExecutionServi
             .Select(static row => row.RequestId)
             .Distinct(StringComparer.Ordinal)
             .Count();
-        string pendingDiagnosticExecutionId = Guid.NewGuid().ToString("D");
-        pendingDiagnosticSink?.Begin(new PendingReconciliationDiagnostic(
-            SchemaVersion: 1,
-            ExecutionId: pendingDiagnosticExecutionId,
-            StartedAtUtc: timeProvider.GetUtcNow(),
-            Decision: duplicateCount > 0 ? "AwaitingRepeatedPendingDecision" : "Submit",
-            ExactPendingDuplicateCount: duplicateCount,
-            ExpectedRequests: executionAccounts
-                .Select(account => PendingExpectedRequestDiagnostic.Create(account, form))
-                .ToArray(),
-            BeforeSubmission: new PendingSnapshotDiagnostic(
+        pendingDiagnosticSink?.RecordBaseline(new PendingSnapshotDiagnostic(
                 timeProvider.GetUtcNow(),
                 baselineRows.Length,
                 baselineRequestIdCount,
                 baselineRows),
-            SubmittedCount: 0,
-            Attempts: Array.Empty<PendingComparisonAttemptDiagnostic>(),
-            FailureCode: null));
+            duplicateCount);
+        pendingDiagnosticSink?.RecordDecision(
+            duplicateCount > 0 ? "AwaitingRepeatedPendingDecision" : "Submit");
         logger.LogInformation(
             "Real execution preparation completed. FavoriteCount={FavoriteCount}, ExactPendingDuplicateCount={ExactPendingDuplicateCount}, BaselineRequestIdCount={BaselineRequestIdCount}, PendingDiagnosticExecutionId={PendingDiagnosticExecutionId}.",
             executionAccounts.Count,

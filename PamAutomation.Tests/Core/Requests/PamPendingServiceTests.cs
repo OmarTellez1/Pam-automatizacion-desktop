@@ -7,6 +7,7 @@ using PamAutomation.Core.Interfaces.Browser;
 using PamAutomation.Core.Interfaces.Requests;
 using PamAutomation.Core.Models.Credentials;
 using PamAutomation.Core.Requests;
+using PamAutomation.Core.Resilience;
 using PamAutomation.Infrastructure.Diagnostics;
 
 namespace PamAutomation.Tests.Core.Requests;
@@ -408,6 +409,7 @@ public sealed class PamPendingServiceTests
             new PendingSnapshotDiagnostic(DateTimeOffset.UtcNow, 1, 1, [oldDiagnostic]),
             1,
             [],
+            [],
             null));
         var service = new PamPendingService(
             new FakeAuthenticatedSessionFactory(new FakeSession()),
@@ -474,6 +476,341 @@ public sealed class PamPendingServiceTests
         Assert.AreEqual(1, delay.Calls);
     }
 
+    [TestMethod]
+    public async Task WaitForCompleteComparisonAsync_TransientReadTimeout_ReloadsPendingInSameSession()
+    {
+        var expected = new PamFavoriteAccount("system-a", "WinSCP", "account-a");
+        var portal = new SequencedOutcomePortal(
+            new TimeoutException("Transient grid timeout."),
+            (IReadOnlyList<PamPendingRequest>)[CreatePending("170001")]);
+        var delay = new FakeDelay();
+        var session = new FakeSession();
+        var store = CreateDiagnosticStore();
+        var service = new PamPendingService(
+            new FakeAuthenticatedSessionFactory(session),
+            new FakePortalFactory(portal),
+            delay,
+            store);
+
+        PamPendingComparisonResult result = await service.WaitForCompleteComparisonAsync(
+            session,
+            [expected],
+            CreateForm(),
+            maximumAttempts: 1,
+            retryDelay: TimeSpan.FromMilliseconds(1));
+
+        Assert.IsTrue(result.IsComplete);
+        Assert.AreEqual(2, portal.ReadCalls);
+        Assert.AreEqual(1, delay.Calls);
+        Assert.AreEqual(0, session.DisposeCalls);
+        PendingReconciliationDiagnostic? trace = store.CaptureSnapshot();
+        Assert.IsNotNull(trace);
+        PendingReadRecoveryDiagnostic recovery = Assert.ContainsSingle(trace.Recoveries);
+        Assert.AreEqual("ReloadPendingView", recovery.Action);
+        Assert.IsNull(trace.FailureCode);
+    }
+
+    [TestMethod]
+    public async Task WaitForCompleteComparisonAsync_StalledRead_RecreatesOnlyReadSessionAndPreservesBaseline()
+    {
+        var expected = new PamFavoriteAccount("system-a", "WinSCP", "account-a");
+        PamPendingRequest baseline = CreatePending("170001");
+        PamPendingRequest created = CreatePending("170002");
+        var portal = new SequencedOutcomePortal(
+            new TimeoutException("First read timeout."),
+            new TimeoutException("Reload timeout."),
+            (IReadOnlyList<PamPendingRequest>)[baseline, created]);
+        var firstSession = new FakeSession();
+        var recoveredSession = new FakeSession();
+        var sessions = new SequencedAuthenticatedSessionFactory(firstSession, recoveredSession);
+        var delay = new FakeDelay();
+        var store = CreateDiagnosticStore();
+        var service = new PamPendingService(
+            sessions,
+            new FakePortalFactory(portal),
+            delay,
+            store);
+
+        PamPendingComparisonResult result = await service.WaitForCompleteComparisonAsync(
+            CreateCredentials(),
+            [expected],
+            CreateForm(),
+            maximumAttempts: 1,
+            retryDelay: TimeSpan.FromMilliseconds(1),
+            excludedRequestIds: [baseline.RequestId]);
+
+        Assert.IsTrue(result.IsComplete);
+        CollectionAssert.AreEqual(new[] { created.RequestId }, result.RequestIds.ToArray());
+        Assert.AreEqual(2, sessions.CreateCalls);
+        Assert.AreEqual(1, firstSession.DisposeCalls);
+        Assert.AreEqual(1, recoveredSession.DisposeCalls);
+        Assert.AreEqual(3, portal.ReadCalls);
+        PendingReconciliationDiagnostic? trace = store.CaptureSnapshot();
+        Assert.IsNotNull(trace);
+        Assert.HasCount(3, trace.Recoveries);
+        Assert.AreEqual("ReloadPendingView", trace.Recoveries[0].Action);
+        Assert.AreEqual("ReadSessionFailed", trace.Recoveries[1].Action);
+        Assert.AreEqual("RecreateAuthenticatedReadSession", trace.Recoveries[2].Action);
+        Assert.IsNull(trace.FailureCode);
+    }
+
+    [TestMethod]
+    public async Task WaitForCompleteComparisonAsync_PersistentReadTimeout_StopsAfterBoundedRecovery()
+    {
+        var portal = new SequencedOutcomePortal(new TimeoutException("Persistent timeout."));
+        var firstSession = new FakeSession();
+        var recoveredSession = new FakeSession();
+        var sessions = new SequencedAuthenticatedSessionFactory(firstSession, recoveredSession);
+        var delay = new FakeDelay();
+        var store = CreateDiagnosticStore();
+        var service = new PamPendingService(
+            sessions,
+            new FakePortalFactory(portal),
+            delay,
+            store);
+
+        PamPendingException exception = await Assert.ThrowsExactlyAsync<PamPendingException>(() =>
+            service.WaitForCompleteComparisonAsync(
+                CreateCredentials(),
+                [new PamFavoriteAccount("system-a", "WinSCP", "account-a")],
+                CreateForm(),
+                maximumAttempts: 1,
+                retryDelay: TimeSpan.FromMilliseconds(1)));
+
+        Assert.AreEqual(PamPendingErrorCode.PortalUnavailable, exception.ErrorCode);
+        Assert.AreEqual(
+            PamOperationTimingPolicy.PendingReadSessionMaximumAttempts,
+            sessions.CreateCalls);
+        Assert.AreEqual(
+            PamOperationTimingPolicy.PendingReadSessionMaximumAttempts *
+                PamOperationTimingPolicy.PendingReadMaximumAttemptsPerSession,
+            portal.ReadCalls);
+        Assert.AreEqual(1, firstSession.DisposeCalls);
+        Assert.AreEqual(1, recoveredSession.DisposeCalls);
+        PendingReconciliationDiagnostic? trace = store.CaptureSnapshot();
+        Assert.IsNotNull(trace);
+        Assert.AreEqual("PortalUnavailable", trace.FailureCode);
+        Assert.HasCount(5, trace.Recoveries);
+    }
+
+    [TestMethod]
+    [DataRow(1)]
+    [DataRow(2)]
+    public async Task ReadAllAsync_PreflightTimeouts_RecoversCorrectSnapshot(int failures)
+    {
+        var outcomes = Enumerable.Repeat<object>(new TimeoutException("Grid timeout"), failures)
+            .Append((IReadOnlyList<PamPendingRequest>)[CreatePending("170001")]).ToArray();
+        var portal = new SequencedOutcomePortal(outcomes);
+        var first = new FakeSession();
+        var second = new FakeSession();
+        var sessions = new SequencedAuthenticatedSessionFactory(first, second);
+        var store = CreateDiagnosticStore();
+        store.RecordFailure("PreviousFailure");
+        var service = new PamPendingService(sessions, new FakePortalFactory(portal), new FakeDelay(), store);
+
+        IReadOnlyList<PamPendingRequest> result = await service.ReadAllAsync(CreateCredentials());
+
+        Assert.AreEqual("170001", Assert.ContainsSingle(result).RequestId);
+        Assert.AreEqual(failures + 1, portal.ReadCalls);
+        Assert.AreEqual(failures, sessions.CreateCalls);
+        Assert.AreEqual(1, first.DisposeCalls);
+        Assert.AreEqual(failures - 1, second.DisposeCalls);
+        PendingReconciliationDiagnostic trace = store.CaptureSnapshot()!;
+        Assert.AreEqual("Preflight", trace.Stage);
+        Assert.IsNull(trace.FailureCode);
+        Assert.HasCount(failures + 1, trace.Reads);
+        Assert.IsTrue(trace.Reads.All(read => read.Stage == "Preflight" && read.ComparisonAttempt == 0));
+        Assert.IsTrue(trace.Recoveries.All(recovery => recovery.Stage == "Preflight"));
+        Assert.AreEqual("PortalUnavailable", trace.Reads[0].ErrorCode);
+        Assert.AreEqual(1, trace.Reads[0].SessionAttempt);
+        Assert.AreEqual(1, trace.Reads[0].ReadAttempt);
+        Assert.IsNull(trace.Reads[^1].ErrorCode);
+        Assert.AreEqual(failures, trace.Reads[^1].SessionAttempt);
+    }
+
+    [TestMethod]
+    public async Task ReadAllAsync_PreflightPersistentTimeout_StopsAfterFourReads()
+    {
+        var portal = new SequencedOutcomePortal(new TimeoutException());
+        var sessions = new SequencedAuthenticatedSessionFactory(new FakeSession(), new FakeSession());
+        var store = CreateDiagnosticStore();
+        var service = new PamPendingService(sessions, new FakePortalFactory(portal), new FakeDelay(), store);
+
+        PamPendingException failure = await Assert.ThrowsExactlyAsync<PamPendingException>(
+            () => service.ReadAllAsync(CreateCredentials()));
+
+        Assert.AreEqual(PamPendingErrorCode.PortalUnavailable, failure.ErrorCode);
+        Assert.AreEqual(4, portal.ReadCalls);
+        Assert.AreEqual(2, sessions.CreateCalls);
+        PendingReconciliationDiagnostic trace = store.CaptureSnapshot()!;
+        Assert.AreEqual("PortalUnavailable", trace.FailureCode);
+        Assert.HasCount(4, trace.Reads);
+        Assert.HasCount(5, trace.Recoveries);
+    }
+
+    [TestMethod]
+    [DataRow(PamPendingErrorCode.InvalidRequest)]
+    [DataRow(PamPendingErrorCode.DuplicateRequestId)]
+    [DataRow(PamPendingErrorCode.AmbiguousIdentity)]
+    [DataRow(PamPendingErrorCode.FieldMismatch)]
+    public async Task ReadAllAsync_PermanentFailure_DoesNotRetry(PamPendingErrorCode code)
+    {
+        var portal = new SequencedOutcomePortal(new PamPendingException(code));
+        var session = new FakeSession();
+        var sessions = new SequencedAuthenticatedSessionFactory(session);
+        var delay = new FakeDelay();
+        var store = CreateDiagnosticStore();
+        var service = new PamPendingService(sessions, new FakePortalFactory(portal), delay, store);
+
+        PamPendingException failure = await Assert.ThrowsExactlyAsync<PamPendingException>(
+            () => service.ReadAllAsync(CreateCredentials()));
+
+        Assert.AreEqual(code, failure.ErrorCode);
+        Assert.AreEqual(1, sessions.CreateCalls);
+        Assert.AreEqual(1, portal.ReadCalls);
+        Assert.AreEqual(1, session.DisposeCalls);
+        Assert.AreEqual(0, delay.Calls);
+        Assert.IsEmpty(store.CaptureSnapshot()!.Recoveries);
+    }
+
+    [TestMethod]
+    public async Task ReadAllAsync_UnclassifiedFailure_DoesNotTreatItAsTransientNetworkError()
+    {
+        var portal = new SequencedOutcomePortal(new InvalidOperationException("Invalid structure"));
+        var sessions = new SequencedAuthenticatedSessionFactory(new FakeSession());
+        var service = new PamPendingService(sessions, new FakePortalFactory(portal), new FakeDelay());
+
+        PamPendingException failure = await Assert.ThrowsExactlyAsync<PamPendingException>(
+            () => service.ReadAllAsync(CreateCredentials()));
+
+        Assert.AreEqual(PamPendingErrorCode.InvalidRequest, failure.ErrorCode);
+        Assert.AreEqual(1, sessions.CreateCalls);
+        Assert.AreEqual(1, portal.ReadCalls);
+    }
+
+    [TestMethod]
+    public async Task ReadAllAsync_SnapshotUnstable_ReloadsWithoutAuthentication()
+    {
+        var portal = new SequencedOutcomePortal(new PamPendingException(PamPendingErrorCode.SnapshotUnstable),
+            (IReadOnlyList<PamPendingRequest>)[CreatePending("170001")]);
+        var sessions = new SequencedAuthenticatedSessionFactory(new FakeSession());
+        var service = new PamPendingService(sessions, new FakePortalFactory(portal), new FakeDelay());
+
+        IReadOnlyList<PamPendingRequest> result = await service.ReadAllAsync(CreateCredentials());
+
+        Assert.HasCount(1, result);
+        Assert.AreEqual(1, sessions.CreateCalls);
+        Assert.AreEqual(2, portal.ReadCalls);
+    }
+
+    [TestMethod]
+    public async Task ReadAllAsync_CanceledRead_DoesNotRetryAndDisposesSession()
+    {
+        var portal = new SequencedOutcomePortal(new OperationCanceledException());
+        var session = new FakeSession();
+        var sessions = new SequencedAuthenticatedSessionFactory(session);
+        var store = CreateDiagnosticStore();
+        var service = new PamPendingService(sessions, new FakePortalFactory(portal), new FakeDelay(), store);
+
+        await Assert.ThrowsExactlyAsync<OperationCanceledException>(() => service.ReadAllAsync(CreateCredentials()));
+
+        Assert.AreEqual(1, sessions.CreateCalls);
+        Assert.AreEqual(1, portal.ReadCalls);
+        Assert.AreEqual(1, session.DisposeCalls);
+        Assert.AreEqual("Canceled", store.CaptureSnapshot()!.FailureCode);
+        Assert.IsEmpty(store.CaptureSnapshot()!.Recoveries);
+    }
+
+    [TestMethod]
+    public async Task ReadAllAsync_CanceledRecoveryDelay_DoesNotCreateAnotherSession()
+    {
+        var portal = new SequencedOutcomePortal(new TimeoutException());
+        var session = new FakeSession();
+        var sessions = new SequencedAuthenticatedSessionFactory(session);
+        using var cancellation = new CancellationTokenSource();
+        var service = new PamPendingService(sessions, new FakePortalFactory(portal), new CancelingDelay(cancellation));
+
+        await Assert.ThrowsExactlyAsync<OperationCanceledException>(
+            () => service.ReadAllAsync(CreateCredentials(), cancellation.Token));
+
+        Assert.AreEqual(1, sessions.CreateCalls);
+        Assert.AreEqual(1, portal.ReadCalls);
+        Assert.AreEqual(1, session.DisposeCalls);
+    }
+
+    private sealed class CancelingDelay(CancellationTokenSource cancellation) : IAsyncDelay
+    {
+        public Task DelayAsync(TimeSpan delay, CancellationToken cancellationToken)
+        {
+            cancellation.Cancel();
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.CompletedTask;
+        }
+    }
+
+    [TestMethod]
+    public async Task ReadAllAsync_AuthenticationTimeout_DoesNotRetryLoginOrRead()
+    {
+        var sessions = new FailingAuthenticatedSessionFactory();
+        var portal = new SequencedOutcomePortal((IReadOnlyList<PamPendingRequest>)[]);
+        var store = CreateDiagnosticStore();
+        var service = new PamPendingService(sessions, new FakePortalFactory(portal), new FakeDelay(), store);
+
+        await Assert.ThrowsExactlyAsync<TimeoutException>(() => service.ReadAllAsync(CreateCredentials()));
+
+        Assert.AreEqual(1, sessions.CreateCalls);
+        Assert.AreEqual(0, portal.ReadCalls);
+        Assert.AreEqual("ReadSessionUnavailable", store.CaptureSnapshot()!.FailureCode);
+        Assert.IsEmpty(store.CaptureSnapshot()!.Recoveries);
+    }
+
+    [TestMethod]
+    public async Task ReadAllAsync_AlreadyCanceled_DoesNotAuthenticate()
+    {
+        var sessions = new SequencedAuthenticatedSessionFactory(new FakeSession());
+        var portal = new SequencedOutcomePortal((IReadOnlyList<PamPendingRequest>)[]);
+        var store = CreateDiagnosticStore();
+        var service = new PamPendingService(sessions, new FakePortalFactory(portal), new FakeDelay(), store);
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        await Assert.ThrowsExactlyAsync<OperationCanceledException>(
+            () => service.ReadAllAsync(CreateCredentials(), cancellation.Token));
+
+        Assert.AreEqual(0, sessions.CreateCalls);
+        Assert.AreEqual(0, portal.ReadCalls);
+        Assert.AreEqual("Canceled", store.CaptureSnapshot()!.FailureCode);
+    }
+
+    private sealed class FailingAuthenticatedSessionFactory : IPamAuthenticatedSessionFactory
+    {
+        public int CreateCalls { get; private set; }
+        public Task<IPamBrowserSession> CreateAuthenticatedAsync(PamCredentials credentials,
+            CancellationToken cancellationToken = default)
+        {
+            CreateCalls++;
+            return Task.FromException<IPamBrowserSession>(new TimeoutException());
+        }
+    }
+
+    private static InMemoryPendingReconciliationDiagnosticStore CreateDiagnosticStore()
+    {
+        var store = new InMemoryPendingReconciliationDiagnosticStore();
+        store.Begin(new PendingReconciliationDiagnostic(
+            2,
+            "execution",
+            DateTimeOffset.UtcNow,
+            "Submit",
+            0,
+            [],
+            new PendingSnapshotDiagnostic(DateTimeOffset.UtcNow, 0, 0, []),
+            1,
+            [],
+            [],
+            null));
+        return store;
+    }
+
     private static PamRequestFormData CreateForm() => new(
         new DateOnly(2026, 9, 10),
         new TimeOnly(9, 0),
@@ -530,6 +867,21 @@ public sealed class PamPendingServiceTests
             CancellationToken cancellationToken = default) => Task.FromResult(session);
     }
 
+    private sealed class SequencedAuthenticatedSessionFactory(params IPamBrowserSession[] sessions)
+        : IPamAuthenticatedSessionFactory
+    {
+        public int CreateCalls { get; private set; }
+
+        public Task<IPamBrowserSession> CreateAuthenticatedAsync(
+            PamCredentials credentials,
+            CancellationToken cancellationToken = default)
+        {
+            int index = Math.Min(CreateCalls, sessions.Length - 1);
+            CreateCalls++;
+            return Task.FromResult(sessions[index]);
+        }
+    }
+
     private sealed class FakePortalFactory(IPamPendingPortal portal) : IPamPendingPortalFactory
     {
         public IPamBrowserSession? ReceivedSession { get; private set; }
@@ -558,6 +910,24 @@ public sealed class PamPendingServiceTests
             ReadCalls++;
             int current = Math.Min(index++, snapshots.Count - 1);
             return Task.FromResult(snapshots[current]);
+        }
+    }
+
+    private sealed class SequencedOutcomePortal(params object[] outcomes) : IPamPendingPortal
+    {
+        private int index;
+        public int ReadCalls { get; private set; }
+
+        public Task<IReadOnlyList<PamPendingRequest>> ReadAllAsync(CancellationToken cancellationToken)
+        {
+            ReadCalls++;
+            object outcome = outcomes[Math.Min(index++, outcomes.Length - 1)];
+            return outcome switch
+            {
+                Exception exception => Task.FromException<IReadOnlyList<PamPendingRequest>>(exception),
+                IReadOnlyList<PamPendingRequest> requests => Task.FromResult(requests),
+                _ => throw new InvalidOperationException("Unsupported Pending test outcome."),
+            };
         }
     }
 

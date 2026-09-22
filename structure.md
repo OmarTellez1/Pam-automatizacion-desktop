@@ -487,7 +487,7 @@ Biblioteca para `net10.0`, sin dependencia de WPF o Windows. Actualmente contien
 - `Browser`: respuesta de navegación reducida a URI, estado y HTTP `Date`, junto con errores controlados de inicialización y navegación.
 - `Authentication`: servicio de autenticación simulado, espera asincrónica, errores estables y contratos del puerto ligado a una sesión.
 - `Interfaces/Favorites` y `Favorites`: lectura y validación de identidades únicas, catálogo protegido, claves exactas, colecciones nombradas, selección activa obligatoria y sincronización de `All favorites` contra `Favorites`.
-- `Interfaces/Requests` y `Requests`: contratos separados para prueba, envío y lectura; coordinación de solicitudes, preflight de coincidencias exactas, línea base de Request ID en memoria y reconciliación estricta de las filas nuevas de Pending. `PamPendingService` agrupa como multiconjunto por `System + Account`, valida inicio, expiración y descripción y no depende de `Application`; `PamAutomationExecutionService` impide que IDs de la línea base alcancen accidentalmente resultados o correo y ofrece una ruta separada, explícita y completa para reutilizarlos sin crear solicitudes. Esa ruta puede reenviar deliberadamente una huella de correo existente; las demás conservan la deduplicación.
+- `Interfaces/Requests` y `Requests`: contratos separados para prueba, envío y lectura; coordinación de solicitudes, preflight de coincidencias exactas, línea base de Request ID en memoria y reconciliación estricta de las filas nuevas de Pending. `PamPendingService` agrupa como multiconjunto por `System + Account`, valida inicio, expiración y descripción y no depende de `Application`; ante timeouts del preflight o posteriores al envío recarga Pending y puede reemplazar únicamente su sesión temporal de lectura, sin reenviar solicitudes. `PamAutomationExecutionService` impide que IDs de la línea base alcancen accidentalmente resultados o correo y ofrece una ruta separada, explícita y completa para reutilizarlos sin crear solicitudes. Esa ruta puede reenviar deliberadamente una huella de correo existente; las demás conservan la deduplicación.
 - `Interfaces/Outlook` y `Outlook`: contrato del cliente clásico, modelos redactados, validaciones, resultados y errores seguros; `OutlookHtmlComposer` sanea XHTML, valida el marcador y compone Request ID por línea.
 - `Resilience/PamOperationTimingPolicy`: fuente única de límites, intervalos y cantidades de observación adaptativa para PAM, Pending, Edge interactivo y Outlook; no autoriza reintentos de acciones irreversibles.
 - `Interfaces/Execution` y `Execution`: preparación confirmable, selección opcional de colección, coordinación completa y resultado exclusivamente en memoria.
@@ -576,7 +576,7 @@ Responsabilidad objetivo:
 - Diagnóstico acotado en memoria y exportación explícita, sin persistencia operativa automática en producción.
 - `Diagnostics/DevelopmentFileLoggerFactory`: proveedor estructurado activado solo bajo depurador o variable explícita, escribe archivos diarios seguros en `logs` y elimina los que superan dos días.
 - `Diagnostics/RuntimeDiagnosticLoggerFactory`: buffer circular de 500 eventos, lista permitida de propiedades y metadatos de excepción sin mensajes o rutas locales.
-- `Diagnostics/InMemoryPendingReconciliationDiagnosticStore`: conserva defensivamente una sola traza detallada por proceso y nunca escribe archivos por sí mismo.
+- `Diagnostics/InMemoryPendingReconciliationDiagnosticStore`: conserva defensivamente una sola traza detallada por proceso, incluidos los intentos de recuperación de lectura, y nunca escribe archivos por sí mismo.
 - `Diagnostics/DiagnosticExportService`: paquete ZIP manual con escritura atómica, limpieza de temporales, versión exacta de compilación y `pending-reconciliation.json` opcional.
 
 No debe conocer controles WPF, selectores PAM ni objetos COM de Outlook.
@@ -628,7 +628,7 @@ Contenido actual:
 - `Infrastructure/Configuration/DpapiOutlookAccountSettingsStoreTests.cs`: valida el documento separado de cuenta Outlook, su cifrado CurrentUser y el rechazo de SMTP inválido o contenido corrupto.
 - `Infrastructure/Diagnostics/RuntimeDiagnosticLoggerFactoryTests.cs`: valida capacidad, lista permitida y metadatos de excepción sin información privada.
 - `Infrastructure/Diagnostics/DiagnosticExportServiceTests.cs`: valida ZIP básico, detalle Pending autorizado, manifiesto versionado, cancelación y limpieza atómica.
-- `Infrastructure/Diagnostics/InMemoryPendingReconciliationDiagnosticStoreTests.cs`: valida decisiones, intentos, errores y copias defensivas de la traza temporal.
+- `Infrastructure/Diagnostics/InMemoryPendingReconciliationDiagnosticStoreTests.cs`: valida decisiones, comparaciones, recuperaciones, errores y copias defensivas de la traza temporal.
 - `Infrastructure/Credentials/WindowsPamCredentialStoreTests.cs`: valida creación, actualización parcial, límites, corrupción, borrado y limpieza de buffers mediante una API de Windows falsa.
 - `Infrastructure/Time/PamHttpDateClockFactoryTests.cs`: valida calibración, avance monotónico y errores sin consultar el reloj local.
 - `Browser/PamBrowserSessionFactoryTests.cs`: valida Edge `headless`, contexto temporal, origen exacto, respuesta segura, cancelación y liberación con adaptadores falsos.
@@ -647,7 +647,7 @@ Contenido actual:
 - `Core/Favorites/PamFavoritesServiceTests.cs`: valida snapshot, identidades, duplicados, errores seguros y cierre de sesión.
 - `Core/Requests/PamRequestTestServiceTests.cs`: valida configuración previa, recorrido completo, detención segura, cierre de sesión y resultado invariablemente no enviado.
 - `Core/Requests/PamRequestSubmissionServiceTests.cs`: valida autorización por conteo y configuración, resultados, conflictos, fallos parciales, duración técnica y cierre de sesión.
-- `Core/Requests/PamPendingServiceTests.cs`: valida lectura, identidad estable, expiración, descripción, aplicaciones arbitrarias, detección de repeticiones exactas, exclusión de Request ID preexistentes, conteos repetidos bajo `System + Account`, ambigüedad y consistencia eventual.
+- `Core/Requests/PamPendingServiceTests.cs`: valida lectura, identidad estable, expiración, descripción, aplicaciones arbitrarias, detección de repeticiones exactas, exclusión de Request ID preexistentes, conteos repetidos bajo `System + Account`, ambigüedad, consistencia eventual, recarga de Pending, reconstrucción acotada de la sesión de lectura y preservación de la línea base.
 - `Core/Authentication/PamAuthenticationServiceTests.cs`: valida el flujo simulado, RTT, ventana TOTP, reintento único, errores y cancelación.
 - `Outlook/OutlookClassicClientTests.cs`: valida cuenta exacta, mensajes temporales, redacción, STA, huellas, duplicados, adjuntos CID, liberación y estados de envío mediante COM falso.
 - `Outlook/OutlookHtmlComposerTests.cs`: valida allowlist XHTML, contenido activo, recursos externos, estilos, marcador, Request ID y errores redactados.
@@ -878,6 +878,18 @@ La fase 23 no crea perfiles completos ni replica los almacenes de configuración
 El índice almacena únicamente GUID, nombre y rol. Las credenciales permanecen en destinos separados de Credential Manager: la cuenta principal reutiliza `PamAutomation/PamCredentials/v1` y las secundarias usan `PamAutomation/Accounts/<guid>/PamCredentials/v1`. `IPamAccountService.LoadCredentialsAsync` resuelve por GUID una credencial solo después de la confirmación del selector interactivo.
 
 El diseño anterior de perfiles aislados y archivos `.pamprofile` queda descartado. No se moverán `app-settings.json`, correo, Outlook, Favorites o colecciones a ámbitos por identidad.
+
+## Recuperación integral de Pending
+
+- `Core/Requests/PamPendingService.cs`: comparte la recuperación autenticada de solo lectura entre preflight y reconciliación, conserva la línea base y excluye errores permanentes y autenticación del reintento.
+- `Browser/PlaywrightManagedPage.Pending.cs`: clasifica cambios del grid como `SnapshotUnstable`; una fila todavía inválida al finalizar su ventana local permanece bloqueante como `InvalidRequest`.
+- `Core/Execution/PamAutomationExecutionService.cs`: inicia la traza antes del preflight y registra la línea base completa después de recuperarla, sin repetir la inicialización ni perder su historial.
+- `Core/Diagnostics/PendingReconciliationDiagnostic.cs` e `Interfaces/Diagnostics/IPendingReconciliationDiagnosticStore.cs`: etapa, línea base nullable, lecturas y recuperaciones por sesión en el detalle de esquema 3.
+- `Infrastructure/Diagnostics/InMemoryPendingReconciliationDiagnosticStore.cs`: actualización sincronizada y defensiva de la línea base y del historial. El exportador existente incluye la traza aunque no se haya obtenido baseline.
+- `Tests/Core/Execution/PamAutomationExecutionServicePendingTests.cs`: coordinación simulada, un único envío a pesar de reconstrucciones en ambas etapas, exclusión del ID anterior, exportación del preflight fallido y privacidad del log.
+- `Tests/Core/Requests/PamPendingServiceTests.cs` y `Tests/Infrastructure/Diagnostics/InMemoryPendingReconciliationDiagnosticStoreTests.cs`: límites, cancelación, clasificación, autenticación sin reintento y copias defensivas.
+
+No se añaden proyectos, paquetes NuGet ni dependencias entre capas.
 
 ## Límites que deben conservarse
 

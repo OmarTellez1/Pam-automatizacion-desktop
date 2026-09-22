@@ -8,4 +8,6 @@ public enum PamPendingErrorCode
     DuplicateRequestId,
     AmbiguousIdentity,
     FieldMismatch,
+    /// <summary>The grid changed or did not stabilize within its observation window.</summary>
+    SnapshotUnstable,
 }

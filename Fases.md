@@ -476,6 +476,22 @@ La aplicación mantiene una única traza detallada de Pending en memoria y la su
 
 La información no se agrega al log persistente ni se escribe automáticamente. Solo una exportación solicitada crea `pending-reconciliation.json` dentro del ZIP y eleva el manifiesto a esquema 2. `environment.json` incorpora la versión informativa y el `ModuleVersionId` para distinguir compilaciones que todavía compartan la versión visible. Se excluyen credenciales, contraseña, semilla y código TOTP, cookies, tokens y correo. La compilación `Release | x64`, 30 pruebas focalizadas y las 434 pruebas ordinarias aprobaron. **Ajuste completado.**
 
+### Ajuste posterior a la fase 25 — Recuperación de Pending después del envío
+
+El diagnóstico `pam-automation-diagnostic-20260922-061148` confirmó que PAM había aceptado 12 envíos y que el fallo ocurrió antes de la primera comparación: Playwright agotó el tiempo mientras leía el grid posterior. La línea base contenía 24 Request ID únicos, no había duplicados exactos previos y el problema no provenía del comparador ni de la cantidad de IDs.
+
+La reconciliación recupera ahora únicamente operaciones idempotentes. Ante `PortalUnavailable` o un snapshot transitoriamente inválido, vuelve a navegar a Pending una vez dentro de la misma sesión. Si ambas lecturas fallan, dispone esa sesión temporal, autentica una nueva sesión destinada solo a lectura y conserva sin cambios la línea base, el lote esperado y la autorización original. Los límites son dos lecturas por sesión y dos sesiones en total; cancelaciones, ambigüedades, IDs duplicados y errores no clasificados continúan fallando inmediatamente. `Submit Request` nunca forma parte de este ciclo.
+
+La traza explícita incorpora cada `ReloadPendingView`, `ReadSessionFailed` y `RecreateAuthenticatedReadSession`, mientras `FailureCode` solo representa el agotamiento final. Tres regresiones demuestran recuperación en la misma sesión, reconstrucción con exclusión correcta del ID antiguo y detención acotada ante un timeout persistente. La compilación `Release | x64` y las 437 pruebas ordinarias aprobaron sin abrir PAM, crear solicitudes ni enviar correo. **Ajuste completado.**
+
+### Ajuste posterior a la fase 25 — Recuperación compartida del preflight y diagnóstico temprano
+
+El traspaso `PENDING_PREFLIGHT_RECOVERY_HANDOFF.md` identificó que el timeout del segundo diagnóstico ocurría antes de enviar: la ruta directa de preflight no usaba la recuperación y todavía no había iniciado su traza. `PamPendingService` comparte ahora los bucles acotados de lectura y reconstrucción entre ambas etapas; `PamAutomationExecutionService` inicia el diagnóstico antes de leer Pending y actualiza la línea base únicamente después de obtener el snapshot completo.
+
+Browser distingue `SnapshotUnstable` de `InvalidRequest` persistente. Solo errores explícitos de lectura transitoria permiten recargar o reconstruir; autenticación fallida, cancelaciones, duplicados y ambigüedad terminan sin nuevos intentos. Infrastructure mantiene copias defensivas de la línea base, lecturas y recuperaciones con etapa; el detalle de esquema 3 se exporta incluso sin línea base. Ningún reintento puede invocar envío PAM u Outlook.
+
+La compilación `Release | x64`, 74 pruebas focalizadas en Pending y las 453 pruebas ordinarias aprobaron. Las nuevas regresiones verifican preflight recuperado, agotamiento, cancelación, errores permanentes, login sin reintento, exportación del fallo inicial, ausencia de datos privados en logs y un flujo completo que reconstruye ambas etapas manteniendo exactamente un envío simulado. Permanece la advertencia heredada `MSTEST0032`. No se contactó PAM ni Outlook. **Corrección local completada; la validación real de solo lectura requiere autorización explícita y no se ha ejecutado.**
+
 ## Fases pendientes
 
 La clasificación siguiente se refiere únicamente a dependencias entre fases pendientes:

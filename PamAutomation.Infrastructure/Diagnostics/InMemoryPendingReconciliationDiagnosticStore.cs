@@ -22,6 +22,42 @@ public sealed class InMemoryPendingReconciliationDiagnosticStore :
     }
 
     /// <inheritdoc />
+    public void RecordStage(string stage)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(stage);
+        lock (sync)
+        {
+            if (current is not null) current = current with { Stage = stage, FailureCode = null };
+        }
+    }
+
+    /// <inheritdoc />
+    public void RecordBaseline(PendingSnapshotDiagnostic snapshot, int exactPendingDuplicateCount)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        ArgumentOutOfRangeException.ThrowIfNegative(exactPendingDuplicateCount);
+        lock (sync)
+        {
+            if (current is null) return;
+            current = current with
+            {
+                BeforeSubmission = Clone(snapshot),
+                ExactPendingDuplicateCount = exactPendingDuplicateCount,
+            };
+        }
+    }
+
+    /// <inheritdoc />
+    public void RecordRead(PendingReadAttemptDiagnostic read)
+    {
+        ArgumentNullException.ThrowIfNull(read);
+        lock (sync)
+        {
+            if (current is not null) current = current with { Reads = [.. current.Reads, read] };
+        }
+    }
+
+    /// <inheritdoc />
     public void RecordDecision(string decision)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(decision);
@@ -53,6 +89,17 @@ public sealed class InMemoryPendingReconciliationDiagnosticStore :
     }
 
     /// <inheritdoc />
+    public void RecordRecovery(PendingReadRecoveryDiagnostic recovery)
+    {
+        ArgumentNullException.ThrowIfNull(recovery);
+        lock (sync)
+        {
+            if (current is null) return;
+            current = current with { Recoveries = [.. current.Recoveries, recovery] };
+        }
+    }
+
+    /// <inheritdoc />
     public void RecordFailure(string errorCode)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(errorCode);
@@ -75,8 +122,10 @@ public sealed class InMemoryPendingReconciliationDiagnosticStore :
         diagnostic with
         {
             ExpectedRequests = diagnostic.ExpectedRequests.ToArray(),
-            BeforeSubmission = Clone(diagnostic.BeforeSubmission),
+            BeforeSubmission = diagnostic.BeforeSubmission is null ? null : Clone(diagnostic.BeforeSubmission),
             Attempts = diagnostic.Attempts.Select(Clone).ToArray(),
+            Recoveries = diagnostic.Recoveries.ToArray(),
+            Reads = diagnostic.Reads.ToArray(),
         };
 
     private static PendingSnapshotDiagnostic Clone(PendingSnapshotDiagnostic snapshot) =>

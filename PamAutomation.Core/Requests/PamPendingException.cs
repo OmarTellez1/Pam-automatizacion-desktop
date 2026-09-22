@@ -16,6 +16,7 @@ public sealed class PamPendingException : Exception
     private static string GetMessage(PamPendingErrorCode errorCode) => errorCode switch
     {
         PamPendingErrorCode.InvalidRequest => "Pending contiene una solicitud incompleta o inválida.",
+        PamPendingErrorCode.SnapshotUnstable => "Pending no se estabilizó dentro del tiempo permitido.",
         PamPendingErrorCode.DuplicateRequestId => "Pending contiene Request ID duplicados.",
         PamPendingErrorCode.AmbiguousIdentity =>
             "Pending no permite asociar de forma única todas las Favorites rows esperadas.",

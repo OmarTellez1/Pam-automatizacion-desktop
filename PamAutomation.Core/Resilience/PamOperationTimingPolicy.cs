@@ -30,6 +30,15 @@ public static class PamOperationTimingPolicy
     /// <summary>Delay between complete Pending refreshes.</summary>
     public static TimeSpan PendingComparisonRetryDelay { get; } = TimeSpan.FromSeconds(2);
 
+    /// <summary>Maximum read attempts before replacing a stalled Pending browser session.</summary>
+    public const int PendingReadMaximumAttemptsPerSession = 2;
+
+    /// <summary>Maximum authenticated read sessions used after submissions; requests are never resubmitted.</summary>
+    public const int PendingReadSessionMaximumAttempts = 2;
+
+    /// <summary>Delay before reloading Pending or rebuilding its temporary read session.</summary>
+    public static TimeSpan PendingReadRecoveryDelay { get; } = TimeSpan.FromSeconds(2);
+
     /// <summary>Maximum observations after Outlook accepts a send request.</summary>
     public const int OutlookConfirmationMaximumAttempts = 15;
 

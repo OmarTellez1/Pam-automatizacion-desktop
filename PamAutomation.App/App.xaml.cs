@@ -136,7 +136,8 @@ namespace PamAutomation.App
                     authentication,
                     new PamPendingPortalFactory(),
                     delay,
-                    pendingDiagnosticStore),
+                    pendingDiagnosticStore,
+                    logger: loggerFactory.CreateLogger<PamPendingService>()),
                 new PamRequestTestService(
                     authentication,
                     favorites,

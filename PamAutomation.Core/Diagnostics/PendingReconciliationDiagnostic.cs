@@ -11,11 +11,18 @@ public sealed record PendingReconciliationDiagnostic(
     string Decision,
     int ExactPendingDuplicateCount,
     IReadOnlyList<PendingExpectedRequestDiagnostic> ExpectedRequests,
-    PendingSnapshotDiagnostic BeforeSubmission,
+    PendingSnapshotDiagnostic? BeforeSubmission,
     int SubmittedCount,
     IReadOnlyList<PendingComparisonAttemptDiagnostic> Attempts,
+    IReadOnlyList<PendingReadRecoveryDiagnostic> Recoveries,
     string? FailureCode)
 {
+    /// <summary>Gets the current read stage: Preflight or Reconciliation.</summary>
+    public string Stage { get; init; } = "Reconciliation";
+
+    /// <summary>Gets every attempted read, including failures before a complete snapshot.</summary>
+    public IReadOnlyList<PendingReadAttemptDiagnostic> Reads { get; init; } = [];
+
     /// <summary>Prevents authorized diagnostic fields from leaking through incidental structured logging.</summary>
     public override string ToString() => "Pending reconciliation diagnostic (explicit export only)";
 }
@@ -117,6 +124,35 @@ public sealed record PendingComparisonAttemptDiagnostic(
 {
     /// <summary>Prevents authorized diagnostic fields from leaking through incidental structured logging.</summary>
     public override string ToString() => "Pending comparison attempt diagnostic (explicit export only)";
+}
+
+/// <summary>Records one safe, read-only recovery action during Pending reconciliation.</summary>
+public sealed record PendingReadRecoveryDiagnostic(
+    DateTimeOffset CapturedAtUtc,
+    int SessionAttempt,
+    int ComparisonAttempt,
+    int ReadAttempt,
+    string Action,
+    string ErrorCode)
+{
+    /// <summary>Gets the stage in which this recovery occurred.</summary>
+    public string Stage { get; init; } = "Reconciliation";
+
+    /// <summary>Prevents diagnostic details from leaking through incidental structured logging.</summary>
+    public override string ToString() => "Pending read recovery diagnostic (explicit export only)";
+}
+
+/// <summary>Records a read outcome without retaining incomplete portal rows.</summary>
+public sealed record PendingReadAttemptDiagnostic(
+    DateTimeOffset CapturedAtUtc,
+    string Stage,
+    int SessionAttempt,
+    int ComparisonAttempt,
+    int ReadAttempt,
+    string? ErrorCode)
+{
+    /// <summary>Prevents incidental logging of diagnostic contents.</summary>
+    public override string ToString() => "Pending read attempt diagnostic (explicit export only)";
 }
 
 /// <summary>Explains expected and observed multiplicity for one stable Pending identity.</summary>

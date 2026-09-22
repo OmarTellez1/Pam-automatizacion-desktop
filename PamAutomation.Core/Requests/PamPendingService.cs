@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using PamAutomation.Core.Diagnostics;
 using PamAutomation.Core.Favorites;
 using PamAutomation.Core.Interfaces.Authentication;
@@ -17,6 +19,7 @@ public sealed class PamPendingService
     private readonly IAsyncDelay asyncDelay;
     private readonly IPendingReconciliationDiagnosticSink? diagnosticSink;
     private readonly TimeProvider timeProvider;
+    private readonly ILogger<PamPendingService> logger;
 
     /// <summary>Initializes the read-only workflow.</summary>
     public PamPendingService(
@@ -24,7 +27,8 @@ public sealed class PamPendingService
         IPamPendingPortalFactory portalFactory,
         IAsyncDelay asyncDelay,
         IPendingReconciliationDiagnosticSink? diagnosticSink = null,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        ILogger<PamPendingService>? logger = null)
     {
         this.authenticatedSessionFactory = authenticatedSessionFactory
             ?? throw new ArgumentNullException(nameof(authenticatedSessionFactory));
@@ -32,6 +36,7 @@ public sealed class PamPendingService
         this.asyncDelay = asyncDelay ?? throw new ArgumentNullException(nameof(asyncDelay));
         this.diagnosticSink = diagnosticSink;
         this.timeProvider = timeProvider ?? TimeProvider.System;
+        this.logger = logger ?? NullLogger<PamPendingService>.Instance;
     }
 
     /// <summary>Authenticates, reads every <c>Pending</c> page and closes the temporary session.</summary>
@@ -40,12 +45,13 @@ public sealed class PamPendingService
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(credentials);
-        cancellationToken.ThrowIfCancellationRequested();
 
-        await using IPamBrowserSession session = await authenticatedSessionFactory
-            .CreateAuthenticatedAsync(credentials, cancellationToken)
-            .ConfigureAwait(false);
-        return await ReadAllAsync(session, cancellationToken).ConfigureAwait(false);
+        return await WithAuthenticatedReadRecoveryAsync(
+            credentials,
+            "Preflight",
+            (session, sessionAttempt) => ReadPendingWithRecoveryAsync(
+                session, "Preflight", sessionAttempt, 0, cancellationToken),
+            cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>Reads every <c>Pending</c> page using a caller-owned authenticated session.</summary>
@@ -72,9 +78,14 @@ public sealed class PamPendingService
         {
             throw;
         }
-        catch (Exception exception)
+        catch (TimeoutException exception)
         {
             throw new PamPendingException(PamPendingErrorCode.PortalUnavailable, exception);
+        }
+        catch (Exception exception)
+        {
+            // Unknown failures must remain terminal, not become network retries.
+            throw new PamPendingException(PamPendingErrorCode.InvalidRequest, exception);
         }
     }
 
@@ -181,32 +192,57 @@ public sealed class PamPendingService
         IReadOnlyCollection<string>? excludedRequestIds = null)
     {
         ArgumentNullException.ThrowIfNull(session);
-        ArgumentNullException.ThrowIfNull(expectedAccounts);
-        ArgumentNullException.ThrowIfNull(form);
-        if (maximumAttempts < 1)
+        TimeSpan delay = ValidatePollingArguments(
+            expectedAccounts,
+            form,
+            maximumAttempts,
+            retryDelay);
+        diagnosticSink?.RecordStage("Reconciliation");
+        try
         {
-            throw new ArgumentOutOfRangeException(nameof(maximumAttempts));
+            return await WaitForCompleteComparisonInSessionAsync(
+                    session,
+                    expectedAccounts,
+                    form,
+                    maximumAttempts,
+                    delay,
+                    sessionAttempt: 1,
+                    cancellationToken,
+                    excludedRequestIds)
+                .ConfigureAwait(false);
         }
-
-        TimeSpan delay = retryDelay ?? PamOperationTimingPolicy.PendingComparisonRetryDelay;
-        if (delay <= TimeSpan.Zero)
+        catch (OperationCanceledException)
         {
-            throw new ArgumentOutOfRangeException(nameof(retryDelay));
+            diagnosticSink?.RecordFailure("Canceled");
+            throw;
         }
+        catch (PamPendingException exception)
+        {
+            diagnosticSink?.RecordFailure(exception.ErrorCode.ToString());
+            throw;
+        }
+    }
 
+    private async Task<PamPendingComparisonResult> WaitForCompleteComparisonInSessionAsync(
+        IPamBrowserSession session,
+        IReadOnlyList<PamFavoriteAccount> expectedAccounts,
+        PamRequestFormData form,
+        int maximumAttempts,
+        TimeSpan retryDelay,
+        int sessionAttempt,
+        CancellationToken cancellationToken,
+        IReadOnlyCollection<string>? excludedRequestIds)
+    {
         PamPendingComparisonResult? latest = null;
         for (int attempt = 1; attempt <= maximumAttempts; attempt++)
         {
-            IReadOnlyList<PamPendingRequest> requests;
-            try
-            {
-                requests = await ReadAllAsync(session, cancellationToken).ConfigureAwait(false);
-            }
-            catch (PamPendingException exception)
-            {
-                diagnosticSink?.RecordFailure(exception.ErrorCode.ToString());
-                throw;
-            }
+            IReadOnlyList<PamPendingRequest> requests = await ReadPendingWithRecoveryAsync(
+                    session,
+                    "Reconciliation",
+                    sessionAttempt,
+                    attempt,
+                    cancellationToken)
+                .ConfigureAwait(false);
 
             try
             {
@@ -230,7 +266,6 @@ public sealed class PamPendingService
                     form,
                     comparison: null,
                     exception.ErrorCode));
-                diagnosticSink?.RecordFailure(exception.ErrorCode.ToString());
                 throw;
             }
 
@@ -239,10 +274,82 @@ public sealed class PamPendingService
                 return latest;
             }
 
-            await asyncDelay.DelayAsync(delay, cancellationToken).ConfigureAwait(false);
+            await asyncDelay.DelayAsync(retryDelay, cancellationToken).ConfigureAwait(false);
         }
 
         throw new InvalidOperationException("No se completó la comparación de Pending.");
+    }
+
+    private async Task<IReadOnlyList<PamPendingRequest>> ReadPendingWithRecoveryAsync(
+        IPamBrowserSession session,
+        string stage,
+        int sessionAttempt,
+        int comparisonAttempt,
+        CancellationToken cancellationToken)
+    {
+        for (int readAttempt = 1;
+             readAttempt <= PamOperationTimingPolicy.PendingReadMaximumAttemptsPerSession;
+             readAttempt++)
+        {
+            try
+            {
+                IReadOnlyList<PamPendingRequest> requests = await ReadAllAsync(session, cancellationToken)
+                    .ConfigureAwait(false);
+                diagnosticSink?.RecordRead(new PendingReadAttemptDiagnostic(
+                    timeProvider.GetUtcNow(), stage, sessionAttempt, comparisonAttempt, readAttempt, null));
+                if (readAttempt > 1)
+                {
+                    logger.LogInformation(
+                        "Pending read recovered in the current session. SessionAttempt={SessionAttempt}, ComparisonAttempt={ComparisonAttempt}, ReadAttempt={ReadAttempt}.",
+                        sessionAttempt,
+                        comparisonAttempt,
+                        readAttempt);
+                }
+
+                return requests;
+            }
+            catch (OperationCanceledException)
+            {
+                diagnosticSink?.RecordRead(new PendingReadAttemptDiagnostic(
+                    timeProvider.GetUtcNow(), stage, sessionAttempt, comparisonAttempt, readAttempt, "Canceled"));
+                throw;
+            }
+            catch (PamPendingException exception)
+            {
+                diagnosticSink?.RecordRead(new PendingReadAttemptDiagnostic(
+                    timeProvider.GetUtcNow(), stage, sessionAttempt, comparisonAttempt, readAttempt,
+                    exception.ErrorCode.ToString()));
+                if (!IsRecoverableReadFailure(exception)) throw;
+
+                string action = readAttempt < PamOperationTimingPolicy.PendingReadMaximumAttemptsPerSession
+                    ? "ReloadPendingView"
+                    : "ReadSessionFailed";
+                diagnosticSink?.RecordRecovery(new PendingReadRecoveryDiagnostic(
+                    timeProvider.GetUtcNow(),
+                    sessionAttempt,
+                    comparisonAttempt,
+                    readAttempt,
+                    action,
+                    exception.ErrorCode.ToString()) { Stage = stage });
+                logger.LogWarning(
+                    exception,
+                    "Pending read failed transiently. SessionAttempt={SessionAttempt}, ComparisonAttempt={ComparisonAttempt}, ReadAttempt={ReadAttempt}, RecoveryState={RecoveryState}.",
+                    sessionAttempt,
+                    comparisonAttempt,
+                    readAttempt,
+                    action);
+                if (readAttempt == PamOperationTimingPolicy.PendingReadMaximumAttemptsPerSession)
+                {
+                    throw;
+                }
+
+                await asyncDelay.DelayAsync(
+                    PamOperationTimingPolicy.PendingReadRecoveryDelay,
+                    cancellationToken).ConfigureAwait(false);
+            }
+        }
+
+        throw new InvalidOperationException("Pending agotó los intentos de lectura configurados.");
     }
 
     private PendingComparisonAttemptDiagnostic CreateDiagnosticAttempt(
@@ -298,7 +405,7 @@ public sealed class PamPendingService
             newRequests.Select(PendingRequestDiagnostic.Create).ToArray());
     }
 
-    /// <summary>Authenticates once and polls <c>Pending</c> until all expected rows are present.</summary>
+    /// <summary>Polls <c>Pending</c> and replaces only its temporary read session after recoverable failures.</summary>
     public async Task<PamPendingComparisonResult> WaitForCompleteComparisonAsync(
         PamCredentials credentials,
         IReadOnlyList<PamFavoriteAccount> expectedAccounts,
@@ -309,19 +416,131 @@ public sealed class PamPendingService
         IReadOnlyCollection<string>? excludedRequestIds = null)
     {
         ArgumentNullException.ThrowIfNull(credentials);
-        await using IPamBrowserSession session = await authenticatedSessionFactory
-            .CreateAuthenticatedAsync(credentials, cancellationToken)
-            .ConfigureAwait(false);
-        return await WaitForCompleteComparisonAsync(
-                session,
-                expectedAccounts,
-                form,
-                maximumAttempts,
-                retryDelay,
-                cancellationToken,
-                excludedRequestIds)
-            .ConfigureAwait(false);
+        TimeSpan delay = ValidatePollingArguments(
+            expectedAccounts,
+            form,
+            maximumAttempts,
+            retryDelay);
+        // Capture inputs once so replacing the read session cannot replace the baseline.
+        PamFavoriteAccount[] expected = expectedAccounts.ToArray();
+        string[]? baseline = excludedRequestIds?.ToArray();
+        return await WithAuthenticatedReadRecoveryAsync(
+            credentials,
+            "Reconciliation",
+            (session, sessionAttempt) => WaitForCompleteComparisonInSessionAsync(
+                session, expected, form, maximumAttempts, delay, sessionAttempt, cancellationToken, baseline),
+            cancellationToken).ConfigureAwait(false);
     }
+
+    private async Task<T> WithAuthenticatedReadRecoveryAsync<T>(
+        PamCredentials credentials,
+        string stage,
+        Func<IPamBrowserSession, int, Task<T>> read,
+        CancellationToken cancellationToken)
+    {
+        diagnosticSink?.RecordStage(stage);
+        try
+        {
+            return await WithAuthenticatedReadSessionsAsync(credentials, stage, read, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            diagnosticSink?.RecordFailure("Canceled");
+            throw;
+        }
+        catch (PamPendingException exception)
+        {
+            diagnosticSink?.RecordFailure(exception.ErrorCode.ToString());
+            throw;
+        }
+        catch (Exception)
+        {
+            // Authentication/session failures are not retried and expose no exception message.
+            diagnosticSink?.RecordFailure("ReadSessionUnavailable");
+            throw;
+        }
+    }
+
+    private async Task<T> WithAuthenticatedReadSessionsAsync<T>(
+        PamCredentials credentials,
+        string stage,
+        Func<IPamBrowserSession, int, Task<T>> read,
+        CancellationToken cancellationToken)
+    {
+        for (int sessionAttempt = 1;
+             sessionAttempt <= PamOperationTimingPolicy.PendingReadSessionMaximumAttempts;
+             sessionAttempt++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            // Authentication is outside the read retry catch. A rejected login is terminal.
+            IPamBrowserSession session = await authenticatedSessionFactory
+                .CreateAuthenticatedAsync(credentials, cancellationToken).ConfigureAwait(false);
+            try
+            {
+                T result;
+                await using (session.ConfigureAwait(false))
+                {
+                    result = await read(session, sessionAttempt).ConfigureAwait(false);
+                }
+                if (sessionAttempt > 1)
+                {
+                    logger.LogInformation(
+                        "Pending read recovered with a replacement session. SessionAttempt={SessionAttempt}.",
+                        sessionAttempt);
+                }
+
+                return result;
+            }
+            catch (PamPendingException exception) when (
+                IsRecoverableReadFailure(exception) &&
+                sessionAttempt < PamOperationTimingPolicy.PendingReadSessionMaximumAttempts)
+            {
+                diagnosticSink?.RecordRecovery(new PendingReadRecoveryDiagnostic(
+                    timeProvider.GetUtcNow(),
+                    sessionAttempt,
+                    ComparisonAttempt: 0,
+                    ReadAttempt: 0,
+                    Action: "RecreateAuthenticatedReadSession",
+                    exception.ErrorCode.ToString()) { Stage = stage });
+                logger.LogWarning(
+                    exception,
+                    "Pending read session will be recreated without resubmitting requests. SessionAttempt={SessionAttempt}, MaximumSessionAttempts={MaximumSessionAttempts}.",
+                    sessionAttempt,
+                    PamOperationTimingPolicy.PendingReadSessionMaximumAttempts);
+                await asyncDelay.DelayAsync(
+                    PamOperationTimingPolicy.PendingReadRecoveryDelay,
+                    cancellationToken).ConfigureAwait(false);
+            }
+        }
+
+        throw new InvalidOperationException("Pending agotó las sesiones temporales de recuperación.");
+    }
+
+    private static TimeSpan ValidatePollingArguments(
+        IReadOnlyList<PamFavoriteAccount> expectedAccounts,
+        PamRequestFormData form,
+        int maximumAttempts,
+        TimeSpan? retryDelay)
+    {
+        ArgumentNullException.ThrowIfNull(expectedAccounts);
+        ArgumentNullException.ThrowIfNull(form);
+        if (maximumAttempts < 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(maximumAttempts));
+        }
+
+        TimeSpan delay = retryDelay ?? PamOperationTimingPolicy.PendingComparisonRetryDelay;
+        if (delay <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(retryDelay));
+        }
+
+        return delay;
+    }
+
+    private static bool IsRecoverableReadFailure(PamPendingException exception) =>
+        exception.ErrorCode is PamPendingErrorCode.PortalUnavailable or PamPendingErrorCode.SnapshotUnstable;
 
     private static IReadOnlyList<PamPendingRequest> Validate(IReadOnlyList<PamPendingRequest>? requests)
     {
