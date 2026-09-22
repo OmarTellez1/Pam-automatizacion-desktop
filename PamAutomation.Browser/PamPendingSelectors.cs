@@ -30,8 +30,7 @@ internal static partial class PamPendingSelectors
     public const string ExpiresCell = "td[data-column-id=\"" + ExpiresColumn + "\"]";
     public const string DescriptionCell = "td[data-column-id=\"" + DescriptionColumn + "\"]";
 
-    [GeneratedRegex("^(\\d+)\\s+items?$", RegexOptions.IgnoreCase)]
-    public static partial Regex ItemCountExpression();
+    public static Regex ItemCountExpression() => PamPendingItemCount.CountExpression();
 
     [GeneratedRegex("^" + ItemsPerPage + "$", RegexOptions.IgnoreCase)]
     public static partial Regex ItemsPerPageExpression();

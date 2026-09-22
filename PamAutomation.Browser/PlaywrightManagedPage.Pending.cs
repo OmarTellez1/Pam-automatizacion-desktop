@@ -17,359 +17,318 @@ internal sealed partial class PlaywrightManagedPage
         }))
         """;
 
+    private PamAutomation.Core.Diagnostics.PendingBrowserReadDiagnostic pendingReadDiagnostic = new("NotStarted");
+    private static float PendingProbeMilliseconds => (float)PamOperationTimingPolicy.TransientProbeTimeout.TotalMilliseconds;
+    private static float PendingControlMilliseconds => (float)PamOperationTimingPolicy.PendingControlTimeout.TotalMilliseconds;
+
     public async Task<IReadOnlyList<PamPendingRequest>> ReadAllPendingAsync(
         string? captureDirectory,
         CancellationToken cancellationToken)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-        await page.GotoAsync(PamPendingSelectors.RequestsUri.AbsoluteUri)
-            .WaitAsync(cancellationToken)
-            .ConfigureAwait(false);
-        await SelectPendingStatusAsync(cancellationToken).ConfigureAwait(false);
-
-        ILocator rows = page.Locator(PamPendingSelectors.Rows);
-        ILocator pageInput = page.Locator(PamPendingSelectors.PageInput);
-        int paginatorCount = await pageInput.CountAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
-        if (paginatorCount == 0)
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(PamOperationTimingPolicy.PendingReadTimeout);
+        pendingReadDiagnostic = new("NavigatePending");
+        try
         {
-            await CapturePendingViewsAsync(captureDirectory, cancellationToken).ConfigureAwait(false);
-            IReadOnlyList<PamPendingRequest> current = await ReadStablePendingPageAsync(rows, cancellationToken)
-                .ConfigureAwait(false);
-            int? expectedCount = await ReadVisibleItemCountAsync(cancellationToken).ConfigureAwait(false);
-            if (expectedCount is not null && expectedCount != current.Count)
+            await page.GotoAsync(PamPendingSelectors.RequestsUri.AbsoluteUri, new()
             {
-                throw new PamPendingException(PamPendingErrorCode.SnapshotUnstable);
+                WaitUntil = WaitUntilState.DOMContentLoaded,
+                Timeout = (float)PamOperationTimingPolicy.PendingReadTimeout.TotalMilliseconds,
+            }).WaitAsync(deadline.Token).ConfigureAwait(false);
+            pendingReadDiagnostic = pendingReadDiagnostic with { Operation = "SelectPendingStatus" };
+            await SelectPendingStatusAsync(deadline.Token).ConfigureAwait(false);
+            pendingReadDiagnostic = pendingReadDiagnostic with { Operation = "SelectPageSize" };
+            int? pageSize = await SelectLargestPendingPageSizeAsync(deadline.Token).ConfigureAwait(false);
+
+            ILocator rows = page.Locator(PamPendingSelectors.Rows);
+            ILocator pageInput = page.Locator(PamPendingSelectors.PageInput);
+            for (int scan = 1; scan <= PamOperationTimingPolicy.GridScanMaximumAttempts; scan++)
+            {
+                try
+                {
+                    IReadOnlyList<PamPendingRequest> result = await ScanAllPendingPagesAsync(
+                        rows, pageInput, pageSize, deadline.Token).ConfigureAwait(false);
+                    await CapturePendingViewsAsync(captureDirectory, deadline.Token).ConfigureAwait(false);
+                    return result;
+                }
+                catch (PamPendingException exception) when (
+                    exception.ErrorCode == PamPendingErrorCode.SnapshotUnstable &&
+                    scan < PamOperationTimingPolicy.GridScanMaximumAttempts)
+                {
+                    // Re-observe the live pagination, never click using a cached page count.
+                    await Task.Delay(PamOperationTimingPolicy.GridScanRetryDelay, deadline.Token).ConfigureAwait(false);
+                }
             }
-
-            return current;
+            throw new PamPendingException(PamPendingErrorCode.SnapshotUnstable);
         }
-
-        if (paginatorCount != 1)
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && deadline.IsCancellationRequested)
         {
-            throw new InvalidOperationException("Pending presentó más de un paginador.");
+            // WaitAsync cancels the caller, not the Playwright command. Closing this owned page
+            // prevents a delayed click from acting on a subsequent recovery navigation.
+            try { await page.CloseAsync().ConfigureAwait(false); }
+            catch (PlaywrightException) { /* The session owner still disposes the context/browser. */ }
+            throw new PamPendingException(PamPendingErrorCode.SnapshotUnstable)
+            {
+                BrowserDiagnostic = pendingReadDiagnostic,
+                RequiresNewSession = true,
+            };
         }
-
-        await SelectLargestPendingPageSizeAsync(pageInput, cancellationToken)
-            .ConfigureAwait(false);
-        await CapturePendingViewsAsync(captureDirectory, cancellationToken).ConfigureAwait(false);
-
-        for (int scanAttempt = 1;
-             scanAttempt <= PamOperationTimingPolicy.GridScanMaximumAttempts;
-             scanAttempt++)
+        catch (TimeoutException exception)
         {
-            IReadOnlyList<PamPendingRequest> requests = await ScanAllPendingPagesAsync(
-                rows,
-                pageInput,
-                cancellationToken).ConfigureAwait(false);
-            int? expectedCount = await ReadVisibleItemCountAsync(cancellationToken).ConfigureAwait(false);
-            if (expectedCount is null || expectedCount == requests.Count)
+            throw new PamPendingException(PamPendingErrorCode.PortalUnavailable, exception)
             {
-                return requests;
-            }
-
-            if (scanAttempt < PamOperationTimingPolicy.GridScanMaximumAttempts)
-            {
-                await Task.Delay(
-                    PamOperationTimingPolicy.GridScanRetryDelay,
-                    cancellationToken).ConfigureAwait(false);
-            }
+                BrowserDiagnostic = pendingReadDiagnostic,
+            };
         }
-
-        throw new PamPendingException(PamPendingErrorCode.SnapshotUnstable);
+        catch (PamPendingException exception)
+        {
+            throw new PamPendingException(exception.ErrorCode, exception)
+            {
+                BrowserDiagnostic = pendingReadDiagnostic,
+                RequiresNewSession = exception.RequiresNewSession,
+            };
+        }
+        catch (Exception exception) when (exception is PlaywrightException or InvalidOperationException or ArgumentException)
+        {
+            throw new PamPendingException(PamPendingErrorCode.InvalidRequest, exception)
+            {
+                BrowserDiagnostic = pendingReadDiagnostic,
+            };
+        }
     }
 
-    private async Task CapturePendingViewsAsync(
-        string? captureDirectory,
-        CancellationToken cancellationToken)
+    private async Task CapturePendingViewsAsync(string? captureDirectory, CancellationToken cancellationToken)
     {
         await CaptureAsync(captureDirectory, PendingCaptureName, cancellationToken).ConfigureAwait(false);
-        await CapturePendingColumnViewAsync(
-            captureDirectory,
-            PamPendingSelectors.DescriptionCell,
-            "fase13-pending-grid-description-and-expiration.png",
-            cancellationToken).ConfigureAwait(false);
-        await CapturePendingColumnViewAsync(
-            captureDirectory,
-            PamPendingSelectors.ApplicationCell,
-            "fase13-pending-grid-application.png",
-            cancellationToken).ConfigureAwait(false);
+        await CapturePendingColumnViewAsync(captureDirectory, PamPendingSelectors.DescriptionCell,
+            "fase13-pending-grid-description-and-expiration.png", cancellationToken).ConfigureAwait(false);
+        await CapturePendingColumnViewAsync(captureDirectory, PamPendingSelectors.ApplicationCell,
+            "fase13-pending-grid-application.png", cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task SelectLargestPendingPageSizeAsync(
-        ILocator pageInput,
-        CancellationToken cancellationToken)
+    private async Task<int?> SelectLargestPendingPageSizeAsync(CancellationToken cancellationToken)
     {
+        // Wait for the filtered table before inspecting controls; they can be replaced during load.
+        ILocator pageInput = page.Locator(PamPendingSelectors.PageInput);
+        ILocator rows = page.Locator(PamPendingSelectors.Rows);
+        await ReadStablePendingViewAsync(rows, pageInput, null, cancellationToken).ConfigureAwait(false);
         ILocator labels = page.GetByText(PamPendingSelectors.ItemsPerPageExpression());
         ILocator? visibleLabel = null;
         int labelCount = await labels.CountAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
         for (int index = 0; index < labelCount; index++)
         {
             ILocator candidate = labels.Nth(index);
-            if (await candidate.IsVisibleAsync().ConfigureAwait(false))
-            {
-                if (visibleLabel is not null)
-                {
-                    throw new InvalidOperationException("Pending presentó más de un selector de filas por página.");
-                }
-
-                visibleLabel = candidate;
-            }
+            if (!await candidate.IsVisibleAsync().WaitAsync(cancellationToken).ConfigureAwait(false)) continue;
+            if (visibleLabel is not null)
+                throw new PamPendingException(PamPendingErrorCode.InvalidRequest);
+            visibleLabel = candidate;
         }
+        if (visibleLabel is null) return null;
 
-        // Older PAM variants may not expose this selector. Their paginated traversal remains supported.
-        if (visibleLabel is null)
-        {
-            return;
-        }
-
-        ILocator selectorRegion = visibleLabel.Locator(
-            "xpath=ancestor::*[.//*[@role='combobox']][1]");
-        ILocator selectors = selectorRegion.GetByRole(AriaRole.Combobox);
-        int selectorCount = await selectors.CountAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
-        if (selectorCount != 1)
-        {
-            throw new InvalidOperationException("Pending no presentó un selector único de filas por página.");
-        }
-
-        ILocator selector = selectors.First;
-        await selector.ClickAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
-
+        ILocator selector = visibleLabel.Locator("xpath=ancestor::*[.//*[@role='combobox']][1]")
+            .GetByRole(AriaRole.Combobox);
+        await selector.ClickAsync(new() { Timeout = PendingControlMilliseconds })
+            .WaitAsync(cancellationToken).ConfigureAwait(false);
         ILocator options = page.GetByRole(AriaRole.Option);
         ILocator? largestOption = null;
-        int largestPageSize = 0;
+        int largest = 0;
         int optionCount = await options.CountAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
         for (int index = 0; index < optionCount; index++)
         {
             ILocator option = options.Nth(index);
-            if (!await option.IsVisibleAsync().ConfigureAwait(false))
-            {
-                continue;
-            }
-
-            string text = (await option.InnerTextAsync().WaitAsync(cancellationToken).ConfigureAwait(false)).Trim();
-            if (int.TryParse(text, out int pageSize) && pageSize > largestPageSize)
+            if (!await option.IsVisibleAsync().WaitAsync(cancellationToken).ConfigureAwait(false)) continue;
+            string text = (await option.InnerTextAsync(new() { Timeout = PendingProbeMilliseconds })
+                .WaitAsync(cancellationToken).ConfigureAwait(false)).Trim();
+            if (int.TryParse(text, out int size) && size > largest)
             {
                 largestOption = option;
-                largestPageSize = pageSize;
+                largest = size;
             }
         }
-
-        if (largestOption is null)
+        if (largestOption is null) throw new PamPendingException(PamPendingErrorCode.InvalidRequest);
+        await largestOption.ClickAsync(new() { Timeout = PendingControlMilliseconds })
+            .WaitAsync(cancellationToken).ConfigureAwait(false);
+        pendingReadDiagnostic = pendingReadDiagnostic with { Operation = "ConfirmPageSize" };
+        // PAM removes the size selector while loading. Re-resolving its ancestor then can
+        // target the Status/Filter controls instead. Confirm completion from the resulting grid.
+        bool confirmed = await WaitUntilAsync(async () =>
         {
-            await page.Keyboard.PressAsync("Escape").WaitAsync(cancellationToken).ConfigureAwait(false);
-            throw new InvalidOperationException("Pending no presentó opciones válidas de filas por página.");
-        }
-
-        int? itemCount = await ReadVisibleItemCountAsync(cancellationToken).ConfigureAwait(false);
-        await largestOption.ClickAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
-
-        if (itemCount is null)
-        {
-            return;
-        }
-
-        int expectedPages = Math.Max(1, (itemCount.Value + largestPageSize - 1) / largestPageSize);
-        bool pageSizeConfirmed = await WaitUntilAsync(async () =>
-        {
-            try
-            {
-                (_, int totalPages) = await ReadPendingPageInfoAsync(pageInput, cancellationToken)
-                    .ConfigureAwait(false);
-                return totalPages == expectedPages;
-            }
-            catch (Exception exception) when (IsTransientPortalReadException(exception))
-            {
-                return false;
-            }
+            return !await largestOption.IsVisibleAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
         }, cancellationToken).ConfigureAwait(false);
-        if (!pageSizeConfirmed)
-        {
-            throw new PamPendingException(PamPendingErrorCode.SnapshotUnstable);
-        }
+        if (!confirmed) throw new PamPendingException(PamPendingErrorCode.SnapshotUnstable);
+        await ReadStablePendingViewAsync(rows, pageInput, largest, cancellationToken).ConfigureAwait(false);
+        return largest;
     }
 
     private async Task SelectPendingStatusAsync(CancellationToken cancellationToken)
     {
         ILocator status = page.GetByLabel(PamPendingSelectors.Status, new() { Exact = true });
-        await RequireUniqueVisibleAsync(status, PamPendingSelectors.Status, cancellationToken)
-            .ConfigureAwait(false);
-        await status.ClickAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
-
-        ILocator pending = page.GetByRole(
-            AriaRole.Option,
-            new() { Name = PamPendingSelectors.Pending, Exact = true });
-        await RequireUniqueVisibleAsync(pending, PamPendingSelectors.Pending, cancellationToken)
-            .ConfigureAwait(false);
-        await pending.ClickAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
-
-        bool selected = await WaitUntilAsync(
-            async () =>
-            {
-                bool titleConfirmed = string.Equals(
-                    await status.GetAttributeAsync("title").ConfigureAwait(false),
-                    PamPendingSelectors.Pending,
-                    StringComparison.Ordinal);
-                return titleConfirmed &&
-                    !await pending.IsVisibleAsync().ConfigureAwait(false) &&
-                    await status.IsEnabledAsync().ConfigureAwait(false);
-            },
-            cancellationToken).ConfigureAwait(false);
-        if (!selected)
-        {
-            throw new PamPendingException(PamPendingErrorCode.SnapshotUnstable);
-        }
+        await status.ClickAsync(new() { Timeout = PendingControlMilliseconds })
+            .WaitAsync(cancellationToken).ConfigureAwait(false);
+        ILocator pending = page.GetByRole(AriaRole.Option, new() { Name = PamPendingSelectors.Pending, Exact = true });
+        await pending.ClickAsync(new() { Timeout = PendingControlMilliseconds })
+            .WaitAsync(cancellationToken).ConfigureAwait(false);
+        bool selected = await WaitUntilAsync(async () =>
+            string.Equals(await status.GetAttributeAsync("title", new() { Timeout = PendingProbeMilliseconds })
+                .WaitAsync(cancellationToken).ConfigureAwait(false), PamPendingSelectors.Pending, StringComparison.Ordinal) &&
+            !await pending.IsVisibleAsync().WaitAsync(cancellationToken).ConfigureAwait(false) &&
+            await status.IsEnabledAsync(new() { Timeout = PendingProbeMilliseconds })
+                .WaitAsync(cancellationToken).ConfigureAwait(false), cancellationToken).ConfigureAwait(false);
+        if (!selected) throw new PamPendingException(PamPendingErrorCode.SnapshotUnstable);
     }
 
-    private async Task<IReadOnlyList<PamPendingRequest>> ScanAllPendingPagesAsync(
-        ILocator rows,
-        ILocator pageInput,
-        CancellationToken cancellationToken)
+    private sealed record PendingViewPosition(int CurrentPage, int TotalPages, PamPendingItemCount Items);
+    private sealed record PendingView(PendingViewPosition Position, IReadOnlyList<PamPendingRequest> Requests);
+
+    private async Task<PendingViewPosition> ReadPendingPositionAsync(ILocator pageInput, CancellationToken cancellationToken)
     {
-        (int currentPage, int totalPages) = await ReadPendingPageInfoAsync(pageInput, cancellationToken)
-            .ConfigureAwait(false);
-        if (totalPages > MaximumPendingPages)
-        {
-            throw new InvalidOperationException("Pending excede el límite seguro de páginas.");
-        }
-
-        if (currentPage != 1)
-        {
-            string previousSignature = await ReadPendingSignatureAsync(rows, cancellationToken).ConfigureAwait(false);
-            ILocator firstPage = page.GetByRole(
-                AriaRole.Button,
-                new() { Name = PamPendingSelectors.FirstPage, Exact = true });
-            await RequireUniqueVisibleAsync(firstPage, PamPendingSelectors.FirstPage, cancellationToken)
-                .ConfigureAwait(false);
-            await firstPage.ClickAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
-            await WaitForPendingPageAsync(pageInput, rows, 1, previousSignature, cancellationToken)
-                .ConfigureAwait(false);
-        }
-
-        var requests = new List<PamPendingRequest>();
-        var requestIds = new HashSet<string>(StringComparer.Ordinal);
-        for (int expectedPage = 1; expectedPage <= totalPages; expectedPage++)
-        {
-            (currentPage, int observedTotalPages) = await ReadPendingPageInfoAsync(pageInput, cancellationToken)
-                .ConfigureAwait(false);
-            if (currentPage != expectedPage || observedTotalPages != totalPages)
-            {
-                throw new PamPendingException(PamPendingErrorCode.SnapshotUnstable);
-            }
-
-            IReadOnlyList<PamPendingRequest> current = await ReadStablePendingPageAsync(rows, cancellationToken)
-                .ConfigureAwait(false);
-            foreach (PamPendingRequest request in current)
-            {
-                if (!requestIds.Add(request.RequestId))
-                {
-                    throw new PamPendingException(PamPendingErrorCode.DuplicateRequestId);
-                }
-
-                requests.Add(request);
-            }
-
-            if (expectedPage == totalPages)
-            {
-                break;
-            }
-
-            string previousSignature = string.Join('|', current.Select(static request => request.RequestId));
-            ILocator nextPage = page.GetByRole(
-                AriaRole.Button,
-                new() { Name = PamPendingSelectors.NextPage, Exact = true });
-            await RequireUniqueVisibleAsync(nextPage, PamPendingSelectors.NextPage, cancellationToken)
-                .ConfigureAwait(false);
-            await nextPage.ClickAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
-            await WaitForPendingPageAsync(
-                pageInput,
-                rows,
-                expectedPage + 1,
-                previousSignature,
-                cancellationToken).ConfigureAwait(false);
-        }
-
-        return requests;
+        int paginatorCount = await pageInput.CountAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
+        if (paginatorCount > 1) throw new PamPendingException(PamPendingErrorCode.InvalidRequest);
+        (int current, int total) = paginatorCount == 0
+            ? (1, 1)
+            : await ReadPendingPageInfoAsync(pageInput, cancellationToken).ConfigureAwait(false);
+        PamPendingItemCount items = await ReadVisibleItemCountAsync(cancellationToken).ConfigureAwait(false);
+        if (total > MaximumPendingPages) throw new PamPendingException(PamPendingErrorCode.InvalidRequest);
+        pendingReadDiagnostic = pendingReadDiagnostic with { CurrentPage = current, TotalPages = total, TotalItems = items.Total };
+        return new(current, total, items);
     }
 
-    private static async Task<(int CurrentPage, int TotalPages)> ReadPendingPageInfoAsync(
-        ILocator pageInput,
-        CancellationToken cancellationToken)
+    private async Task<PendingView> ReadStablePendingViewAsync(
+        ILocator rows, ILocator pageInput, int? pageSize, CancellationToken cancellationToken)
     {
-        string? label = await pageInput.GetAttributeAsync("aria-label")
-            .WaitAsync(cancellationToken)
-            .ConfigureAwait(false);
-        return PamPendingPagination.Parse(label);
-    }
-
-    private static async Task WaitForPendingPageAsync(
-        ILocator pageInput,
-        ILocator rows,
-        int expectedPage,
-        string previousSignature,
-        CancellationToken cancellationToken)
-    {
-        bool observed = await WaitUntilAsync(async () =>
-        {
-            try
-            {
-                (int currentPage, _) = await ReadPendingPageInfoAsync(pageInput, cancellationToken)
-                    .ConfigureAwait(false);
-                if (currentPage != expectedPage)
-                {
-                    return false;
-                }
-
-                string signature = await ReadPendingSignatureAsync(rows, cancellationToken).ConfigureAwait(false);
-                return !string.Equals(signature, previousSignature, StringComparison.Ordinal);
-            }
-            catch (Exception exception) when (IsTransientPortalReadException(exception))
-            {
-                return false;
-            }
-        }, cancellationToken).ConfigureAwait(false);
-        if (!observed)
-        {
-            throw new PamPendingException(PamPendingErrorCode.SnapshotUnstable);
-        }
-    }
-
-    private static async Task<IReadOnlyList<PamPendingRequest>> ReadStablePendingPageAsync(
-        ILocator rows,
-        CancellationToken cancellationToken)
-    {
-        IReadOnlyList<PamPendingRequest>? previous = null;
-        Exception? lastReadFailure = null;
+        PendingView? previous = null;
+        Exception? lastFailure = null;
         long startedAt = Environment.TickCount64;
-        while (Environment.TickCount64 - startedAt < PortalTimeout.TotalMilliseconds)
+        while (Environment.TickCount64 - startedAt < PamOperationTimingPolicy.PendingControlTimeout.TotalMilliseconds)
         {
             cancellationToken.ThrowIfCancellationRequested();
             try
             {
-                IReadOnlyList<PamPendingRequest> current = await ReadCurrentPendingPageAsync(rows, cancellationToken)
-                    .ConfigureAwait(false);
-                lastReadFailure = null;
-                if (previous is not null && current.SequenceEqual(previous))
+                if (!await IsPendingStatusReadyAsync(cancellationToken).ConfigureAwait(false))
                 {
-                    return current;
+                    previous = null;
+                    await Task.Delay(ObservationInterval, cancellationToken).ConfigureAwait(false);
+                    continue;
                 }
-
-                previous = current;
+                PendingViewPosition before = await ReadPendingPositionAsync(pageInput, cancellationToken).ConfigureAwait(false);
+                IReadOnlyList<PamPendingRequest> current = await ReadCurrentPendingPageAsync(rows, cancellationToken).ConfigureAwait(false);
+                PendingViewPosition after = await ReadPendingPositionAsync(pageInput, cancellationToken).ConfigureAwait(false);
+                pendingReadDiagnostic = pendingReadDiagnostic with { RowsRead = current.Count };
+                lastFailure = null;
+                bool complete = before == after && IsPendingPageComplete(after, current.Count, pageSize) &&
+                    await IsPendingStatusReadyAsync(cancellationToken).ConfigureAwait(false);
+                if (complete && previous is not null && previous.Position == after && current.SequenceEqual(previous.Requests))
+                    return new(after, current);
+                previous = complete ? new(after, current) : null;
             }
             catch (Exception exception) when (IsTransientPortalReadException(exception))
             {
                 previous = null;
-                lastReadFailure = exception;
+                lastFailure = exception;
             }
-
             await Task.Delay(ObservationInterval, cancellationToken).ConfigureAwait(false);
         }
+        throw new PamPendingException(lastFailure is ArgumentException
+            ? PamPendingErrorCode.InvalidRequest : PamPendingErrorCode.SnapshotUnstable, lastFailure);
+    }
 
-        // An invalid row that never became readable is terminal after the local probe window.
-        throw new PamPendingException(
-            lastReadFailure is ArgumentException or InvalidOperationException
-                ? PamPendingErrorCode.InvalidRequest
-                : PamPendingErrorCode.SnapshotUnstable,
-            lastReadFailure);
+    private static bool IsPendingPageComplete(PendingViewPosition position, int rows, int? pageSize)
+    {
+        PamPendingItemCount items = position.Items;
+        if (items.Total == 0) return rows == 0 && position.CurrentPage == 1 && position.TotalPages == 1;
+        if (rows == 0 || rows > items.Total) return false;
+        if (items.First is int first && items.Last is int last && last - first + 1 != rows) return false;
+        if (pageSize is int size)
+        {
+            int expectedPages = (int)(((long)items.Total + size - 1) / size);
+            int expectedFirst = (position.CurrentPage - 1) * size + 1;
+            int expectedRows = Math.Min(size, items.Total - expectedFirst + 1);
+            if (position.TotalPages != expectedPages || rows != expectedRows ||
+                (items.First is not null && items.First != expectedFirst)) return false;
+        }
+        return position.TotalPages != 1 || rows == items.Total;
+    }
+
+    private async Task<bool> IsPendingStatusReadyAsync(CancellationToken cancellationToken)
+    {
+        ILocator status = page.GetByLabel(PamPendingSelectors.Status, new() { Exact = true });
+        return await status.CountAsync().WaitAsync(cancellationToken).ConfigureAwait(false) == 1 &&
+            await status.IsEnabledAsync(new() { Timeout = PendingProbeMilliseconds }).WaitAsync(cancellationToken).ConfigureAwait(false) &&
+            string.Equals(await status.GetAttributeAsync("title", new() { Timeout = PendingProbeMilliseconds })
+                .WaitAsync(cancellationToken).ConfigureAwait(false), PamPendingSelectors.Pending, StringComparison.Ordinal);
+    }
+
+    private async Task<IReadOnlyList<PamPendingRequest>> ScanAllPendingPagesAsync(
+        ILocator rows, ILocator pageInput, int? pageSize, CancellationToken cancellationToken)
+    {
+        pendingReadDiagnostic = pendingReadDiagnostic with { Operation = "ReadStablePage", NextPageEnabled = null };
+        PendingView view = await ReadStablePendingViewAsync(rows, pageInput, pageSize, cancellationToken).ConfigureAwait(false);
+        if (view.Position.CurrentPage != 1)
+        {
+            pendingReadDiagnostic = pendingReadDiagnostic with { Operation = "FirstPage" };
+            await page.GetByRole(AriaRole.Button, new() { Name = PamPendingSelectors.FirstPage, Exact = true })
+                .ClickAsync(new() { Timeout = PendingControlMilliseconds }).WaitAsync(cancellationToken).ConfigureAwait(false);
+            view = await WaitForPendingPageAsync(rows, pageInput, pageSize, 1, view, cancellationToken).ConfigureAwait(false);
+        }
+        int totalItems = view.Position.Items.Total;
+        int totalPages = view.Position.TotalPages;
+        var requests = new List<PamPendingRequest>();
+        var ids = new HashSet<string>(StringComparer.Ordinal);
+        for (int expectedPage = 1; expectedPage <= totalPages; expectedPage++)
+        {
+            if (view.Position.CurrentPage != expectedPage || view.Position.TotalPages != totalPages ||
+                view.Position.Items.Total != totalItems)
+                throw new PamPendingException(PamPendingErrorCode.SnapshotUnstable);
+            foreach (PamPendingRequest request in view.Requests)
+            {
+                if (!ids.Add(request.RequestId)) throw new PamPendingException(PamPendingErrorCode.DuplicateRequestId);
+                requests.Add(request);
+            }
+            if (expectedPage == totalPages) break;
+            pendingReadDiagnostic = pendingReadDiagnostic with { Operation = "NextPage" };
+            // Recheck immediately before clicking; resizing can remove the next page.
+            if (await ReadPendingPositionAsync(pageInput, cancellationToken).ConfigureAwait(false) != view.Position)
+                throw new PamPendingException(PamPendingErrorCode.SnapshotUnstable);
+            ILocator next = page.GetByRole(AriaRole.Button, new() { Name = PamPendingSelectors.NextPage, Exact = true });
+            bool enabled = await next.IsEnabledAsync(new() { Timeout = PendingProbeMilliseconds })
+                .WaitAsync(cancellationToken).ConfigureAwait(false);
+            pendingReadDiagnostic = pendingReadDiagnostic with { NextPageEnabled = enabled };
+            if (!enabled) throw new PamPendingException(PamPendingErrorCode.SnapshotUnstable);
+            await next.ClickAsync(new() { Timeout = PendingControlMilliseconds })
+                .WaitAsync(cancellationToken).ConfigureAwait(false);
+            view = await WaitForPendingPageAsync(rows, pageInput, pageSize, expectedPage + 1, view, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        pendingReadDiagnostic = pendingReadDiagnostic with { Operation = "VerifyTotal" };
+        PendingViewPosition final = await ReadPendingPositionAsync(pageInput, cancellationToken).ConfigureAwait(false);
+        if (final != view.Position || requests.Count != totalItems)
+            throw new PamPendingException(PamPendingErrorCode.SnapshotUnstable);
+        return requests;
+    }
+
+    private async Task<PendingView> WaitForPendingPageAsync(
+        ILocator rows, ILocator pageInput, int? pageSize, int expectedPage, PendingView previous,
+        CancellationToken cancellationToken)
+    {
+        pendingReadDiagnostic = pendingReadDiagnostic with { Operation = "WaitPageTransition" };
+        long startedAt = Environment.TickCount64;
+        while (Environment.TickCount64 - startedAt < PamOperationTimingPolicy.PendingControlTimeout.TotalMilliseconds)
+        {
+            PendingView current = await ReadStablePendingViewAsync(rows, pageInput, pageSize, cancellationToken).ConfigureAwait(false);
+            if (current.Position.CurrentPage == expectedPage &&
+                !current.Requests.Select(static r => r.RequestId).SequenceEqual(previous.Requests.Select(static r => r.RequestId)))
+                return current;
+            await Task.Delay(ObservationInterval, cancellationToken).ConfigureAwait(false);
+        }
+        throw new PamPendingException(PamPendingErrorCode.SnapshotUnstable);
+    }
+
+    private static async Task<(int CurrentPage, int TotalPages)> ReadPendingPageInfoAsync(
+        ILocator pageInput, CancellationToken cancellationToken)
+    {
+        string? label = await pageInput.GetAttributeAsync("aria-label", new() { Timeout = PendingProbeMilliseconds })
+            .WaitAsync(cancellationToken).ConfigureAwait(false);
+        return PamPendingPagination.Parse(label);
     }
 
     private static async Task<IReadOnlyList<PamPendingRequest>> ReadCurrentPendingPageAsync(
@@ -478,29 +437,23 @@ internal sealed partial class PlaywrightManagedPage
         return string.Join('|', requests.Select(static request => request.RequestId));
     }
 
-    private async Task<int?> ReadVisibleItemCountAsync(CancellationToken cancellationToken)
+    private async Task<PamPendingItemCount> ReadVisibleItemCountAsync(CancellationToken cancellationToken)
     {
         ILocator counts = page.GetByText(PamPendingSelectors.ItemCountExpression());
         int count = await counts.CountAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
-        int? maximum = null;
+        PamPendingItemCount? result = null;
         for (int index = 0; index < count; index++)
         {
             ILocator candidate = counts.Nth(index);
-            if (!await candidate.IsVisibleAsync().ConfigureAwait(false))
-            {
-                continue;
-            }
-
-            string text = (await candidate.InnerTextAsync().WaitAsync(cancellationToken).ConfigureAwait(false)).Trim();
-            if (int.TryParse(
-                PamPendingSelectors.ItemCountExpression().Match(text).Groups[1].Value,
-                out int parsed))
-            {
-                maximum = maximum is null ? parsed : Math.Max(maximum.Value, parsed);
-            }
+            if (!await candidate.IsVisibleAsync().WaitAsync(cancellationToken).ConfigureAwait(false)) continue;
+            string text = await candidate.InnerTextAsync(new() { Timeout = PendingProbeMilliseconds })
+                .WaitAsync(cancellationToken).ConfigureAwait(false);
+            PamPendingItemCount parsed = PamPendingItemCount.Parse(text);
+            if (result is not null && result != parsed)
+                throw new InvalidOperationException("Pending publicó contadores contradictorios.");
+            result = parsed;
         }
-
-        return maximum;
+        return result ?? throw new InvalidOperationException("Pending no publicó el total de registros.");
     }
 
     private async Task CapturePendingColumnViewAsync(

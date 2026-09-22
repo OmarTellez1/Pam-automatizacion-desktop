@@ -782,6 +782,99 @@ public sealed class PamPendingServiceTests
         Assert.AreEqual("Canceled", store.CaptureSnapshot()!.FailureCode);
     }
 
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task PendingRecovery_OverallDeadline_StopsWithoutNewSession(bool reconciliation)
+    {
+        var clock = new ManualDeadlineTimeProvider();
+        var portal = new DeadlinePortal(clock);
+        var session = new FakeSession();
+        var sessions = new SequencedAuthenticatedSessionFactory(session);
+        var store = CreateDiagnosticStore();
+        var service = new PamPendingService(sessions, new FakePortalFactory(portal), new FakeDelay(), store, clock);
+
+        PamPendingException failure = await Assert.ThrowsExactlyAsync<PamPendingException>(async () =>
+        {
+            if (reconciliation)
+                await service.WaitForCompleteComparisonAsync(CreateCredentials(), [], CreateForm());
+            else
+                await service.ReadAllAsync(CreateCredentials());
+        });
+
+        Assert.AreEqual(PamPendingErrorCode.RecoveryTimeout, failure.ErrorCode);
+        Assert.AreEqual(PamOperationTimingPolicy.PendingRecoveryTimeout, clock.DueTime);
+        Assert.AreEqual(1, sessions.CreateCalls);
+        Assert.AreEqual(1, session.DisposeCalls);
+        Assert.AreEqual("RecoveryTimeout", store.CaptureSnapshot()!.FailureCode);
+        Assert.IsEmpty(store.CaptureSnapshot()!.Recoveries);
+    }
+
+    [TestMethod]
+    public async Task PendingRecovery_BrowserFailure_PreservesOperationAndCountsInDiagnostic()
+    {
+        var detail = new PendingBrowserReadDiagnostic("NextPage", 1, 2, 30, 25, false);
+        var portal = new SequencedOutcomePortal(new PamPendingException(PamPendingErrorCode.InvalidRequest)
+        {
+            BrowserDiagnostic = detail,
+        });
+        var store = CreateDiagnosticStore();
+        var service = new PamPendingService(new FakeAuthenticatedSessionFactory(new FakeSession()),
+            new FakePortalFactory(portal), new FakeDelay(), store);
+
+        await Assert.ThrowsExactlyAsync<PamPendingException>(() => service.ReadAllAsync(CreateCredentials()));
+
+        Assert.AreEqual(detail, store.CaptureSnapshot()!.Reads.Single().Browser);
+    }
+
+    private sealed class DeadlinePortal(ManualDeadlineTimeProvider clock) : IPamPendingPortal
+    {
+        public Task<IReadOnlyList<PamPendingRequest>> ReadAllAsync(CancellationToken cancellationToken)
+        {
+            clock.Fire();
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult<IReadOnlyList<PamPendingRequest>>([]);
+        }
+    }
+
+    [TestMethod]
+    public async Task PendingRecovery_ExpiredPage_RecreatesSessionWithoutReadingClosedPage()
+    {
+        var expired = new PamPendingException(PamPendingErrorCode.SnapshotUnstable) { RequiresNewSession = true };
+        var portal = new SequencedOutcomePortal(expired, (IReadOnlyList<PamPendingRequest>)[CreatePending("170001")]);
+        var first = new FakeSession();
+        var second = new FakeSession();
+        var sessions = new SequencedAuthenticatedSessionFactory(first, second);
+        var service = new PamPendingService(sessions, new FakePortalFactory(portal), new FakeDelay());
+
+        IReadOnlyList<PamPendingRequest> result = await service.ReadAllAsync(CreateCredentials());
+
+        Assert.HasCount(1, result);
+        Assert.AreEqual(2, portal.ReadCalls);
+        Assert.AreEqual(2, sessions.CreateCalls);
+        Assert.AreEqual(1, first.DisposeCalls);
+        Assert.AreEqual(1, second.DisposeCalls);
+    }
+
+    private sealed class ManualDeadlineTimeProvider : TimeProvider
+    {
+        private Action? callback;
+        public TimeSpan DueTime { get; private set; }
+        public override ITimer CreateTimer(TimerCallback timerCallback, object? state, TimeSpan dueTime, TimeSpan period)
+        {
+            DueTime = dueTime;
+            callback = () => timerCallback(state);
+            return new ManualTimer();
+        }
+        public void Fire() => callback!();
+        private sealed class ManualTimer : ITimer
+        {
+            public bool Change(TimeSpan dueTime, TimeSpan period) => true;
+            public void Dispose() { }
+            public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+        }
+    }
+
     private sealed class FailingAuthenticatedSessionFactory : IPamAuthenticatedSessionFactory
     {
         public int CreateCalls { get; private set; }

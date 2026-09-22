@@ -13,8 +13,15 @@ public sealed class PamPendingException : Exception
     /// <summary>Gets the stable failure category.</summary>
     public PamPendingErrorCode ErrorCode { get; }
 
+    /// <summary>Gets the safe browser operation and counts associated with this failure.</summary>
+    public PamAutomation.Core.Diagnostics.PendingBrowserReadDiagnostic? BrowserDiagnostic { get; init; }
+
+    /// <summary>Gets whether the timed-out browser page was closed and must not be reused.</summary>
+    public bool RequiresNewSession { get; init; }
+
     private static string GetMessage(PamPendingErrorCode errorCode) => errorCode switch
     {
+        PamPendingErrorCode.RecoveryTimeout => "Pending agotó el tiempo total de recuperación de lectura.",
         PamPendingErrorCode.InvalidRequest => "Pending contiene una solicitud incompleta o inválida.",
         PamPendingErrorCode.SnapshotUnstable => "Pending no se estabilizó dentro del tiempo permitido.",
         PamPendingErrorCode.DuplicateRequestId => "Pending contiene Request ID duplicados.",

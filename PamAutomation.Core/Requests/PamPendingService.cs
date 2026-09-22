@@ -49,8 +49,8 @@ public sealed class PamPendingService
         return await WithAuthenticatedReadRecoveryAsync(
             credentials,
             "Preflight",
-            (session, sessionAttempt) => ReadPendingWithRecoveryAsync(
-                session, "Preflight", sessionAttempt, 0, cancellationToken),
+            (session, sessionAttempt, readToken) => ReadPendingWithRecoveryAsync(
+                session, "Preflight", sessionAttempt, 0, readToken),
             cancellationToken).ConfigureAwait(false);
     }
 
@@ -198,6 +198,8 @@ public sealed class PamPendingService
             maximumAttempts,
             retryDelay);
         diagnosticSink?.RecordStage("Reconciliation");
+        using var deadline = new CancellationTokenSource(PamOperationTimingPolicy.PendingRecoveryTimeout, timeProvider);
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, deadline.Token);
         try
         {
             return await WaitForCompleteComparisonInSessionAsync(
@@ -207,9 +209,14 @@ public sealed class PamPendingService
                     maximumAttempts,
                     delay,
                     sessionAttempt: 1,
-                    cancellationToken,
+                    linked.Token,
                     excludedRequestIds)
                 .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && deadline.IsCancellationRequested)
+        {
+            diagnosticSink?.RecordFailure("RecoveryTimeout");
+            throw new PamPendingException(PamPendingErrorCode.RecoveryTimeout);
         }
         catch (OperationCanceledException)
         {
@@ -291,12 +298,14 @@ public sealed class PamPendingService
              readAttempt <= PamOperationTimingPolicy.PendingReadMaximumAttemptsPerSession;
              readAttempt++)
         {
+            long startedAt = timeProvider.GetTimestamp();
             try
             {
                 IReadOnlyList<PamPendingRequest> requests = await ReadAllAsync(session, cancellationToken)
                     .ConfigureAwait(false);
                 diagnosticSink?.RecordRead(new PendingReadAttemptDiagnostic(
-                    timeProvider.GetUtcNow(), stage, sessionAttempt, comparisonAttempt, readAttempt, null));
+                    timeProvider.GetUtcNow(), stage, sessionAttempt, comparisonAttempt, readAttempt, null)
+                { ElapsedMilliseconds = (long)timeProvider.GetElapsedTime(startedAt).TotalMilliseconds });
                 if (readAttempt > 1)
                 {
                     logger.LogInformation(
@@ -311,17 +320,22 @@ public sealed class PamPendingService
             catch (OperationCanceledException)
             {
                 diagnosticSink?.RecordRead(new PendingReadAttemptDiagnostic(
-                    timeProvider.GetUtcNow(), stage, sessionAttempt, comparisonAttempt, readAttempt, "Canceled"));
+                    timeProvider.GetUtcNow(), stage, sessionAttempt, comparisonAttempt, readAttempt, "Canceled")
+                { ElapsedMilliseconds = (long)timeProvider.GetElapsedTime(startedAt).TotalMilliseconds });
                 throw;
             }
             catch (PamPendingException exception)
             {
                 diagnosticSink?.RecordRead(new PendingReadAttemptDiagnostic(
                     timeProvider.GetUtcNow(), stage, sessionAttempt, comparisonAttempt, readAttempt,
-                    exception.ErrorCode.ToString()));
+                    exception.ErrorCode.ToString())
+                {
+                    ElapsedMilliseconds = (long)timeProvider.GetElapsedTime(startedAt).TotalMilliseconds,
+                    Browser = exception.BrowserDiagnostic,
+                });
                 if (!IsRecoverableReadFailure(exception)) throw;
 
-                string action = readAttempt < PamOperationTimingPolicy.PendingReadMaximumAttemptsPerSession
+                string action = !exception.RequiresNewSession && readAttempt < PamOperationTimingPolicy.PendingReadMaximumAttemptsPerSession
                     ? "ReloadPendingView"
                     : "ReadSessionFailed";
                 diagnosticSink?.RecordRecovery(new PendingReadRecoveryDiagnostic(
@@ -338,7 +352,7 @@ public sealed class PamPendingService
                     comparisonAttempt,
                     readAttempt,
                     action);
-                if (readAttempt == PamOperationTimingPolicy.PendingReadMaximumAttemptsPerSession)
+                if (exception.RequiresNewSession || readAttempt == PamOperationTimingPolicy.PendingReadMaximumAttemptsPerSession)
                 {
                     throw;
                 }
@@ -427,22 +441,29 @@ public sealed class PamPendingService
         return await WithAuthenticatedReadRecoveryAsync(
             credentials,
             "Reconciliation",
-            (session, sessionAttempt) => WaitForCompleteComparisonInSessionAsync(
-                session, expected, form, maximumAttempts, delay, sessionAttempt, cancellationToken, baseline),
+            (session, sessionAttempt, readToken) => WaitForCompleteComparisonInSessionAsync(
+                session, expected, form, maximumAttempts, delay, sessionAttempt, readToken, baseline),
             cancellationToken).ConfigureAwait(false);
     }
 
     private async Task<T> WithAuthenticatedReadRecoveryAsync<T>(
         PamCredentials credentials,
         string stage,
-        Func<IPamBrowserSession, int, Task<T>> read,
+        Func<IPamBrowserSession, int, CancellationToken, Task<T>> read,
         CancellationToken cancellationToken)
     {
         diagnosticSink?.RecordStage(stage);
+        using var deadline = new CancellationTokenSource(PamOperationTimingPolicy.PendingRecoveryTimeout, timeProvider);
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, deadline.Token);
         try
         {
-            return await WithAuthenticatedReadSessionsAsync(credentials, stage, read, cancellationToken)
+            return await WithAuthenticatedReadSessionsAsync(credentials, stage, read, linked.Token)
                 .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && deadline.IsCancellationRequested)
+        {
+            diagnosticSink?.RecordFailure("RecoveryTimeout");
+            throw new PamPendingException(PamPendingErrorCode.RecoveryTimeout);
         }
         catch (OperationCanceledException)
         {
@@ -465,7 +486,7 @@ public sealed class PamPendingService
     private async Task<T> WithAuthenticatedReadSessionsAsync<T>(
         PamCredentials credentials,
         string stage,
-        Func<IPamBrowserSession, int, Task<T>> read,
+        Func<IPamBrowserSession, int, CancellationToken, Task<T>> read,
         CancellationToken cancellationToken)
     {
         for (int sessionAttempt = 1;
@@ -481,7 +502,7 @@ public sealed class PamPendingService
                 T result;
                 await using (session.ConfigureAwait(false))
                 {
-                    result = await read(session, sessionAttempt).ConfigureAwait(false);
+                    result = await read(session, sessionAttempt, cancellationToken).ConfigureAwait(false);
                 }
                 if (sessionAttempt > 1)
                 {

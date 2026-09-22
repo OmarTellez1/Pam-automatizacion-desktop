@@ -98,6 +98,14 @@ La fase 24 reemplazó los pasos 18–20 en su aspecto comparativo: `Application`
 
 La identidad `System + Application + Account` se conserva sin cambios dentro de Favorites y colecciones porque allí sí identifica el formulario exacto que debe abrirse.
 
+## Pending: cambio de tamaño y paginación verificados el 22 de septiembre de 2026
+
+El contador puede exponerse como `30 items` o `1-25 of 30 items`. El total debe reconocerse y coincidir con la cantidad de Request ID únicos al completar el recorrido. No reconocer el formato nunca autoriza devolver únicamente las filas visibles.
+
+Durante el cambio a 200 filas, PAM puede retirar del DOM el selector de tamaño y deshabilitar Status. Volver a resolver el ancestro que contiene un combobox en ese instante puede alcanzar los filtros Status/Filter by. La confirmación utiliza el cierre de opciones y un grid coherente: Status habilitado en Pending, rango, filas, total y número de páginas compatibles con el tamaño elegido. Cada página debe producir dos capturas completas iguales con metadata sin cambios.
+
+Antes de avanzar se releen paginación y contador y se verifica que Next page esté habilitado. Si cambian, se reinicia el recorrido; nunca se fuerza el clic. La integración real autorizada recuperó 30 filas completas en tres lecturas consecutivas, sin abrir formularios ni usar Outlook.
+
 ## Acceso interactivo persistente a PAM
 
 El botón `Acceder a PAM` es una excepción deliberada al contexto temporal anterior. Su único objetivo automatizado es abrir BeyondInsight e iniciar sesión; después entrega al usuario una ventana normal de Microsoft Edge, sin restricciones de navegación y capaz de permanecer abierta cuando se cierre PAM Automation.

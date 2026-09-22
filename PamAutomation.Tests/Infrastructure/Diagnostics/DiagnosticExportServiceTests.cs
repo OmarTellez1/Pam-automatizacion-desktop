@@ -110,6 +110,12 @@ public sealed class DiagnosticExportServiceTests : IDisposable
             "ReloadPendingView",
             "PortalUnavailable"));
         pendingStore.RecordFailure("AmbiguousIdentity");
+        pendingStore.RecordRead(new PendingReadAttemptDiagnostic(
+            DateTimeOffset.UtcNow, "Reconciliation", 1, 1, 1, "SnapshotUnstable")
+        {
+            ElapsedMilliseconds = 5010,
+            Browser = new PendingBrowserReadDiagnostic("NextPage", 1, 2, 30, 25, false),
+        });
         var service = new DiagnosticExportService(
             loggerFactory,
             new FixedTimeProvider(new DateTimeOffset(2026, 9, 21, 21, 0, 0, TimeSpan.Zero)),
@@ -131,6 +137,11 @@ public sealed class DiagnosticExportServiceTests : IDisposable
         Assert.Contains("AmbiguousIdentity", detail);
         Assert.Contains("ReloadPendingView", detail);
         Assert.Contains("PortalUnavailable", detail);
+        Assert.Contains("\"operation\": \"NextPage\"", detail);
+        Assert.Contains("\"totalItems\": 30", detail);
+        Assert.Contains("\"rowsRead\": 25", detail);
+        Assert.Contains("\"nextPageEnabled\": false", detail);
+        Assert.Contains("\"elapsedMilliseconds\": 5010", detail);
         Assert.DoesNotContain("password", detail, StringComparison.OrdinalIgnoreCase);
         ZipArchiveEntry? manifestEntry = archive.GetEntry("manifest.json");
         Assert.IsNotNull(manifestEntry);

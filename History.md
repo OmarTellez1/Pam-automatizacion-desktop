@@ -794,3 +794,16 @@ Cada cambio relevante debe registrar qué se decidió, por qué, qué se verific
 - Coincidencias parciales, ambiguas o sin correo habilitado solo permiten cancelar. El aviso instruye cambiar la fecha u hora de inicio, la duración de la sesión o el motivo antes de intentarlo otra vez.
 - `PamAutomationExecutionService` aplica la misma barrera antes de crear una sesión de envío, como defensa independiente de la UI, y registra `BlockedExistingPending` si una llamada intenta evadirla.
 - La compilación `Release | x64` y 97 pruebas focalizadas aprobaron. No se abrió PAM ni Outlook y no se creó ninguna solicitud o correo real.
+
+## 22 de septiembre de 2026 — Integridad y recuperación acotada de Pending
+
+- El diagnóstico `pam-automation-diagnostic-20260922-175659` contiene cuatro timeouts y un único snapshot de 25 filas (18 antiguas y siete nuevas), obtenido entre el segundo y el tercer timeout. No demuestra retraso del servidor en crear las cinco solicitudes restantes.
+- Se corrigió el reconocimiento del contador con rango, se eliminó la aceptación de un total desconocido y se exige coherencia de filas, rango, página y tamaño seleccionado. Cada salto revalida el estado y el botón habilitado.
+- La primera integración real de esta corrección descubrió que PAM retira temporalmente el selector de tamaño durante la carga; la confirmación ya no vuelve a localizar su ancestro en ese intervalo.
+- Se añadieron límites de 30 segundos por lectura y 120 segundos por etapa con cancelación propagada. Una lectura vencida cierra su página y exige otra sesión para impedir clics pendientes sobre una vista recargada.
+- El diagnóstico añade duración, operación y conteos técnicos. Continúa excluyendo credenciales, TOTP, cookies, tokens y correo.
+- Las pruebas locales reproducen 25→30 filas, paginación 25+5 y 200+50, contador desconocido, botón deshabilitado, vencimiento global y propagación/exportación del diagnóstico.
+- La integración autorizada de solo lectura con Edge visible recuperó 30 filas tres veces consecutivas: 6109, 6094 y 8984 ms. No creó ni modificó solicitudes ni utilizó Outlook. La creación de un lote nuevo queda para la aceptación operativa del usuario.
+- Una selección amplia de pruebas descubrió el fallo heredado `RepeatedPendingDecisionWindow_CompleteSetWithoutEmail_RequiresOutlook`: espera una frase que ya no coincide con el texto del diálogo. Sus archivos no se modificaron.
+- Validación final focalizada: compilación Release x64 correcta y 96 pruebas aprobadas (87 de Pending y navegador, tres de coordinación, cuatro de exportación y dos de almacenamiento del diagnóstico). Las pruebas del lector completo y de captura masiva usaron Edge visible con respuestas locales; la prueba real de tres lecturas pasó por separado. Permanece la advertencia heredada MSTEST0032.
+- Se generó mediante `dotnet publish` la copia Windows x64 autocontenida `artifacts/publish/pending-recovery-20260922`, identificada por `1.0.2-pending-recovery.20260922`. No se publicó ningún release externo.

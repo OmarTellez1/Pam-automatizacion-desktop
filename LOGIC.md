@@ -301,6 +301,16 @@ La entrada nativa WPF presenta fecha, hora de 12 horas con selector `AM/PM` y du
 
 El conflicto `PSPortal.Requests.Policies.RemoteAppAccesssAlreadyAvailable` se registra y permite continuar. Otros errores deben detener el proceso.
 
+## Integridad y plazos de Pending — ajuste del 22 de septiembre de 2026
+
+La completitud exige un total explícito: se interpretan contadores simples y rangos `primero-último of total items`; un contador desconocido provoca `SnapshotUnstable`. La captura masiva se rodea de lecturas del paginador/contador y solo se acepta cuando dos observaciones completas coinciden y Status continúa habilitado en Pending. Al seleccionar el máximo, el número de páginas y las filas deben corresponder al tamaño elegido. PAM puede retirar temporalmente el selector durante esa transición; no se vuelve a resolver su ancestro para confirmar la selección.
+
+Cada salto revalida el estado vivo y el botón siguiente. Un cambio reinicia el recorrido desde la primera página, sin unir snapshots de distintos recorridos. El total final debe coincidir exactamente con los IDs únicos recuperados. Permanecen las validaciones por campos, multiplicidades y exclusión de la línea base.
+
+Controles: cinco segundos; probes DOM: dos segundos; lectura completa: 30 segundos; presupuesto compartido por etapa: 120 segundos, incluida autenticación y recuperación (más el cierre de recursos). La cancelación del usuario sigue siendo cancelación; el vencimiento global se informa como `RecoveryTimeout`. Vencer la lectura cierra la página y exige otra sesión: cancelar una espera .NET no cancela por sí mismo un clic Playwright pendiente. Nunca se reenvían solicitudes ni correo como recuperación.
+
+El detalle de diagnóstico mantiene esquema 3 con campos aditivos `elapsedMilliseconds` y `browser` en las lecturas; este último aparece ante un fallo y contiene exclusivamente operación técnica, páginas, total, filas y estado del siguiente botón.
+
 ## Outlook
 
 La fase 14 integra Outlook clásico mediante COM detrás de `IOutlookClassicClient`. Verifica una única cuenta por `SmtpAddress`, valida la cuenta con un mensaje temporal que siempre se descarta, asigna `SendUsingAccount` antes de `Send()` y crea un mensaje nuevo por operación. La ejecución COM se realiza en STA y las referencias se liberan explícitamente.

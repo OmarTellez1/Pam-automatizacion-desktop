@@ -67,7 +67,7 @@ public sealed class PamPendingAtomicGridLoadTests
         await using IBrowser browser = await playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
         {
             Channel = "msedge",
-            Headless = true,
+            Headless = false,
         });
         IPage page = await browser.NewPageAsync();
 

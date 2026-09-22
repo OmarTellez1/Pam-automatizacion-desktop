@@ -37,38 +37,33 @@ public sealed class PamRealPendingTests
             "La verificación real requiere la credencial protegida configurada en Windows Credential Manager.");
 
         var authentication = new PamAuthenticationService(
-            new PamBrowserSessionFactory(),
+            new PamBrowserSessionFactory(new VisiblePlaywrightEngineFactory(), new PamOriginPolicy()),
             new PamAuthenticationPortalFactory(),
             new PamHttpDateClockFactory(TimeProvider.System),
             new TotpGenerator(),
             new TaskAsyncDelay());
-        string captureDirectory = Path.Combine(FindRepositoryRoot(), "img");
-        Directory.CreateDirectory(captureDirectory);
         var service = new PamPendingService(
             authentication,
-            new PamPendingPortalFactory(captureDirectory),
+            new PamPendingPortalFactory(),
             new TaskAsyncDelay());
 
-        IReadOnlyList<PamPendingRequest> requests = await service.ReadAllAsync(
-            credentials,
-            TestContext.CancellationToken);
-
-        TestContext.WriteLine("Pending rows read: {0}. No requests were created or changed.", requests.Count);
-    }
-
-    private static string FindRepositoryRoot()
-    {
-        DirectoryInfo? directory = new(AppContext.BaseDirectory);
-        while (directory is not null)
+        await using var session = await authentication.CreateAuthenticatedAsync(credentials, TestContext.CancellationToken);
+        for (int read = 1; read <= 3; read++)
         {
-            if (File.Exists(Path.Combine(directory.FullName, "PamAutomation.slnx")))
+            long started = Environment.TickCount64;
+            try
             {
-                return directory.FullName;
+                IReadOnlyList<PamPendingRequest> requests = await service.ReadAllAsync(session, TestContext.CancellationToken);
+                TestContext.WriteLine("Pending read {0}: {1} rows, {2} ms. No requests created or changed.",
+                    read, requests.Count, Environment.TickCount64 - started);
             }
-
-            directory = directory.Parent;
+            catch (PamPendingException exception)
+            {
+                TestContext.WriteLine("Pending failure: {0}; {1}", exception.ErrorCode,
+                    System.Text.Json.JsonSerializer.Serialize(exception.BrowserDiagnostic));
+                throw;
+            }
         }
-
-        throw new DirectoryNotFoundException("No se encontró la raíz del repositorio para guardar capturas.");
     }
+
 }

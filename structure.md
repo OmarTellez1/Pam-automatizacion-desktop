@@ -896,6 +896,19 @@ El diseño anterior de perfiles aislados y archivos `.pamprofile` queda descarta
 
 No se añaden proyectos, paquetes NuGet ni dependencias entre capas.
 
+### Integridad de Pending al cambiar de página
+
+- `PamAutomation.Browser/PamPendingItemCount.cs`: parser C# del contador simple y del rango visible con total; rechaza rangos incoherentes.
+- `PamAutomation.Browser/PlaywrightManagedPage.Pending.cs`: sincroniza Status, rango, total, paginador y captura masiva; verifica tamaño efectivo y botón siguiente; cierra la página si vence su lectura.
+- `PamAutomation.Core/Resilience/PamOperationTimingPolicy.cs`: límites específicos de 30 segundos por lectura y 120 segundos por etapa, además del máximo de cinco segundos por control.
+- `PamAutomation.Core/Requests/PamPendingService.cs`: propaga el presupuesto compartido y no reutiliza páginas cerradas por vencimiento.
+- `PamAutomation.Core/Diagnostics/PendingReconciliationDiagnostic.cs`: duración por lectura y `PendingBrowserReadDiagnostic` inmutable con operación y conteos.
+- `PamAutomation.Tests/Browser/PamPendingGridTransitionTests.cs`: prueba el lector completo mediante páginas locales servidas desde C#, sin red ni credenciales, incluidos cambios tardíos y paginación real.
+- `PamAutomation.Tests/Browser/VisiblePlaywrightEngineFactory.cs`: adaptador exclusivo de pruebas que muestra Edge temporal sin cambiar el modo oculto de producción.
+- `PamAutomation.Tests/Browser/PamRealPendingTests.cs`: tres lecturas consecutivas opt-in de la sesión autenticada; solo informa conteos y tiempos, sin capturas ni solicitudes nuevas.
+
+No se añaden dependencias NuGet ni proyectos.
+
 ## Límites que deben conservarse
 
 - Solo C#, .NET 10, WPF y XAML para la aplicación.

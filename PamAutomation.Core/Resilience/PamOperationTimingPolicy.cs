@@ -6,6 +6,15 @@ namespace PamAutomation.Core.Resilience;
 /// </summary>
 public static class PamOperationTimingPolicy
 {
+    /// <summary>Maximum elapsed time for one complete Pending browser read.</summary>
+    public static TimeSpan PendingReadTimeout { get; } = TimeSpan.FromSeconds(30);
+
+    /// <summary>Shared budget for authentication, Pending reads and recovery in one stage.</summary>
+    public static TimeSpan PendingRecoveryTimeout { get; } = TimeSpan.FromSeconds(120);
+
+    /// <summary>Maximum wait for an idempotent Pending control action.</summary>
+    public static TimeSpan PendingControlTimeout { get; } = TimeSpan.FromSeconds(5);
+
     /// <summary>Maximum time to observe a PAM page becoming ready.</summary>
     public static TimeSpan PortalReadinessTimeout { get; } = TimeSpan.FromSeconds(60);
 

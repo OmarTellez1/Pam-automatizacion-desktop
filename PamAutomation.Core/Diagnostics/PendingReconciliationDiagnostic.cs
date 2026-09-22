@@ -151,9 +151,24 @@ public sealed record PendingReadAttemptDiagnostic(
     int ReadAttempt,
     string? ErrorCode)
 {
+    /// <summary>Gets the elapsed time of this read, including navigation.</summary>
+    public long ElapsedMilliseconds { get; init; }
+
+    /// <summary>Gets safe browser state when a read failed.</summary>
+    public PendingBrowserReadDiagnostic? Browser { get; init; }
+
     /// <summary>Prevents incidental logging of diagnostic contents.</summary>
     public override string ToString() => "Pending read attempt diagnostic (explicit export only)";
 }
+
+/// <summary>Contains only technical operation names and counts; never DOM text or credentials.</summary>
+public sealed record PendingBrowserReadDiagnostic(
+    string Operation,
+    int? CurrentPage = null,
+    int? TotalPages = null,
+    int? TotalItems = null,
+    int? RowsRead = null,
+    bool? NextPageEnabled = null);
 
 /// <summary>Explains expected and observed multiplicity for one stable Pending identity.</summary>
 public sealed record PendingGroupMultiplicityDiagnostic(

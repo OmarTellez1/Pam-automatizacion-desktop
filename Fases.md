@@ -506,7 +506,17 @@ El preflight ya no permite volver a automatizar solicitudes exactamente iguales 
 
 La restricción existe tanto en la coordinación WPF como dentro de `PamAutomationExecutionService`: aunque otra interfaz intentara llamar a la ejecución normal con duplicados detectados, Core detiene el flujo antes de crear la sesión de envío o pulsar `Submit Request`. La ruta separada de reutilización conserva la exigencia de un conjunto completo procedente de la línea base y no mezcla IDs existentes con nuevos. La compilación `Release | x64` y 97 pruebas focalizadas de UI, coordinación, Pending y diagnóstico aprobaron; no se contactó PAM ni Outlook y no se crearon solicitudes ni correos reales. **Ajuste implementado y validado.**
 
+### Ajuste posterior a la fase 25 — Integridad de Pending durante cambios de página
+
+El diagnóstico del 22 de septiembre a las 17:56 registró cuatro timeouts y un snapshot de exactamente 25 filas: 18 antiguas y siete nuevas. Se identificó un contador que ignoraba el formato con rango del portal y una confirmación de tamaño de página que podía omitirse. La integración real también confirmó que PAM retira temporalmente el selector mientras carga.
+
+Browser interpreta rango y total, exige un total conocido, valida filas y paginación antes/después de capturar y comprueba el botón antes de avanzar. Core limita toda la recuperación de cada etapa a 120 segundos; cada lectura dispone de 30 segundos y cada control de cinco. Al vencer una lectura se cierra su página y se exige reemplazar la sesión. El diagnóstico conserva operación, conteos y duración sin secretos.
+
+Las regresiones cubren 18 IDs antiguos y 12 nuevos durante la transición 25→30, selector ausente durante carga, contador desconocido, botón siguiente deshabilitado, dos páginas de 25+5 y paginación de 200+50. La integración autorizada y visible de solo lectura recuperó las 30 filas de PAM tres veces consecutivas en 6,1, 6,1 y 9,0 segundos. **Implementación y lectura real verificadas; la aceptación con creación de un lote nuevo queda para la siguiente ejecución operativa del usuario.** No se crearon solicitudes ni correos durante pruebas.
+
 ## Fases pendientes
+
+La corrección de integridad de Pending cuenta con compilación Release x64, 96 pruebas focalizadas aprobadas y una publicación local autocontenida en `artifacts/publish/pending-recovery-20260922`. La aceptación pendiente con un lote nuevo no autoriza a las pruebas automatizadas a crear solicitudes.
 
 La clasificación siguiente se refiere únicamente a dependencias entre fases pendientes:
 
