@@ -128,7 +128,7 @@ public sealed class PamAccountServiceTests
     }
 
     [TestMethod]
-    public async Task CreateSecondary_DuplicateNameOrSixthIdentity_IsRejected()
+    public async Task CreateSecondary_DuplicateNameOrAccountLimit_IsRejected()
     {
         var registry = new MemoryRegistryStore();
         var credentials = new CredentialDirectory();
@@ -137,15 +137,17 @@ public sealed class PamAccountServiceTests
         await service.CreateSecondaryAsync("Uno", Complete("one"));
         PamAccountException duplicate = await Assert.ThrowsExactlyAsync<PamAccountException>(
             () => service.CreateSecondaryAsync("UNO", Complete("duplicate")));
-        await service.CreateSecondaryAsync("Dos", Complete("two"));
-        await service.CreateSecondaryAsync("Tres", Complete("three"));
-        await service.CreateSecondaryAsync("Cuatro", Complete("four"));
+        for (int index = 2; index < PamAccountRegistryState.MaximumAccounts; index++)
+        {
+            await service.CreateSecondaryAsync($"Secundario {index}", Complete($"user{index}"));
+        }
 
         PamAccountException limit = await Assert.ThrowsExactlyAsync<PamAccountException>(
-            () => service.CreateSecondaryAsync("Cinco", Complete("five")));
+            () => service.CreateSecondaryAsync("Otro", Complete("extra")));
 
         Assert.AreEqual(PamAccountErrorCode.DuplicateName, duplicate.ErrorCode);
         Assert.AreEqual(PamAccountErrorCode.LimitReached, limit.ErrorCode);
+        Assert.HasCount(PamAccountRegistryState.MaximumAccounts, (await registry.LoadAsync()).Accounts);
     }
 
     [TestMethod]

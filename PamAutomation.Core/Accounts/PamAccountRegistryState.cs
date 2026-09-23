@@ -4,7 +4,7 @@ namespace PamAutomation.Core.Accounts;
 public sealed record PamAccountRegistryState
 {
     public const int CurrentSchemaVersion = 1;
-    public const int MaximumAccounts = 5;
+    public const int MaximumAccounts = 9;
 
     public PamAccountRegistryState(IReadOnlyList<PamAccountSummary>? accounts = null)
     {
