@@ -272,7 +272,10 @@ public sealed class ConfigurationWindowSmokeTests
 
         string message = RepeatedPendingDecisionWindow.BuildAvailabilityMessage(preparation);
 
-        Assert.Contains("activa el envío con Outlook", message);
+        Assert.IsFalse(preparation.CanReusePendingRequestIdsForEmail);
+        Assert.Contains("el envío de correo con Outlook está desactivado", message);
+        Assert.Contains("Cancela la automatización", message);
+        Assert.Contains("activa «Enviar correo con Outlook»", message);
     }
 
     [STATestMethod]

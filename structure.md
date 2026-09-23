@@ -943,6 +943,8 @@ La ventana `PamAutomation.App/Views/AutomationResultWindow.xaml` y su code-behin
 
 ## Criterio para actualizar este documento
 
+La corrección del bloqueo de publicación modifica únicamente la comprobación existente `RepeatedPendingDecisionWindow_CompleteSetWithoutEmail_RequiresOutlook` en `PamAutomation.Tests/App/ConfigurationWindowSmokeTests.cs`: valida el bloqueo de reutilización y el aviso vigente. No cambia la estructura, los proyectos, las dependencias ni el script de publicación.
+
 Al terminar cada fase se debe registrar:
 
 - Nuevos proyectos o carpetas creados.

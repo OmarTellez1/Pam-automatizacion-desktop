@@ -370,6 +370,8 @@ Cada ejecución mantendrá en memoria, sin persistirlo al cerrar la aplicación:
 
 ## Contratos de prueba
 
+La prueba del conjunto completo de Pending con correo desactivado exige que no se permita reutilizar IDs para enviar correo y que el aviso indique cancelar y activar la opción vigente `Enviar correo con Outlook`. Las pruebas de navegador local que requieren opt-in pueden quedar omitidas en la suite ordinaria; los fallos de aserción sí impiden publicar.
+
 Todas las dependencias externas deben tener interfaces sustituibles:
 
 - Reloj.

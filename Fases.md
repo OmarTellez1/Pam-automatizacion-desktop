@@ -538,6 +538,8 @@ Validación: compilación Release x64, 36 pruebas existentes de `MainWindowViewM
 
 ## Fases pendientes
 
+La validación ordinaria de publicación quedó desbloqueada al actualizar la prueba del aviso de Pending sin Outlook al texto vigente y verificar que la reutilización permanece deshabilitada. Restauración, compilación, suite completa y publicación pasaron: 505 aprobadas, siete omitidas por opt-in y cero fallos. El ZIP local `artifacts/publish/final/PAM-Automation-1.0.2-win-x64.zip` contiene 523 archivos y sus versiones fueron verificadas. No se alteró el comportamiento de producción ni se publicó un release externo.
+
 La corrección de integridad de Pending cuenta con compilación Release x64, 96 pruebas focalizadas aprobadas y una publicación local autocontenida en `artifacts/publish/pending-recovery-20260922`. La aceptación pendiente con un lote nuevo no autoriza a las pruebas automatizadas a crear solicitudes.
 
 La clasificación siguiente se refiere únicamente a dependencias entre fases pendientes:

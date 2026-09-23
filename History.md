@@ -835,3 +835,10 @@ Cada cambio relevante debe registrar qué se decidió, por qué, qué se verific
 - La copia Unicode ocurre únicamente al pulsar el botón. Muestra confirmación local o un aviso que permite reintentar ante un portapapeles ocupado, sin cerrar el resultado ni registrar IDs.
 - Compilación Release x64 y 36 pruebas existentes de la ventana principal aprobadas. Una comprobación WPF visible verificó 12 y 250 IDs, copia exacta, fallo/reintento simulado y acciones accesibles con la ventana reducida. El portapapeles del usuario no fue alterado; no se contactó PAM ni Outlook. Permanece la advertencia heredada MSTEST0032.
 - Se generó la publicación local autocontenida `artifacts/publish/copy-request-ids-20260922` con `InformationalVersion=1.0.2-copy-request-ids.20260922`, incluyendo las correcciones previas. No se publicó un release externo.
+
+## 22 de septiembre de 2026 — Desbloqueo de la publicación portable
+
+- La publicación se detenía correctamente por una aserción obsoleta: la prueba esperaba `activa el envío con Outlook`, mientras el diálogo identifica la opción real `activa «Enviar correo con Outlook»`.
+- Se actualizó esa prueba y se verifican también la imposibilidad de reutilizar IDs para correo cuando está desactivado y la instrucción de cancelar. No se cambió el diálogo ni se omitieron pruebas fallidas.
+- Restauración win-x64, compilación Release x64 y suite completa aprobadas: 512 casos, 505 correctos, siete omitidos por falta de opt-in del navegador y cero fallos. La advertencia heredada MSTEST0032 no bloquea el proceso.
+- Se ejecutó `dotnet publish` y se empaquetó la salida con la misma estructura portable del script: `artifacts/publish/final/PAM-Automation-1.0.2-win-x64.zip`, 523 archivos y metadatos 1.0.2/1.0.2.0 verificados. Se calculó SHA-256 y se comprobó la presencia del ejecutable y de todos los archivos dentro del ZIP. No se contactó PAM ni Outlook ni se publicó un release externo.
