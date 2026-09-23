@@ -926,6 +926,10 @@ La corrección posterior de Pending vacío conserva esta estructura: `Playwright
 
 No se agregan proyectos ni dependencias NuGet.
 
+## Copia de Request ID desde resultados (22 de septiembre de 2026)
+
+La ventana `PamAutomation.App/Views/AutomationResultWindow.xaml` y su code-behind presentan los resultados con IDs y gestionan la copia explícita al portapapeles como operación de interfaz. `IUserDialogService.ShowResult` admite un texto opcional de IDs separado del mensaje; `WpfUserDialogService` elige esa ventana modal solo cuando hay IDs y conserva los mensajes existentes para los demás avisos. `MainWindowViewModel.ShowResult` entrega el texto ya formateado en memoria. La prueba existente de presentación valida ese dato separado. No cambia Core, Browser, Outlook ni se añaden dependencias.
+
 ## Límites que deben conservarse
 
 - Solo C#, .NET 10, WPF y XAML para la aplicación.

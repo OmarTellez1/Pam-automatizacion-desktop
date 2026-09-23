@@ -89,8 +89,33 @@ public sealed class WpfUserDialogService : IUserDialogService
         MessageBoxImage.Warning,
         MessageBoxResult.No) == MessageBoxResult.Yes;
 
-    public void ShowResult(string title, string message) =>
-        UrgentMessageBox.Show(message, title, MessageBoxButton.OK, MessageBoxImage.Information);
+    public void ShowResult(string title, string message, string? requestIdsText = null)
+    {
+        if (string.IsNullOrWhiteSpace(requestIdsText))
+        {
+            UrgentMessageBox.Show(message, title, MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher is not null && !dispatcher.CheckAccess())
+        {
+            dispatcher.Invoke(() => ShowResult(title, message, requestIdsText));
+            return;
+        }
+
+        Window? owner = Application.Current?.Windows.OfType<Window>()
+            .FirstOrDefault(window => window.IsActive && window.IsVisible)
+            ?? Application.Current?.MainWindow;
+        if (owner?.WindowState == WindowState.Minimized) owner.WindowState = WindowState.Normal;
+        owner?.Activate();
+        var resultWindow = new AutomationResultWindow(title, message, requestIdsText)
+        {
+            Owner = owner,
+            Topmost = true,
+        };
+        resultWindow.ShowDialog();
+    }
 
     public void ShowError(string message) =>
         UrgentMessageBox.Show(message, "No se completó la automatización", MessageBoxButton.OK, MessageBoxImage.Error);

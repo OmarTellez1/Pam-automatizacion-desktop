@@ -830,7 +830,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
             ? ResultSummary + Environment.NewLine + Environment.NewLine + "Request ID:" +
               Environment.NewLine + RequestIdsText
             : ResultSummary;
-        dialogs!.ShowResult(ResultTitle, message);
+        dialogs!.ShowResult(ResultTitle, message, HasRequestIds ? RequestIdsText : null);
     }
 
     private void PresentExistingPendingMailOutcome(OutlookDeliveryResult? delivery)

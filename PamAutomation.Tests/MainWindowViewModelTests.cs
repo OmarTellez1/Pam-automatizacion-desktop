@@ -488,6 +488,7 @@ public sealed class MainWindowViewModelTests
 
         Assert.AreEqual(1, context.Dialogs.ResultDisplayCount);
         Assert.Contains("8001" + Environment.NewLine + "8002", context.Dialogs.LastResultMessage);
+        Assert.AreEqual("8001" + Environment.NewLine + "8002", context.Dialogs.LastCopyRequestIdsText);
     }
 
     [TestMethod]
@@ -945,6 +946,7 @@ public sealed class MainWindowViewModelTests
         public string? LastError { get; private set; }
         public int ResultDisplayCount { get; private set; }
         public string LastResultMessage { get; private set; } = string.Empty;
+        public string? LastCopyRequestIdsText { get; private set; }
         public RepeatedPendingDecision RepeatedPendingDecision { get; set; }
         public Action? AutomationStartConfirmationAction { get; set; }
         public int AutomationStartConfirmationCount { get; private set; }
@@ -967,10 +969,11 @@ public sealed class MainWindowViewModelTests
         }
         public bool ConfirmTestEmail(string recipient) => confirm;
         public bool ConfirmOutlookTestEmail(string recipient) => confirm;
-        public void ShowResult(string title, string message)
+        public void ShowResult(string title, string message, string? requestIdsText = null)
         {
             ResultDisplayCount++;
             LastResultMessage = message;
+            LastCopyRequestIdsText = requestIdsText;
         }
         public void ShowError(string message) => LastError = message;
         public string? SelectDiagnosticExportPath(string suggestedFileName) => DiagnosticPath;

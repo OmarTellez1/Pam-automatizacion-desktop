@@ -530,6 +530,12 @@ La regresión reprodujo tres fallos con el código anterior. Con la corrección 
 
 La integración real autorizada leyó Pending vacío tres veces consecutivas en 4265, 4047 y 4125 ms, sin crear ni modificar solicitudes y sin Outlook. Se publicó la copia local autocontenida `artifacts/publish/pending-empty-20260922`, identificada por `1.0.2-pending-empty.20260922`. **Corrección implementada y validada en el portal real con Pending vacío.**
 
+### Característica completada — Copiar Request ID desde el resultado
+
+La ventana de resultados con IDs utiliza `AutomationResultWindow` para ofrecer `Copiar Request ID` y `Aceptar`. Copia solo el texto de identificadores, separado del resumen desde el ViewModel, preserva el orden y muestra confirmación o un aviso recuperable si el portapapeles está ocupado. Mantiene modalidad, prioridad visual, lectura seleccionable y desplazamiento para listas extensas. Los avisos sin IDs no cambian.
+
+Validación: compilación Release x64, 36 pruebas existentes de `MainWindowViewModelTests` y comprobación visible de la ventana WPF con 12 y 250 IDs, copia exacta y fallo/reintento simulado. No se abrió PAM ni Outlook ni se alteró el portapapeles real. No se incorporaron dependencias. **Característica completada.**
+
 ## Fases pendientes
 
 La corrección de integridad de Pending cuenta con compilación Release x64, 96 pruebas focalizadas aprobadas y una publicación local autocontenida en `artifacts/publish/pending-recovery-20260922`. La aceptación pendiente con un lote nuevo no autoriza a las pruebas automatizadas a crear solicitudes.

@@ -827,3 +827,11 @@ Cada cambio relevante debe registrar qué se decidió, por qué, qué se verific
 - Después del cambio aprobaron 21 pruebas de `PamPendingGridTransitionTests` con la integración local habilitada y Edge visible (incluidas siete nuevas variantes), además de 45 pruebas de `PamPendingServiceTests`. Compilación Release x64 correcta. No se alteraron los cambios anteriores de Outlook.
 - La integración real expresamente autorizada recuperó cero filas tres veces consecutivas en 4265, 4047 y 4125 ms. Utilizó un contexto temporal de Edge visible y las credenciales protegidas, sin crear ni modificar solicitudes ni usar Outlook. Evidencia local: `results/pending-empty-real-20260922/pending-empty-real.trx`, con conteos y tiempos, sin contenido de solicitudes.
 - Se generó mediante `dotnet publish` la copia autocontenida `artifacts/publish/pending-empty-20260922`, con `InformationalVersion=1.0.2-pending-empty.20260922`. Incluye los cambios anteriores de Outlook y sus dependencias; no se publicó un release externo.
+
+## 22 de septiembre de 2026 — Copiar Request ID desde la ventana de resultados
+
+- El usuario confirmó que las correcciones de Pending y Outlook resolvieron los problemas observados y solicitó un botón de copia en el resultado.
+- Se añadió `AutomationResultWindow`, una ventana WPF modal con el resumen, lista seleccionable/desplazable, `Copiar Request ID` y `Aceptar`. El texto copiable se recibe separado del mensaje y conserva solo los IDs, uno por línea y en su orden original.
+- La copia Unicode ocurre únicamente al pulsar el botón. Muestra confirmación local o un aviso que permite reintentar ante un portapapeles ocupado, sin cerrar el resultado ni registrar IDs.
+- Compilación Release x64 y 36 pruebas existentes de la ventana principal aprobadas. Una comprobación WPF visible verificó 12 y 250 IDs, copia exacta, fallo/reintento simulado y acciones accesibles con la ventana reducida. El portapapeles del usuario no fue alterado; no se contactó PAM ni Outlook. Permanece la advertencia heredada MSTEST0032.
+- Se generó la publicación local autocontenida `artifacts/publish/copy-request-ids-20260922` con `InformationalVersion=1.0.2-copy-request-ids.20260922`, incluyendo las correcciones previas. No se publicó un release externo.

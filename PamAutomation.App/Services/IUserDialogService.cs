@@ -9,7 +9,7 @@ public interface IUserDialogService
     bool ConfirmAutomationStart(AppSettings settings, MailSettings? mailSettings, string? collectionName = null);
     bool ConfirmTestEmail(string recipient);
     bool ConfirmOutlookTestEmail(string recipient);
-    void ShowResult(string title, string message);
+    void ShowResult(string title, string message, string? requestIdsText = null);
     void ShowError(string message);
     string? SelectDiagnosticExportPath(string suggestedFileName);
 }

@@ -355,6 +355,8 @@ Los secretos deben almacenarse con Windows Credential Manager o DPAPI. No deben 
 
 ## Resultados de ejecución
 
+`Ver resultado de la automatización` abre una ventana WPF modal cuando existen Request ID. Conserva el resumen y la lista seleccionable con desplazamiento, y ofrece `Copiar Request ID` junto a `Aceptar`. El ViewModel entrega por separado el mensaje completo y el texto exacto de IDs para copiar: el botón no extrae números del resumen ni incluye encabezados, fechas o conteos. Solo la pulsación explícita escribe texto Unicode en el portapapeles, con un ID por línea en el orden obtenido. La ventana confirma la copia sin cerrarse; un fallo nativo del portapapeles muestra un aviso local y permite reintentar. Los resultados sin IDs y otros avisos conservan su presentación existente. No se añaden archivos operativos ni registros con el contenido copiado.
+
 Cada ejecución mantendrá en memoria, sin persistirlo al cerrar la aplicación:
 
 - Modo.
