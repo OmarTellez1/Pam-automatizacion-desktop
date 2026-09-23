@@ -13,4 +13,7 @@ public enum OutlookOperationErrorCode
 
     /// <summary>Outlook could not validate the configured account.</summary>
     AccountValidationFailed,
+
+    /// <summary>Outlook could not observe a submitted message safely.</summary>
+    DeliveryObservationFailed,
 }

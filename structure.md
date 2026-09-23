@@ -909,6 +909,19 @@ No se añaden proyectos, paquetes NuGet ni dependencias entre capas.
 
 No se añaden dependencias NuGet ni proyectos.
 
+## Observación de Outlook después del envío (22 de septiembre de 2026)
+
+- `PamAutomation.Core/Interfaces/Outlook/IOutlookClassicClient.cs`: separa la consulta previa de duplicados de `ObserveDeliveryAsync`, con ampliación opcional a carpetas no enviadas en la última observación.
+- `PamAutomation.Core/Outlook/OutlookDeliveryConfirmationService.cs`: consulta Enviados hasta quince veces, revisa Outbox/Drafts al final, reintenta solo fallos reconocidos y conserva el resultado inicial sin reenviar.
+- `PamAutomation.Core/Outlook/OutlookOperationException.cs` y `OutlookOperationErrorCode.cs`: identifican la observación fallida y su recuperabilidad explícita, que por defecto es falsa.
+- `PamAutomation.Outlook/OutlookClassicClient.cs`: aplica el alcance, clasifica fallos COM de lectura, mide duración y delega el registro de advertencias/errores posteriores al envío en Core.
+- `PamAutomation.Outlook/Interop/OutlookComApplicationFactory.cs`: utiliza `Items.Restrict` por asunto estándar, verifica clase y huella exacta, y preserva fallos de lectura en lugar de devolver ausencia.
+- `PamAutomation.Outlook/Interop/OutlookMessageLookupException.cs`: contexto interno seguro de carpeta, operación, conteo e índice del candidato y HRESULT, sin contenido del correo.
+- `PamAutomation.Tests/Outlook/OutlookMessageLookupTests.cs`: ejecuta el recorrido tardío del adaptador real sobre objetos simulados públicos; verifica filtros, alcance, propiedades y fallos sin COM real.
+- Las pruebas existentes de cliente, confirmación y coordinación verifican además un único envío, recuperación, errores permanentes y ausencia de registros ERROR/WARNING duplicados. Los dobles de configuración y ViewModel implementan el contrato ampliado.
+
+No se agregan proyectos ni dependencias NuGet.
+
 ## Límites que deben conservarse
 
 - Solo C#, .NET 10, WPF y XAML para la aplicación.

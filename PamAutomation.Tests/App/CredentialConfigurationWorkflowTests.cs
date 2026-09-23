@@ -216,6 +216,10 @@ public sealed class CredentialConfigurationWorkflowTests
             IReadOnlyList<string> requestIds,
             CancellationToken cancellationToken = default) => Task.FromResult(OutlookExistingMessageStatus.None);
 
+        public Task<OutlookExistingMessageStatus> ObserveDeliveryAsync(
+            string smtpAddress, string subject, IReadOnlyList<string> requestIds, bool includeUnsentFolders,
+            CancellationToken cancellationToken = default) => Task.FromResult(OutlookExistingMessageStatus.None);
+
         public Task<OutlookDeliveryResult> SendAsync(
             OutlookSendRequest request,
             CancellationToken cancellationToken = default)

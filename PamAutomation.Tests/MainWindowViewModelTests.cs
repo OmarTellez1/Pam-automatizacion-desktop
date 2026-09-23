@@ -919,6 +919,7 @@ public sealed class MainWindowViewModelTests
         public Task<OutlookAccount> ResolveAccountAsync(string smtpAddress, CancellationToken cancellationToken = default) => Task.FromResult(new OutlookAccount(smtpAddress));
         public Task ValidateAccountAsync(string smtpAddress, CancellationToken cancellationToken = default) => Task.CompletedTask;
         public Task<OutlookExistingMessageStatus> FindExistingAsync(string smtpAddress, string subject, IReadOnlyList<string> requestIds, CancellationToken cancellationToken = default) => Task.FromResult(OutlookExistingMessageStatus.None);
+        public Task<OutlookExistingMessageStatus> ObserveDeliveryAsync(string smtpAddress, string subject, IReadOnlyList<string> requestIds, bool includeUnsentFolders, CancellationToken cancellationToken = default) => Task.FromResult(OutlookExistingMessageStatus.None);
         public Task<OutlookDeliveryResult> SendAsync(OutlookSendRequest request, CancellationToken cancellationToken = default) => Task.FromResult(OutlookDeliveryResult.SubmittedUnconfirmed());
     }
 

@@ -4,6 +4,8 @@ using PamAutomation.Core.Outlook;
 using PamAutomation.Outlook;
 using PamAutomation.Outlook.Interop;
 using System.Runtime.InteropServices;
+using Microsoft.Extensions.Logging;
+using PamAutomation.Core.Interfaces.Authentication;
 
 namespace PamAutomation.Tests.Outlook;
 
@@ -297,6 +299,125 @@ public sealed class OutlookClassicClientTests
 
     private static IOutlookClassicClient CreateClient(OutlookHarness harness) => new OutlookClassicClient(harness, new InlineStaExecutor());
 
+    [TestMethod]
+    [DataRow(false, true)]
+    [DataRow(true, false)]
+    public async Task ObserveDeliveryAsync_UsesRequestedFolderScope(bool includeUnsentFolders, bool expectedSentOnly)
+    {
+        var harness = new OutlookHarness("sender@example.test");
+        var client = CreateClient(harness);
+
+        await client.ObserveDeliveryAsync("sender@example.test", "Subject", ["20", "10"], includeUnsentFolders);
+
+        Assert.AreEqual(expectedSentOnly, harness.LastSentOnly);
+        Assert.AreEqual("10,20", harness.LastFingerprint);
+        Assert.IsTrue(harness.ApplicationDisposed);
+        Assert.IsEmpty(harness.Messages);
+    }
+
+    [TestMethod]
+    [DataRow(unchecked((int)0x80040114), true)]
+    [DataRow(unchecked((int)0x80010001), true)]
+    [DataRow(unchecked((int)0x8001010A), true)]
+    [DataRow(unchecked((int)0x80070005), false)]
+    [DataRow(unchecked((int)0x80040154), false)]
+    public async Task ObserveDeliveryAsync_OnlyRecognizedComFailuresAreTransient(int hresult, bool transient)
+    {
+        var harness = new OutlookHarness("sender@example.test")
+        {
+            LookupFailure = new OutlookMessageLookupException("Sent", "ReadSubject", 1, 1, new COMException("Synthetic.", hresult))
+        };
+        var client = CreateClient(harness);
+
+        var error = await Assert.ThrowsExactlyAsync<OutlookOperationException>(() =>
+            client.ObserveDeliveryAsync("sender@example.test", "Subject", ["10"], false));
+
+        Assert.AreEqual(OutlookOperationErrorCode.DeliveryObservationFailed, error.ErrorCode);
+        Assert.AreEqual(transient, error.IsTransient);
+        Assert.IsTrue(harness.ApplicationDisposed);
+    }
+
+    [TestMethod]
+    public async Task FindExistingAsync_UnreadableMessage_BlocksInsteadOfReturningAbsent()
+    {
+        var harness = new OutlookHarness("sender@example.test")
+        {
+            LookupFailure = new COMException("Synthetic.", unchecked((int)0x80040114))
+        };
+        var client = CreateClient(harness);
+
+        var error = await Assert.ThrowsExactlyAsync<OutlookOperationException>(() =>
+            client.FindExistingAsync("sender@example.test", "Subject", ["10"]));
+
+        Assert.AreEqual(OutlookOperationErrorCode.DuplicateCheckFailed, error.ErrorCode);
+        Assert.IsFalse(error.IsTransient);
+        Assert.IsFalse(harness.LastSentOnly);
+        Assert.IsEmpty(harness.Messages);
+    }
+
+    [TestMethod]
+    public async Task SendThenObserve_LockedMessageRecovers_LogsOneWarningAndNeverResends()
+    {
+        var harness = new OutlookHarness("sender@example.test") { ExistingStatus = OutlookExistingMessageStatus.Sent };
+        harness.LookupFailures.Enqueue(new OutlookMessageLookupException(
+            "Sent", "ReadUserProperties", 1, 1, new COMException("Synthetic lock.", unchecked((int)0x80040114))));
+        var logger = new RecordingLogger();
+        var client = new OutlookClassicClient(harness, new InlineStaExecutor(), logger);
+        var confirmation = new OutlookDeliveryConfirmationService(client, new ImmediateDelay(), logger);
+        var request = ValidRequest();
+
+        OutlookDeliveryResult submitted = await client.SendAsync(request);
+        OutlookDeliveryResult result = await confirmation.WaitForConfirmationAsync(
+            request.SmtpAddress, request.Subject, request.ExpectedRequestIds, submitted);
+
+        Assert.AreEqual(OutlookDeliveryStatus.SentConfirmed, result.Status);
+        Assert.AreEqual(1, harness.Messages.Count);
+        Assert.AreEqual(1, harness.Messages[0].SendCalls);
+        Assert.AreEqual(1, logger.Events.Count(item => item.Level == LogLevel.Warning));
+        Assert.AreEqual(0, logger.Events.Count(item => item.Level == LogLevel.Error));
+        Assert.IsTrue(logger.Events.Any(item => item.Message.Contains("Operation=ReadUserProperties", StringComparison.Ordinal)
+            && item.Message.Contains("HResult=0x80040114", StringComparison.Ordinal)));
+        Assert.IsTrue(logger.Events.Any(item => item.Message.Contains("TransientFailures=1", StringComparison.Ordinal)));
+        Assert.IsTrue(harness.LastSentOnly);
+    }
+
+    [TestMethod]
+    public async Task SendThenObserve_PermanentFailure_LogsOneErrorAndPreservesAcceptedSend()
+    {
+        var harness = new OutlookHarness("sender@example.test")
+        {
+            LookupFailure = new COMException("Synthetic denial.", unchecked((int)0x80070005))
+        };
+        var logger = new RecordingLogger();
+        var client = new OutlookClassicClient(harness, new InlineStaExecutor(), logger);
+        var confirmation = new OutlookDeliveryConfirmationService(client, new ImmediateDelay(), logger);
+        var request = ValidRequest();
+
+        OutlookDeliveryResult submitted = await client.SendAsync(request);
+        OutlookDeliveryResult result = await confirmation.WaitForConfirmationAsync(
+            request.SmtpAddress, request.Subject, request.ExpectedRequestIds, submitted);
+
+        Assert.AreEqual(OutlookDeliveryStatus.SubmittedUnconfirmed, result.Status);
+        Assert.AreEqual(2, harness.CreateCalls); // One send and one observation; no retry for permanent failures.
+        Assert.AreEqual(1, harness.Messages[0].SendCalls);
+        Assert.AreEqual(1, logger.Events.Count(item => item.Level == LogLevel.Error));
+        Assert.AreEqual(0, logger.Events.Count(item => item.Level == LogLevel.Warning));
+    }
+
+    private sealed class ImmediateDelay : IAsyncDelay
+    {
+        public Task DelayAsync(TimeSpan delay, CancellationToken cancellationToken) => Task.CompletedTask;
+    }
+
+    private sealed class RecordingLogger : ILogger<OutlookClassicClient>
+    {
+        public List<(LogLevel Level, string Message)> Events { get; } = [];
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
+            Events.Add((logLevel, formatter(state, exception)));
+    }
+
     private static OutlookSendRequest ValidRequest() => new(
         "sender@example.test",
         "PAM results",
@@ -349,11 +470,17 @@ public sealed class OutlookClassicClientTests
             Messages.Add(item);
             return item;
         }
-        public OutlookExistingMessageStatus FindExistingMessage(string smtpAddress, string subject, string requestFingerprint)
+        public OutlookExistingMessageStatus FindExistingMessage(string smtpAddress, string subject, string requestFingerprint, bool sentOnly = false)
         {
+            LastSentOnly = sentOnly;
+            if (LookupFailures.Count > 0 && LookupFailures.Dequeue() is Exception transient) throw transient;
+            if (LookupFailure is not null) throw LookupFailure;
             LastFingerprint = requestFingerprint;
             return ExistingStatus;
         }
+        public bool LastSentOnly { get; private set; }
+        public Exception? LookupFailure { get; init; }
+        public Queue<Exception?> LookupFailures { get; } = new();
         public void Dispose() => ApplicationDisposed = true;
     }
 

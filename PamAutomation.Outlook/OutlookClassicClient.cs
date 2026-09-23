@@ -2,6 +2,8 @@ using PamAutomation.Core.Interfaces.Outlook;
 using PamAutomation.Core.Outlook;
 using PamAutomation.Outlook.Interop;
 using System.Runtime.ExceptionServices;
+using System.Diagnostics;
+using System.Runtime.InteropServices;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -137,34 +139,80 @@ public sealed class OutlookClassicClient : IOutlookClassicClient
         }
     }
 
-    public async Task<OutlookExistingMessageStatus> FindExistingAsync(
+    /// <inheritdoc />
+    public Task<OutlookExistingMessageStatus> FindExistingAsync(
         string smtpAddress,
         string subject,
         IReadOnlyList<string> requestIds,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default) =>
+        LookupMessageAsync(smtpAddress, subject, requestIds, false, false, cancellationToken);
+
+    /// <inheritdoc />
+    public Task<OutlookExistingMessageStatus> ObserveDeliveryAsync(
+        string smtpAddress,
+        string subject,
+        IReadOnlyList<string> requestIds,
+        bool includeUnsentFolders,
+        CancellationToken cancellationToken = default) =>
+        LookupMessageAsync(smtpAddress, subject, requestIds, true, !includeUnsentFolders, cancellationToken);
+
+    private async Task<OutlookExistingMessageStatus> LookupMessageAsync(
+        string smtpAddress, string subject, IReadOnlyList<string> requestIds,
+        bool postSend, bool sentOnly, CancellationToken cancellationToken)
     {
         OutlookMessageValidator.ValidateSmtpAddress(smtpAddress);
         if (string.IsNullOrWhiteSpace(subject))
             throw new OutlookValidationException(OutlookValidationErrorCode.MissingSubject);
         string fingerprint = CreateFingerprint(requestIds);
-        logger.LogInformation("Outlook duplicate-message lookup started. RequestIdCount={RequestIdCount}.", requestIds.Count);
+        string purpose = postSend ? "DeliveryObservation" : "DuplicateCheck";
+        Stopwatch stopwatch = Stopwatch.StartNew();
+        logger.LogInformation(
+            "Outlook message lookup started. Purpose={Purpose}, SentOnly={SentOnly}, RequestIdCount={RequestIdCount}.",
+            purpose, sentOnly, requestIds.Count);
         try
         {
             OutlookExistingMessageStatus status = await staExecutor.ExecuteAsync(() =>
             {
                 using IOutlookComApplication application = applicationFactory.Create();
-                return application.FindExistingMessage(smtpAddress, subject, fingerprint);
+                return application.FindExistingMessage(smtpAddress, subject, fingerprint, sentOnly);
             }, cancellationToken).ConfigureAwait(false);
-            logger.LogInformation("Outlook duplicate-message lookup completed. Status={Status}.", status);
+            logger.LogInformation(
+                "Outlook message lookup completed. Purpose={Purpose}, Status={Status}, DurationMs={DurationMs}.",
+                purpose, status, stopwatch.ElapsedMilliseconds);
             return status;
         }
         catch (OperationCanceledException) { throw; }
         catch (OutlookValidationException) { throw; }
         catch (Exception exception)
         {
-            logger.LogError(exception, "Outlook duplicate-message lookup failed.");
-            throw new OutlookOperationException(OutlookOperationErrorCode.DuplicateCheckFailed, exception);
+            if (exception is OutlookMessageLookupException lookup)
+            {
+                logger.LogInformation(
+                    "Outlook message lookup incomplete. Purpose={Purpose}, Folder={Folder}, Operation={Operation}, CandidateCount={CandidateCount}, CandidateIndex={CandidateIndex}, HResult={HResult}, DurationMs={DurationMs}.",
+                    purpose, lookup.Folder, lookup.Operation, lookup.CandidateCount, lookup.CandidateIndex,
+                    $"0x{lookup.HResult:X8}", stopwatch.ElapsedMilliseconds);
+            }
+            // The confirmation service owns post-send warnings/errors to avoid logging one failure twice.
+            if (!postSend) logger.LogError(exception, "Outlook duplicate-message lookup failed.");
+            throw new OutlookOperationException(
+                postSend ? OutlookOperationErrorCode.DeliveryObservationFailed : OutlookOperationErrorCode.DuplicateCheckFailed,
+                exception, postSend && IsTransientLookupFailure(exception));
         }
+    }
+
+    private static bool IsTransientLookupFailure(Exception exception)
+    {
+        for (Exception? cause = exception; cause is not null; cause = cause.InnerException)
+        {
+            if (cause is COMException)
+            {
+                // Retry reads only: Outlook is busy or the submitted message is temporarily locked.
+                return cause.HResult is unchecked((int)0x80010001) // RPC_E_CALL_REJECTED
+                    or unchecked((int)0x8001010A) // RPC_E_SERVERCALL_RETRYLATER
+                    or unchecked((int)0x80040114); // MAPI_E_UNABLE_TO_ABORT (observed during lookup)
+            }
+        }
+        return false;
     }
 
     /// <inheritdoc />

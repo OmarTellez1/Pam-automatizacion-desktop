@@ -13,7 +13,8 @@ internal interface IOutlookComApplication : IDisposable
 
     IOutlookComMailItem CreateMailItem();
 
-    OutlookExistingMessageStatus FindExistingMessage(string smtpAddress, string subject, string requestFingerprint);
+    OutlookExistingMessageStatus FindExistingMessage(
+        string smtpAddress, string subject, string requestFingerprint, bool sentOnly = false);
 }
 
 internal interface IOutlookComAccount : IDisposable

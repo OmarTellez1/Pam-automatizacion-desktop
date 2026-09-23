@@ -79,6 +79,40 @@ public sealed class PamAutomationExecutionServiceEmailTests
             outlookConfirmationDelay: unused);
     }
 
+    [TestMethod]
+    public async Task DuplicateLookupFailure_BlocksBeforeSend()
+    {
+        var outlook = new RecordingOutlookClient
+        {
+            DuplicateLookupFailure = new OutlookOperationException(
+                OutlookOperationErrorCode.DuplicateCheckFailed, new InvalidOperationException("Unreadable message."))
+        };
+        var service = CreateService(outlook);
+
+        await Assert.ThrowsExactlyAsync<OutlookOperationException>(() =>
+            service.SendResultEmailAsync(CreateMailSettings(), ["7001"], isTest: false));
+
+        Assert.AreEqual(0, outlook.SendCount);
+    }
+
+    [TestMethod]
+    public async Task AcceptedSendWithObservationFailure_RemainsProtectedAgainstRepeatedSend()
+    {
+        var outlook = new RecordingOutlookClient
+        {
+            ObservationFailure = new OutlookOperationException(
+                OutlookOperationErrorCode.DeliveryObservationFailed, new InvalidOperationException("Permanent failure."))
+        };
+        var service = CreateService(outlook);
+
+        var first = await service.SendResultEmailAsync(CreateMailSettings(), ["7001"], isTest: false);
+        var repeated = await service.SendResultEmailAsync(CreateMailSettings(), ["7001"], isTest: false);
+
+        Assert.AreEqual(OutlookDeliveryStatus.SubmittedUnconfirmed, first.Status);
+        Assert.AreEqual(OutlookDeliveryStatus.DuplicateInMemory, repeated.Status);
+        Assert.AreEqual(1, outlook.SendCount);
+    }
+
     private static MailSettings CreateMailSettings() => new()
     {
         SmtpAddress = "sender@example.test",
@@ -91,6 +125,15 @@ public sealed class PamAutomationExecutionServiceEmailTests
     {
         public int LookupCount { get; private set; }
         public int SendCount { get; private set; }
+        public Exception? DuplicateLookupFailure { get; init; }
+        public Exception? ObservationFailure { get; init; }
+
+        public Task<OutlookExistingMessageStatus> ObserveDeliveryAsync(
+            string smtpAddress, string subject, IReadOnlyList<string> requestIds, bool includeUnsentFolders,
+            CancellationToken cancellationToken = default) =>
+            ObservationFailure is null
+                ? FindExistingAsync(smtpAddress, subject, requestIds, cancellationToken)
+                : Task.FromException<OutlookExistingMessageStatus>(ObservationFailure);
 
         public Task<OutlookExistingMessageStatus> FindExistingAsync(
             string smtpAddress,
@@ -100,6 +143,7 @@ public sealed class PamAutomationExecutionServiceEmailTests
         {
             cancellationToken.ThrowIfCancellationRequested();
             LookupCount++;
+            if (DuplicateLookupFailure is not null) throw DuplicateLookupFailure;
             return Task.FromResult(
                 SendCount == 0 ? OutlookExistingMessageStatus.None : OutlookExistingMessageStatus.Sent);
         }

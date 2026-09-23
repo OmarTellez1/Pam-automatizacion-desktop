@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using PamAutomation.Core.Interfaces.Authentication;
 using PamAutomation.Core.Interfaces.Outlook;
 using PamAutomation.Core.Resilience;
+using System.Diagnostics;
 
 namespace PamAutomation.Core.Outlook;
 
@@ -58,40 +59,55 @@ public sealed class OutlookDeliveryConfirmationService
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(submitted);
-        OutlookExistingMessageStatus lastStatus = OutlookExistingMessageStatus.None;
+        Stopwatch stopwatch = Stopwatch.StartNew();
+        int transientFailures = 0;
 
         for (int attempt = 1; attempt <= maximumAttempts; attempt++)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+            bool includeUnsentFolders = attempt == maximumAttempts;
             try
             {
-                lastStatus = await outlookClient
-                    .FindExistingAsync(smtpAddress, subject, requestIds, cancellationToken)
+                OutlookExistingMessageStatus status = await outlookClient
+                    .ObserveDeliveryAsync(smtpAddress, subject, requestIds, includeUnsentFolders, cancellationToken)
                     .ConfigureAwait(false);
                 logger.LogInformation(
-                    "Outlook post-send observation completed. Attempt={Attempt}, MaximumAttempts={MaximumAttempts}, Status={Status}.",
+                    "Outlook post-send observation completed. Attempt={Attempt}, MaximumAttempts={MaximumAttempts}, Status={Status}, IncludeUnsentFolders={IncludeUnsentFolders}, TransientFailures={TransientFailures}, DurationMs={DurationMs}.",
                     attempt,
                     maximumAttempts,
-                    lastStatus);
+                    status, includeUnsentFolders, transientFailures, stopwatch.ElapsedMilliseconds);
 
-                switch (lastStatus)
+                switch (status)
                 {
                     case OutlookExistingMessageStatus.Sent:
                         return OutlookDeliveryResult.SentConfirmed();
-                    case OutlookExistingMessageStatus.Draft:
+                    case OutlookExistingMessageStatus.Draft when includeUnsentFolders:
                         return OutlookDeliveryResult.DraftedNotSent();
+                    case OutlookExistingMessageStatus.Outbox when includeUnsentFolders:
+                        return OutlookDeliveryResult.OutboxPending();
                 }
             }
             catch (OperationCanceledException)
             {
                 throw;
             }
-            catch (OutlookOperationException exception)
+            catch (OutlookOperationException exception) when (exception.IsTransient && attempt < maximumAttempts)
             {
+                transientFailures++;
                 logger.LogWarning(
                     exception,
-                    "Outlook post-send observation failed transiently. Attempt={Attempt}, MaximumAttempts={MaximumAttempts}.",
+                    "Outlook post-send observation will be retried. Attempt={Attempt}, MaximumAttempts={MaximumAttempts}, DurationMs={DurationMs}.",
                     attempt,
-                    maximumAttempts);
+                    maximumAttempts, stopwatch.ElapsedMilliseconds);
+            }
+            catch (OutlookOperationException exception)
+            {
+                logger.LogError(
+                    exception,
+                    "Outlook post-send observation stopped without confirmation. Attempt={Attempt}, MaximumAttempts={MaximumAttempts}, IsTransient={IsTransient}, DurationMs={DurationMs}.",
+                    attempt, maximumAttempts, exception.IsTransient, stopwatch.ElapsedMilliseconds);
+                // Send has already been attempted. Preserve that fact and never initiate another send.
+                return UnconfirmedResult(submitted);
             }
 
             if (attempt < maximumAttempts)
@@ -100,10 +116,14 @@ public sealed class OutlookDeliveryConfirmationService
             }
         }
 
-        return lastStatus == OutlookExistingMessageStatus.Outbox
-            ? OutlookDeliveryResult.OutboxPending()
-            : submitted.Status == OutlookDeliveryStatus.SubmittedUnconfirmed
-                ? submitted
-                : OutlookDeliveryResult.NotConfirmed();
+        logger.LogWarning(
+            "Outlook confirmation window ended without locating the message. MaximumAttempts={MaximumAttempts}, DurationMs={DurationMs}.",
+            maximumAttempts, stopwatch.ElapsedMilliseconds);
+        return UnconfirmedResult(submitted);
     }
+
+    private static OutlookDeliveryResult UnconfirmedResult(OutlookDeliveryResult submitted) =>
+        submitted.Status == OutlookDeliveryStatus.SubmittedUnconfirmed
+            ? submitted
+            : OutlookDeliveryResult.NotConfirmed();
 }

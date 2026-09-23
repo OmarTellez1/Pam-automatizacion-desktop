@@ -252,7 +252,8 @@ internal sealed class OutlookComApplication : IOutlookComApplication
     public OutlookExistingMessageStatus FindExistingMessage(
         string smtpAddress,
         string subject,
-        string requestFingerprint)
+        string requestFingerprint,
+        bool sentOnly = false)
     {
         object session = ((dynamic)GetApplication()).Session;
         object? store = null;
@@ -261,6 +262,7 @@ internal sealed class OutlookComApplication : IOutlookComApplication
             store = ResolveDeliveryStore(session, smtpAddress);
             if (FolderContains(store, OutlookComConstants.FolderSentMail, subject, requestFingerprint))
                 return OutlookExistingMessageStatus.Sent;
+            if (sentOnly) return OutlookExistingMessageStatus.None;
             if (FolderContains(store, OutlookComConstants.FolderOutbox, subject, requestFingerprint))
                 return OutlookExistingMessageStatus.Outbox;
             if (FolderContains(store, OutlookComConstants.FolderDrafts, subject, requestFingerprint))
@@ -331,31 +333,58 @@ internal sealed class OutlookComApplication : IOutlookComApplication
     {
         object? folder = null;
         object? items = null;
+        object? candidates = null;
+        string folderName = folderKind switch
+        {
+            OutlookComConstants.FolderSentMail => "Sent",
+            OutlookComConstants.FolderOutbox => "Outbox",
+            OutlookComConstants.FolderDrafts => "Drafts",
+            _ => "Unknown"
+        };
+        string operation = "GetDefaultFolder";
+        int? candidateCount = null;
+        int candidateIndex = 0;
         try
         {
             folder = ((dynamic)store).GetDefaultFolder(folderKind);
+            operation = "GetItems";
             items = ((dynamic)folder).Items;
-            int count = Convert.ToInt32(((dynamic)items).Count, CultureInfo.InvariantCulture);
+            operation = "RestrictSubject";
+            // Filter a standard property only: the custom fingerprint need not exist in every folder.
+            // DASL text literals escape apostrophes by doubling them; no subject enters the logs.
+            string filter = "@SQL=\"http://schemas.microsoft.com/mapi/proptag/0x0037001f\" = '" +
+                subject.Replace("'", "''", StringComparison.Ordinal) + "'";
+            candidates = ((dynamic)items).Restrict(filter);
+            operation = "GetCandidateCount";
+            int count = Convert.ToInt32(((dynamic)candidates).Count, CultureInfo.InvariantCulture);
+            candidateCount = count;
             for (int index = 1; index <= count; index++)
             {
+                candidateIndex = index;
                 object? candidate = null;
                 object? properties = null;
                 object? fingerprint = null;
                 try
                 {
-                    candidate = ((dynamic)items).Item(index);
+                    operation = "GetCandidate";
+                    candidate = ((dynamic)candidates).Item(index);
+                    operation = "ReadMessageClass";
                     string messageClass = Convert.ToString(
                         ((dynamic)candidate).MessageClass, CultureInfo.InvariantCulture) ?? string.Empty;
+                    if (!messageClass.StartsWith("IPM.Note", StringComparison.OrdinalIgnoreCase)) continue;
+                    operation = "ReadSubject";
                     string candidateSubject = Convert.ToString(
                         ((dynamic)candidate).Subject, CultureInfo.InvariantCulture) ?? string.Empty;
-                    if (!messageClass.StartsWith("IPM.Note", StringComparison.OrdinalIgnoreCase) ||
-                        !string.Equals(candidateSubject, subject, StringComparison.Ordinal))
+                    if (!string.Equals(candidateSubject, subject, StringComparison.Ordinal))
                     {
                         continue;
                     }
 
+                    operation = "ReadUserProperties";
                     properties = ((dynamic)candidate).UserProperties;
+                    operation = "FindRequestFingerprint";
                     fingerprint = ((dynamic)properties).Find(RequestFingerprintProperty, true);
+                    operation = "ReadRequestFingerprint";
                     string? fingerprintValue = fingerprint is null
                         ? null
                         : Convert.ToString(((dynamic)fingerprint).Value, CultureInfo.InvariantCulture);
@@ -376,8 +405,14 @@ internal sealed class OutlookComApplication : IOutlookComApplication
 
             return false;
         }
+        catch (Exception exception)
+        {
+            // An unreadable candidate is not evidence that a matching message is absent.
+            throw new OutlookMessageLookupException(folderName, operation, candidateCount, candidateIndex, exception);
+        }
         finally
         {
+            ComReference.Release(candidates);
             ComReference.Release(items);
             ComReference.Release(folder);
         }

@@ -514,6 +514,14 @@ Browser interpreta rango y total, exige un total conocido, valida filas y pagina
 
 Las regresiones cubren 18 IDs antiguos y 12 nuevos durante la transición 25→30, selector ausente durante carga, contador desconocido, botón siguiente deshabilitado, dos páginas de 25+5 y paginación de 200+50. La integración autorizada y visible de solo lectura recuperó las 30 filas de PAM tres veces consecutivas en 6,1, 6,1 y 9,0 segundos. **Implementación y lectura real verificadas; la aceptación con creación de un lote nuevo queda para la siguiente ejecución operativa del usuario.** No se crearon solicitudes ni correos durante pruebas.
 
+### Ajuste posterior a la fase 25 — Observación de Outlook después del envío
+
+El diagnóstico operativo `pam-automation-diagnostic-20260922-190046` confirmó seis ejecuciones completas con recuperación rápida de IDs y nueve incidentes de lectura COM posteriores al envío, registrados por duplicado como ERROR y WARNING. El código reutilizaba la búsqueda de duplicados para abrir Enviados, Bandeja de salida y Borradores durante cada observación.
+
+Se separó `ObserveDeliveryAsync`: las primeras observaciones leen solo Enviados y la última consulta también las carpetas de mensajes no enviados. El adaptador filtra por asunto estándar antes de abrir mensajes, comprueba clase y coincidencias exactas, y conserva los fallos como estado inconcluso. Solo los códigos COM reconocidos permiten reintentar lecturas; no se repite `Send()`. El diagnóstico identifica carpeta, operación, HRESULT, candidatos, intentos y duración sin contenido privado, con una sola advertencia por incidente recuperable.
+
+La compilación Release x64 y 77 pruebas focalizadas aprobaron, incluidos bloqueo previo por lectura incompleta, recuperación, errores permanentes, filtros escapados, diagnóstico y conservación de la protección contra reenvíos. No se abrió Outlook ni se enviaron correos. **Implementación y pruebas locales completadas; validación con el Outlook real pendiente de la siguiente ejecución operativa del usuario.** La advertencia MSTEST0032 y el fallo heredado de texto del diálogo de Pending permanecen sin cambios.
+
 ## Fases pendientes
 
 La corrección de integridad de Pending cuenta con compilación Release x64, 96 pruebas focalizadas aprobadas y una publicación local autocontenida en `artifacts/publish/pending-recovery-20260922`. La aceptación pendiente con un lote nuevo no autoriza a las pruebas automatizadas a crear solicitudes.
