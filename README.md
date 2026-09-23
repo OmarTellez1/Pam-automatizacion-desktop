@@ -213,7 +213,9 @@ El diagnóstico añade duración por lectura y, ante fallos, operación, página
 
 ## Próximo paso
 
-La copia local incorpora también la mejora de observación de Outlook: `artifacts/publish/outlook-observation-20260922/PAM Automation.exe`, Windows x64 autocontenida con `InformationalVersion=1.0.2-outlook-observation.20260922`. Debe conservarse la carpeta completa con sus dependencias. No se publica un release externo ni se modifica la versión estable del proyecto.
+La copia local más reciente está en `artifacts/publish/pending-empty-20260922/PAM Automation.exe`, Windows x64 autocontenida con `InformationalVersion=1.0.2-pending-empty.20260922`. Incluye las mejoras anteriores de Pending y Outlook. Debe conservarse la carpeta completa con sus dependencias. No se publica un release externo ni se modifica la versión estable del proyecto.
+
+Pending vacío ya no intenta cambiar el tamaño de página: omite ese control únicamente después de confirmar total cero, cero filas y una vista estable, y vuelve a validar durante el escaneo. El contador desconocido y la carga en curso siguen sin aceptarse como vacíos. La compilación Release x64 y 66 pruebas focalizadas aprobaron; la integración autorizada con Edge visible leyó Pending vacío tres veces en 4,27, 4,05 y 4,13 segundos. No se crearon ni modificaron solicitudes ni se utilizó Outlook durante esta validación.
 
 Outlook filtra candidatos por asunto y valida sus Request ID exactos. Después del envío consulta Enviados; Bandeja de salida y Borradores se inspeccionan solo al final de la ventana si todavía falta confirmar. Los fallos de lectura reconocidos se recuperan sin repetir `Send()` y sin duplicar `ERROR`/`WARNING` por el mismo incidente. Los errores permanentes detienen la observación y conservan el estado de envío aceptado pero no confirmado.
 

@@ -111,7 +111,10 @@ internal sealed partial class PlaywrightManagedPage
         // Wait for the filtered table before inspecting controls; they can be replaced during load.
         ILocator pageInput = page.Locator(PamPendingSelectors.PageInput);
         ILocator rows = page.Locator(PamPendingSelectors.Rows);
-        await ReadStablePendingViewAsync(rows, pageInput, null, cancellationToken).ConfigureAwait(false);
+        PendingView view = await ReadStablePendingViewAsync(rows, pageInput, null, cancellationToken).ConfigureAwait(false);
+        // Empty Pending can retain a disabled or incomplete page-size control. A stable zero
+        // needs no resize; the normal scan below still revalidates the rows and total.
+        if (view.Position.Items.Total == 0) return null;
         ILocator labels = page.GetByText(PamPendingSelectors.ItemsPerPageExpression());
         ILocator? visibleLabel = null;
         int labelCount = await labels.CountAsync().WaitAsync(cancellationToken).ConfigureAwait(false);

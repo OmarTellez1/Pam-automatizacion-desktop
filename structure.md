@@ -909,6 +909,10 @@ No se añaden proyectos, paquetes NuGet ni dependencias entre capas.
 
 No se añaden dependencias NuGet ni proyectos.
 
+## Pending vacío (22 de septiembre de 2026)
+
+La corrección posterior de Pending vacío conserva esta estructura: `PlaywrightManagedPage.Pending.cs` utiliza el resultado estable inicial para omitir el ajuste de tamaño únicamente con total cero; el escaneo posterior revalida la vista. `PamPendingGridTransitionTests.cs` añade casos de tabla vacía con selector deshabilitado, ausente o habilitado, sin paginador, cero temporal durante carga y cero incoherente/desconocido. Son pruebas del lector completo con Edge visible y respuestas locales, sin crear solicitudes. No introduce módulos ni dependencias.
+
 ## Observación de Outlook después del envío (22 de septiembre de 2026)
 
 - `PamAutomation.Core/Interfaces/Outlook/IOutlookClassicClient.cs`: separa la consulta previa de duplicados de `ObserveDeliveryAsync`, con ampliación opcional a carpetas no enviadas en la última observación.

@@ -522,6 +522,14 @@ Se separó `ObserveDeliveryAsync`: las primeras observaciones leen solo Enviados
 
 La compilación Release x64 y 77 pruebas focalizadas aprobaron, incluidos bloqueo previo por lectura incompleta, recuperación, errores permanentes, filtros escapados, diagnóstico y conservación de la protección contra reenvíos. No se abrió Outlook ni se enviaron correos. **Implementación y pruebas locales completadas; validación con el Outlook real pendiente de la siguiente ejecución operativa del usuario.** La advertencia MSTEST0032 y el fallo heredado de texto del diálogo de Pending permanecen sin cambios.
 
+### Ajuste posterior a la fase 25 — Pending vacío
+
+El diagnóstico `pam-automation-diagnostic-20260922-223600` mostró cuatro lecturas con `totalItems=0`, `rowsRead=0` y fallo en `SelectPageSize`, antes de crear solicitudes. El lector ya reconocía cero, pero intentaba accionar el selector de tamaño después de comprobarlo. Ahora conserva la vista estable inicial y omite ese control cuando el total es cero; el escaneo normal sigue comprobando las filas y el total antes de devolver una línea base vacía.
+
+La regresión reprodujo tres fallos con el código anterior. Con la corrección aprobaron las 21 pruebas del lector (incluidas siete nuevas variantes y la paginación existente) y las 45 de `PamPendingService`, 66 en total. Las pruebas de navegador usaron Edge visible con respuestas locales. Se conserva la distinción entre tabla vacía, carga en curso y contador desconocido o incoherente. La creación de solicitudes y el envío de correo permanecen fuera de las pruebas.
+
+La integración real autorizada leyó Pending vacío tres veces consecutivas en 4265, 4047 y 4125 ms, sin crear ni modificar solicitudes y sin Outlook. Se publicó la copia local autocontenida `artifacts/publish/pending-empty-20260922`, identificada por `1.0.2-pending-empty.20260922`. **Corrección implementada y validada en el portal real con Pending vacío.**
+
 ## Fases pendientes
 
 La corrección de integridad de Pending cuenta con compilación Release x64, 96 pruebas focalizadas aprobadas y una publicación local autocontenida en `artifacts/publish/pending-recovery-20260922`. La aceptación pendiente con un lote nuevo no autoriza a las pruebas automatizadas a crear solicitudes.

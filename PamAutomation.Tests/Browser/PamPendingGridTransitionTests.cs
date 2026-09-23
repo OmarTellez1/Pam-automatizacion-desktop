@@ -132,6 +132,119 @@ public sealed class PamPendingGridTransitionTests
 
     [TestMethod]
     [TestCategory("ExplicitLocalBrowser")]
+    [DataRow("disabled")]
+    [DataRow("missing")]
+    [DataRow("enabled")]
+    [DataRow("no-paginator")]
+    [Timeout(30_000)]
+    public async Task ReadAllAsync_EmptyPending_DoesNotUsePageSizeControls(string controls)
+    {
+        if (!LocalBrowserEnabled()) Assert.Inconclusive("Requires explicit local browser opt-in.");
+        using IPlaywright playwright = await Playwright.CreateAsync();
+        await using IBrowser browser = await playwright.Chromium.LaunchAsync(new() { Channel = "msedge", Headless = false });
+        IPage page = await browser.NewPageAsync();
+        int unexpectedNavigations = 0;
+        await page.RouteAsync("**/*", async route =>
+        {
+            string path = new Uri(route.Request.Url).AbsolutePath;
+            if (path == "/fixture/size-must-not-be-used") unexpectedNavigations++;
+            await route.FulfillAsync(new()
+            {
+                ContentType = "text/html",
+                Body = path == "/fixture/pending"
+                    ? EmptyGrid(controls)
+                    : Grid(0, 0, 1, 1, null, statusOption: true),
+            });
+        });
+
+        IReadOnlyList<PamPendingRequest> result = await new PlaywrightManagedPage(page)
+            .ReadAllPendingAsync(null, TestContext.CancellationToken);
+
+        Assert.IsEmpty(result);
+        Assert.AreEqual(0, unexpectedNavigations);
+    }
+
+    [TestMethod]
+    [TestCategory("ExplicitLocalBrowser")]
+    [Timeout(30_000)]
+    public async Task ReadAllAsync_ZeroWhileLoading_WaitsForStableRows()
+    {
+        if (!LocalBrowserEnabled()) Assert.Inconclusive("Requires explicit local browser opt-in.");
+        using IPlaywright playwright = await Playwright.CreateAsync();
+        await using IBrowser browser = await playwright.Chromium.LaunchAsync(new() { Channel = "msedge", Headless = false });
+        IPage page = await browser.NewPageAsync();
+        await page.RouteAsync("**/*", route => route.FulfillAsync(new()
+        {
+            ContentType = "text/html",
+            Body = new Uri(route.Request.Url).AbsolutePath == "/fixture/pending"
+                ? EmptyGrid("disabled").Replace("<button aria-label='Status'", "<button disabled aria-label='Status'")
+                : Grid(0, 0, 1, 1, null, statusOption: true),
+        }));
+        Task loading = CompleteEmptyLoadingAsync(page);
+        IReadOnlyList<PamPendingRequest> result;
+        try
+        {
+            result = await new PlaywrightManagedPage(page).ReadAllPendingAsync(null, TestContext.CancellationToken);
+        }
+        finally
+        {
+            await loading;
+        }
+
+        Assert.HasCount(2, result);
+        Assert.AreEqual("200001", result[^1].RequestId);
+    }
+
+    private async Task CompleteEmptyLoadingAsync(IPage page)
+    {
+        await page.WaitForURLAsync("**/fixture/pending");
+        await Task.Delay(900, TestContext.CancellationToken);
+        await page.SetContentAsync(Grid(2, 2, 1, 1, null));
+    }
+
+    [TestMethod]
+    [TestCategory("ExplicitLocalBrowser")]
+    [DataRow(false)]
+    [DataRow(true)]
+    [Timeout(30_000)]
+    public async Task ReadAllAsync_EmptyViewWithoutConsistentZero_IsNotAccepted(bool conflictingRow)
+    {
+        if (!LocalBrowserEnabled()) Assert.Inconclusive("Requires explicit local browser opt-in.");
+        using IPlaywright playwright = await Playwright.CreateAsync();
+        await using IBrowser browser = await playwright.Chromium.LaunchAsync(new() { Channel = "msedge", Headless = false });
+        IPage page = await browser.NewPageAsync();
+        string invalidGrid = conflictingRow
+            ? Grid(1, 0, 1, 1, null)
+            : EmptyGrid("disabled").Replace("0-0 of 0 items", "total unavailable");
+        await page.RouteAsync("**/*", route => route.FulfillAsync(new()
+        {
+            ContentType = "text/html",
+            Body = new Uri(route.Request.Url).AbsolutePath == "/fixture/pending"
+                ? invalidGrid : Grid(0, 0, 1, 1, null, statusOption: true),
+        }));
+
+        PamPendingException error = await Assert.ThrowsExactlyAsync<PamPendingException>(() =>
+            new PlaywrightManagedPage(page).ReadAllPendingAsync(null, TestContext.CancellationToken));
+
+        Assert.AreEqual(PamPendingErrorCode.SnapshotUnstable, error.ErrorCode);
+    }
+
+    private static string EmptyGrid(string controls)
+    {
+        string grid = Grid(0, 0, 1, 1, null);
+        if (controls == "no-paginator")
+            return grid.Replace("<input type='number' aria-label='Page 1/1' value='1'>", string.Empty);
+        string selector = controls switch
+        {
+            "disabled" => "<button role='combobox' disabled>25</button>",
+            "enabled" => "<a role='combobox' href='/fixture/size-must-not-be-used'>25</a>",
+            _ => string.Empty,
+        };
+        return grid.Replace("</body>", $"<section><span>items per page</span>{selector}</section></body>");
+    }
+
+    [TestMethod]
+    [TestCategory("ExplicitLocalBrowser")]
     [Timeout(60_000)]
     public async Task ReadAllAsync_MoreThan200Rows_TraversesRemainingPage()
     {
