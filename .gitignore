@@ -12,3 +12,5 @@ img
 .env
 .env.*
 img
+tmp/
+output/

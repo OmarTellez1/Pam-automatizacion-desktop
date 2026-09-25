@@ -2,6 +2,7 @@ using System.IO.Compression;
 using Microsoft.Extensions.Logging;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PamAutomation.Core.Diagnostics;
+using PamAutomation.Core.Requests;
 using PamAutomation.Infrastructure.Diagnostics;
 
 namespace PamAutomation.Tests.Infrastructure.Diagnostics;
@@ -47,6 +48,46 @@ public sealed class DiagnosticExportServiceTests : IDisposable
         Assert.DoesNotContain("8001", allContent);
         Assert.DoesNotContain("password", allContent, StringComparison.OrdinalIgnoreCase);
         Assert.IsFalse(Directory.EnumerateFiles(directory, "*.tmp").Any());
+    }
+
+    [TestMethod]
+    public async Task ExportAsync_FormVerificationFailure_PreservesSafeStructuredDetails()
+    {
+        Directory.CreateDirectory(directory);
+        string destination = Path.Combine(directory, "form-diagnostic.zip");
+        using var loggerFactory = new RuntimeDiagnosticLoggerFactory();
+        ILogger logger = loggerFactory.CreateLogger("PamAutomation.App.ViewModels.MainWindowViewModel");
+        var formFailure = new PamRequestFormVerificationException(
+            PamRequestFormVerificationStage.BeforeSubmit,
+            PamRequestFormMismatchField.StartDate | PamRequestFormMismatchField.Reason,
+            observationCount: 4,
+            readFailureCount: 1,
+            lastReadFailure: PamRequestFormReadFailure.Timeout,
+            expected: new PamRequestFormDiagnosticValues("September 27, 2026", "00:00", "0", "8", "0", 14, "true"),
+            observed: new PamRequestFormDiagnosticValues("September 26, 2026", "00:00", "0", "8", "0", 21, "true"));
+        logger.LogError(
+            new PamRequestSubmissionException(PamRequestSubmissionErrorCode.PortalUnavailable, formFailure),
+            "Application operation failed. ReasonValue={ReasonValue}.",
+            "private reason");
+        var service = new DiagnosticExportService(loggerFactory);
+
+        await service.ExportAsync(
+            destination,
+            new DiagnosticExportContext(true, true, false, null));
+
+        using ZipArchive archive = ZipFile.OpenRead(destination);
+        ZipArchiveEntry? logEntry = archive.GetEntry("diagnostic.log");
+        Assert.IsNotNull(logEntry);
+        string log = ReadEntry(logEntry);
+        Assert.Contains("FormVerificationStage=BeforeSubmit", log);
+        Assert.Contains("FormMismatchFields=StartDate.Reason", log);
+        Assert.Contains("FormReadFailureCount=1", log);
+        Assert.Contains("FormLastReadFailure=Timeout", log);
+        Assert.Contains("FormExpectedStartDate=September 27, 2026", log);
+        Assert.Contains("FormObservedStartDate=September 26, 2026", log);
+        Assert.Contains("FormObservedReasonLength=21", log);
+        Assert.DoesNotContain("private reason", log);
+        Assert.DoesNotContain("ReasonValue=private", log);
     }
 
     [TestMethod]

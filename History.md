@@ -842,3 +842,9 @@ Cada cambio relevante debe registrar qué se decidió, por qué, qué se verific
 - Se actualizó esa prueba y se verifican también la imposibilidad de reutilizar IDs para correo cuando está desactivado y la instrucción de cancelar. No se cambió el diálogo ni se omitieron pruebas fallidas.
 - Restauración win-x64, compilación Release x64 y suite completa aprobadas: 512 casos, 505 correctos, siete omitidos por falta de opt-in del navegador y cero fallos. La advertencia heredada MSTEST0032 no bloquea el proceso.
 - Se ejecutó `dotnet publish` y se empaquetó la salida con la misma estructura portable del script: `artifacts/publish/final/PAM-Automation-1.0.2-win-x64.zip`, 523 archivos y metadatos 1.0.2/1.0.2.0 verificados. Se calculó SHA-256 y se comprobó la presencia del ejecutable y de todos los archivos dentro del ZIP. No se contactó PAM ni Outlook ni se publicó un release externo.
+
+## 25 de septiembre de 2026 — Detalle diagnóstico de verificación del formulario
+
+- Tras un fallo antes de `Submit Request`, el diagnóstico anterior no conservaba qué campo cambió o si la lectura de PAM fue inestable. Se añadió una excepción tipada con etapa, campos discrepantes, número de observaciones, fallos de lectura y último conjunto completo observado.
+- La exportación incluye valores esperados/observados de fecha, hora, duración y `Application Session` cuando cumplen formatos acotados. Del motivo conserva solo longitud y discrepancia; texto inesperado del portal se sustituye por una marca. Contraseñas, TOTP, cookies y tokens siguen excluidos.
+- Compilación `Release | x64` correcta y pruebas focalizadas del registro/exportación aprobadas. No se inició sesión en PAM ni se enviaron solicitudes o correos. La advertencia heredada MSTEST0032 permanece.

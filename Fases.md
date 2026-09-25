@@ -538,6 +538,10 @@ Validación: compilación Release x64, 36 pruebas existentes de `MainWindowViewM
 
 ## Fases pendientes
 
+### Ajuste posterior a la fase 25 — Diagnóstico del formulario de solicitud
+
+La validación previa a `Submit Request` mantiene el bloqueo seguro cuando PAM cambia o no permite leer los valores del formulario. Ahora comunica al diagnóstico la etapa, los campos discrepantes, intentos/fallos de lectura y valores esperados/observados de fecha, hora, duración y `Application Session`. El motivo se representa solo por longitud y discrepancia para evitar registrar secretos introducidos accidentalmente en texto libre. Los valores inesperados del portal se filtran por formato; no se crea ninguna solicitud para producir estas pruebas. Compilación Release x64 y pruebas focalizadas del diagnóstico aprobadas. La comprobación real queda para una ejecución operativa posterior del usuario. **Instrumentación completada.**
+
 La validación ordinaria de publicación quedó desbloqueada al actualizar la prueba del aviso de Pending sin Outlook al texto vigente y verificar que la reutilización permanece deshabilitada. Restauración, compilación, suite completa y publicación pasaron: 505 aprobadas, siete omitidas por opt-in y cero fallos. El ZIP local `artifacts/publish/final/PAM-Automation-1.0.2-win-x64.zip` contiene 523 archivos y sus versiones fueron verificadas. No se alteró el comportamiento de producción ni se publicó un release externo.
 
 La corrección de integridad de Pending cuenta con compilación Release x64, 96 pruebas focalizadas aprobadas y una publicación local autocontenida en `artifacts/publish/pending-recovery-20260922`. La aceptación pendiente con un lote nuevo no autoriza a las pruebas automatizadas a crear solicitudes.

@@ -257,6 +257,7 @@ PamAutomation\
 │   │   ├── PamRequestAccountResult.cs
 │   │   ├── PamRequestConflictCodes.cs
 │   │   ├── PamRequestFormData.cs
+│   │   ├── PamRequestFormVerificationException.cs
 │   │   ├── PamRequestPortalOutcome.cs
 │   │   ├── PamRequestRunAuthorization.cs
 │   │   ├── PamRequestRunResult.cs
@@ -529,7 +530,7 @@ Biblioteca para `net10.0-windows`. Referencia `PamAutomation.Core` e implementa 
 - `PlaywrightManagedPage.Favorites`: navega, estabiliza las filas y lee todas las páginas mediante locators sin seleccionar cuentas.
 - `PamRequestTestPortalFactory` y `PamRequestTestPortal`: enlazan el contrato seguro de formularios con la misma página autenticada.
 - `PamRequestTestSelectors`: centraliza acciones, campos y el endpoint de creación que debe permanecer bloqueado.
-- `PlaywrightManagedPage.RequestTest`: vuelve a validar cada identidad, llena el formulario y espera adaptativamente que todos sus valores se estabilicen antes de comprobarlo; después lo descarta y aborta cualquier intento de envío.
+- `PlaywrightManagedPage.RequestTest`: vuelve a validar cada identidad, llena el formulario y espera adaptativamente que todos sus valores se estabilicen antes de comprobarlo; captura una observación diagnóstica tipada si falla, después lo descarta y aborta cualquier intento de envío.
 - `PamRequestSubmissionPortalFactory` y `PamRequestSubmissionPortal`: exponen el contrato real únicamente sobre una sesión temporal propia de Browser.
 - `PlaywrightManagedPage.RequestSubmission`: reutiliza el llenado validado, vuelve a comprobar el formulario justo antes del clic y espera el `POST` de creación.
 - `PamSubmissionResponseClassifier`: reconoce solo respuestas 2xx y el conflicto de acceso aprobado conocido; rechaza el resto sin propagar payloads.
@@ -579,7 +580,7 @@ Responsabilidad objetivo:
 - Detección de dependencias instaladas cuando corresponda.
 - Diagnóstico acotado en memoria y exportación explícita, sin persistencia operativa automática en producción.
 - `Diagnostics/DevelopmentFileLoggerFactory`: proveedor estructurado activado solo bajo depurador o variable explícita, escribe archivos diarios seguros en `logs` y elimina los que superan dos días.
-- `Diagnostics/RuntimeDiagnosticLoggerFactory`: buffer circular de 500 eventos, lista permitida de propiedades y metadatos de excepción sin mensajes o rutas locales.
+- `Diagnostics/RuntimeDiagnosticLoggerFactory`: buffer circular de 500 eventos, lista permitida de propiedades y metadatos de excepción sin mensajes o rutas locales; extrae valores acotados de fallos tipados del formulario, sin texto libre del motivo ni secretos de autenticación.
 - `Diagnostics/InMemoryPendingReconciliationDiagnosticStore`: conserva defensivamente una sola traza detallada por proceso, incluidos los intentos de recuperación de lectura, y nunca escribe archivos por sí mismo.
 - `Diagnostics/DiagnosticExportService`: paquete ZIP manual con escritura atómica, limpieza de temporales, versión exacta de compilación y `pending-reconciliation.json` opcional.
 

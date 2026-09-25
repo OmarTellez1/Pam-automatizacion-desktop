@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
 using PamAutomation.Core.Diagnostics;
 using PamAutomation.Core.Interfaces.Diagnostics;
+using PamAutomation.Core.Requests;
 
 namespace PamAutomation.Infrastructure.Diagnostics;
 
@@ -17,7 +18,8 @@ public sealed partial class RuntimeDiagnosticLoggerFactory : ILoggerFactory, IDi
     private static readonly HashSet<string> AllowedPropertyNames = new(StringComparer.Ordinal)
     {
         "Mode", "Stage", "Status", "FinalAction", "Complete", "IsComplete", "IsTerminating", "Terminating",
-        "ElapsedMilliseconds"
+        "ElapsedMilliseconds", "FormVerificationStage", "FormFailureKind",
+        "FormMismatchFields", "FormLastReadFailure"
     };
 
     private readonly object gate = new();
@@ -108,6 +110,11 @@ public sealed partial class RuntimeDiagnosticLoggerFactory : ILoggerFactory, IDi
         var exceptionMetadata = new List<DiagnosticExceptionInfo>();
         for (Exception? current = exception; current is not null; current = current.InnerException)
         {
+            if (current is PamRequestFormVerificationException formFailure)
+            {
+                CaptureFormVerification(properties, formFailure);
+            }
+
             string? stackTrace = string.IsNullOrWhiteSpace(current.StackTrace)
                 ? null
                 : new StackTrace(current, false).ToString().Trim();
@@ -130,6 +137,53 @@ public sealed partial class RuntimeDiagnosticLoggerFactory : ILoggerFactory, IDi
             events.Enqueue(diagnosticEvent);
             while (events.Count > capacity) events.Dequeue();
         }
+    }
+
+    private static void CaptureFormVerification(
+        IDictionary<string, string> properties,
+        PamRequestFormVerificationException failure)
+    {
+        string mismatchFields = string.Join(
+            '.',
+            Enum.GetValues<PamRequestFormMismatchField>()
+                .Where(field => field != PamRequestFormMismatchField.None &&
+                    failure.MismatchFields.HasFlag(field)));
+        AddAllowed(properties, "FormVerificationStage", failure.Stage);
+        AddAllowed(properties, "FormFailureKind", mismatchFields.Length == 0 ? "ReadUnstable" : "FieldMismatch");
+        AddAllowed(properties, "FormMismatchFields", mismatchFields.Length == 0 ? "None" : mismatchFields);
+        AddAllowed(properties, "FormObservationCount", failure.ObservationCount);
+        AddAllowed(properties, "FormReadFailureCount", failure.ReadFailureCount);
+        AddAllowed(properties, "FormLastReadFailure", failure.LastReadFailure);
+        CaptureFormValues(properties, "Expected", failure.Expected);
+        if (failure.Observed is not null)
+            CaptureFormValues(properties, "Observed", failure.Observed);
+        else
+            properties["FormObservedState"] = "NoCompleteRead";
+    }
+
+    private static void CaptureFormValues(
+        IDictionary<string, string> properties,
+        string side,
+        PamRequestFormDiagnosticValues values)
+    {
+        properties[$"Form{side}StartDate"] = SafeFormValue(values.StartDate, FormDateRegex());
+        properties[$"Form{side}StartTime"] = SafeFormValue(values.StartTime, FormTimeRegex());
+        properties[$"Form{side}Days"] = SafeFormValue(values.Days, FormDurationRegex());
+        properties[$"Form{side}Hours"] = SafeFormValue(values.Hours, FormDurationRegex());
+        properties[$"Form{side}Minutes"] = SafeFormValue(values.Minutes, FormDurationRegex());
+        if (values.ReasonLength is >= 0)
+            properties[$"Form{side}ReasonLength"] = values.ReasonLength.Value.ToString(CultureInfo.InvariantCulture);
+        properties[$"Form{side}ApplicationSession"] = values.ApplicationSession is "true" or "false"
+            ? values.ApplicationSession
+            : "UnavailableOrUnexpected";
+    }
+
+    private static string SafeFormValue(string? value, Regex allowedPattern) =>
+        value is null ? "Unavailable" : allowedPattern.IsMatch(value) ? value : "UnexpectedFormat";
+
+    private static void AddAllowed(IDictionary<string, string> properties, string name, object value)
+    {
+        if (IsAllowedProperty(name, value, out string safeValue)) properties[name] = safeValue;
     }
 
     private static bool IsAllowedProperty(string name, object? value, out string safeValue)
@@ -163,6 +217,15 @@ public sealed partial class RuntimeDiagnosticLoggerFactory : ILoggerFactory, IDi
 
     [GeneratedRegex("^[A-Za-z0-9_.-]{1,64}$", RegexOptions.CultureInvariant)]
     private static partial Regex SafeIdentifierRegex();
+
+    [GeneratedRegex(@"^(?:[A-Za-z]{3,9} [0-3]?\d, \d{4}|\d{1,2}[/.-]\d{1,2}[/.-]\d{4})$", RegexOptions.CultureInvariant)]
+    private static partial Regex FormDateRegex();
+
+    [GeneratedRegex(@"^(?:[01]?\d|2[0-3]):[0-5]\d(?: (?:AM|PM))?$", RegexOptions.CultureInvariant)]
+    private static partial Regex FormTimeRegex();
+
+    [GeneratedRegex(@"^\d{1,3}$", RegexOptions.CultureInvariant)]
+    private static partial Regex FormDurationRegex();
 
     [GeneratedRegex(@"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)]
     private static partial Regex EmailRegex();
