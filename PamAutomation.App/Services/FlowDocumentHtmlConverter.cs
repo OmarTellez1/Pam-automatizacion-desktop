@@ -15,13 +15,15 @@ public static class FlowDocumentHtmlConverter
     public static string ToXhtml(FlowDocument document)
         => ToMailContent(document).HtmlTemplate;
 
-    public static FlowDocumentMailContent ToMailContent(FlowDocument document)
+    public static FlowDocumentMailContent ToMailContent(FlowDocument document, bool requireRequestIds = true)
     {
         ArgumentNullException.ThrowIfNull(document);
         var images = new List<OutlookInlineImage>();
         var root = new XElement("root", document.Blocks.Select(block => ConvertBlock(block, images)));
         string fragment = string.Concat(root.Nodes().Select(static node => node.ToString(SaveOptions.DisableFormatting)));
-        return new FlowDocumentMailContent(OutlookHtmlComposer.SanitizeTemplate(fragment), images);
+        return new FlowDocumentMailContent(requireRequestIds
+            ? OutlookHtmlComposer.SanitizeTemplate(fragment)
+            : OutlookHtmlComposer.SanitizeFragment(fragment), images);
     }
 
     public static FlowDocument FromXhtml(string? html, IReadOnlyList<OutlookInlineImage>? inlineImages = null)

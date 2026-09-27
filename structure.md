@@ -110,7 +110,6 @@ PamAutomation\
 │   │   ├── ICredentialConfigurationWorkflow.cs
 │   │   ├── IConfigurationDialogService.cs
 │   │   ├── IUserDialogService.cs
-│   │   ├── MailConfigurationEdit.cs
 │   │   ├── RequestConfigurationEdit.cs
 │   │   ├── RequestStartTimeInput.cs
 │   │   ├── RepeatedPendingDecision.cs
@@ -158,6 +157,7 @@ PamAutomation\
 │   │   ├── Configuration\
 │   │   │   ├── IAppSettingsStore.cs
 │   │   │   ├── IMailSettingsStore.cs
+│   │   │   ├── IMailSignatureStore.cs
 │   │   │   └── IOutlookAccountSettingsStore.cs
 │   │   ├── Credentials\
 │   │   │   ├── CredentialStoreErrorCode.cs
@@ -222,12 +222,15 @@ PamAutomation\
 │   │   │   ├── AppSettings.cs
 │   │   │   ├── FinalAction.cs
 │   │   │   ├── MailSettings.cs
+│   │   │   ├── CollectionMailSettings.cs
+│   │   │   ├── MailSignature.cs
 │   │   │   ├── OutlookAccountSettings.cs
 │   │   │   └── RequestSettings.cs
 │   │   └── Credentials\
 │   │       ├── PamCredentials.cs
 │   │       └── PamCredentialUpdate.cs
 │   ├── Outlook\
+│   │   ├── CollectionMailComposer.cs
 │   │   ├── OutlookHtmlComposer.cs
 │   │   ├── OutlookHtmlCompositionErrorCode.cs
 │   │   ├── OutlookHtmlCompositionException.cs
@@ -324,6 +327,7 @@ PamAutomation\
 │   │   ├── AppSettingsPersistenceException.cs
 │   │   ├── DpapiFavoriteCatalogStore.cs
 │   │   ├── DpapiMailSettingsStore.cs
+│   │   ├── DpapiMailSignatureStore.cs
 │   │   ├── DpapiOutlookAccountSettingsStore.cs
 │   │   └── JsonAppSettingsStore.cs
 │   ├── Credentials\
@@ -930,6 +934,16 @@ No se agregan proyectos ni dependencias NuGet.
 ## Copia de Request ID desde resultados (22 de septiembre de 2026)
 
 La ventana `PamAutomation.App/Views/AutomationResultWindow.xaml` y su code-behind presentan los resultados con IDs y gestionan la copia explícita al portapapeles como operación de interfaz. `IUserDialogService.ShowResult` admite un texto opcional de IDs separado del mensaje; `WpfUserDialogService` elige esa ventana modal solo cuando hay IDs y conserva los mensajes existentes para los demás avisos. `MainWindowViewModel.ShowResult` entrega el texto ya formateado en memoria. La prueba existente de presentación valida ese dato separado. No cambia Core, Browser, Outlook ni se añaden dependencias.
+
+## Fase 26 — Correo por colección y firma común (27 de septiembre de 2026)
+
+- `Core/Models/Configuration/CollectionMailSettings.cs`: destinatarios y contenido, sin remitente ni firma; `FavoriteCollection.Mail` conserva una copia independiente y `FavoriteCollectionsState` usa esquema 3.
+- `Core/Models/Configuration/MailSignature.cs` e `Interfaces/Configuration/IMailSignatureStore.cs`: firma opcional del principal y contrato de persistencia separado.
+- `Core/Outlook/CollectionMailComposer.cs`: resolución del correo activo, saneamiento de firma y composición de plantilla efímera con CID sin colisiones. La sustitución de IDs y las barreras de duplicados existentes siguen en el flujo de Outlook.
+- `Infrastructure/Configuration/DpapiFavoriteCollectionStore.cs`: migra esquemas 1/2 con copias del correo legado, guarda atómicamente y vuelve a leer el nuevo estado. `DpapiMailSignatureStore.cs` cifra y reemplaza la firma; ambos usan DPAPI CurrentUser. `DpapiMailSettingsStore` queda para compatibilidad de migración.
+- `App/Views/FavoriteCollectionEditorWindow`: guarda un borrador de correo junto con la colección; `FavoritesCatalogWindow` recibe el remitente principal. `MailSettingsWindow` reutiliza el editor enriquecido para contenido por colección y para firma, sin exponer SMTP editable.
+- `App/ViewModels/MainWindowViewModel`: firma desde la pantalla principal, resolución del correo al seleccionar colección y antes de confirmar, bloqueo de Outlook incompleto y paso de la misma configuración al flujo normal y a Pending existente. Se retira `Services/MailConfigurationEdit.cs`, que solo representaba la edición global anterior.
+- `Tests/Core/Outlook/CollectionMailComposerTests.cs`, `Tests/Infrastructure/Configuration/CollectionMailMigrationTests.cs` y las pruebas ampliadas de colecciones, coordinación y ventanas verifican separación, migración, DPAPI, cancelaciones y ambas rutas de correo con dobles de PAM/Outlook. No se agregaron dependencias ni proyectos.
 
 ## Límites que deben conservarse
 

@@ -1,3 +1,5 @@
+using PamAutomation.Core.Models.Configuration;
+
 namespace PamAutomation.Core.Favorites;
 
 /// <summary>Defines a named subset of Favorites and the reason used for its requests.</summary>
@@ -12,7 +14,8 @@ public sealed record FavoriteCollection
         string name,
         string requestReason,
         IReadOnlyList<FavoriteAccountKey> accounts,
-        bool isAllFavorites = false)
+        bool isAllFavorites = false,
+        CollectionMailSettings? mail = null)
     {
         if (id == Guid.Empty) throw new ArgumentException("La colección requiere un identificador.", nameof(id));
         if (string.IsNullOrWhiteSpace(name) || name.Trim().Length > 100 || name.Any(char.IsControl))
@@ -47,6 +50,7 @@ public sealed record FavoriteCollection
         RequestReason = requestReason.Trim();
         Accounts = Array.AsReadOnly(copiedAccounts);
         IsAllFavorites = isAllFavorites;
+        Mail = mail?.Copy();
     }
 
     /// <summary>Gets the stable local identifier.</summary>
@@ -63,6 +67,9 @@ public sealed record FavoriteCollection
 
     /// <summary>Gets whether this collection is synchronized automatically with the entire Favorites catalog.</summary>
     public bool IsAllFavorites { get; }
+
+    /// <summary>Gets this collection's private mail content, without sender or shared signature.</summary>
+    public CollectionMailSettings? Mail { get; }
 
     /// <inheritdoc />
     public override string ToString() => $"Favorite collection ({Accounts.Count} rows)";

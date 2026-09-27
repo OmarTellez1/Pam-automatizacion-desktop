@@ -170,6 +170,11 @@ public sealed class PamAutomationExecutionService : IPamAutomationExecutionServi
     {
         ArgumentNullException.ThrowIfNull(credentials);
         ArgumentNullException.ThrowIfNull(preparation);
+        if (preparation.FinalAction == FinalAction.SendEmail)
+        {
+            if (mailSettings is null) throw new InvalidOperationException("Configura el correo de la colección activa antes de solicitar accesos.");
+            mailSettings = mailSettingsValidator.ValidateAndNormalize(mailSettings);
+        }
         if (preparation.HasExactPendingDuplicates)
         {
             pendingDiagnosticSink?.RecordDecision("BlockedExistingPending");

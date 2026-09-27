@@ -23,7 +23,7 @@ public sealed class FavoriteCollectionService : IFavoriteCollectionService
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(collection);
-        if (collection.Accounts.Count == 0)
+        if (collection.Accounts.Count == 0 && !collection.IsAllFavorites)
         {
             throw new FavoriteCollectionException("Selecciona al menos una solicitud favorita para guardar la colección.");
         }
@@ -35,7 +35,7 @@ public sealed class FavoriteCollectionService : IFavoriteCollectionService
                 (!collection.IsAllFavorites || !current.Accounts.SequenceEqual(collection.Accounts)))
             {
                 throw new FavoriteCollectionException(
-                    "All favorites solo permite editar el motivo; sus solicitudes se actualizan desde PAM.");
+                    "All favorites solo permite editar el motivo y el correo; sus solicitudes se actualizan desde PAM.");
             }
 
             if (collection.IsAllFavorites && current is null)
@@ -125,7 +125,8 @@ public sealed class FavoriteCollectionService : IFavoriteCollectionService
                 FavoriteCollection.AllFavoritesName,
                 allFavorites?.RequestReason ?? DefaultAllFavoritesReason,
                 allFavoriteKeys,
-                isAllFavorites: true);
+                isAllFavorites: true,
+                mail: allFavorites?.Mail);
 
             FavoriteCollection[] custom = state.Collections
                 .Where(static collection => !collection.IsAllFavorites)
@@ -133,7 +134,8 @@ public sealed class FavoriteCollectionService : IFavoriteCollectionService
                     collection.Id,
                     collection.Name,
                     collection.RequestReason,
-                    collection.Accounts.Where(available.Contains).ToArray()))
+                    collection.Accounts.Where(available.Contains).ToArray(),
+                    mail: collection.Mail))
                 .ToArray();
             FavoriteCollection[] reconciled = [synchronizedAll, .. custom];
 

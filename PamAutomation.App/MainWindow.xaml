@@ -349,8 +349,8 @@
                 </Button>
 
                 <Button Margin="10,0,0,0"
-                        AutomationProperties.Name="Configurar envío de correo"
-                        Command="{Binding ConfigureMailCommand}"
+                        AutomationProperties.Name="Configurar firma del correo"
+                        Command="{Binding ConfigureSignatureCommand}"
                         Style="{StaticResource NavigationCardButtonStyle}">
                     <Grid>
                         <Grid.ColumnDefinitions>
@@ -359,7 +359,8 @@
                         </Grid.ColumnDefinitions>
                         <TextBlock VerticalAlignment="Center"
                                    FontWeight="SemiBold"
-                                   Text="{Binding MailActionText}" />
+                                   TextWrapping="Wrap"
+                                   Text="{Binding SignatureActionText}" />
                         <TextBlock Grid.Column="1"
                                    Margin="14,0,0,0"
                                    VerticalAlignment="Center"

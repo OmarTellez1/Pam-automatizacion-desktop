@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using PamAutomation.App.Services;
 using PamAutomation.Core.Models.Configuration;
 using PamAutomation.Core.Outlook;
+using PamAutomation.Core.Validation;
 
 namespace PamAutomation.App.Views;
 
@@ -17,18 +18,26 @@ public partial class MailSettingsWindow : Window
     private const string RequestIdsMarker = "{{REQUEST_IDS}}";
     private readonly string smtpAddress;
     private readonly ILogger<MailSettingsWindow> logger;
+    private readonly bool signatureMode;
 
     public MailSettingsWindow(
         MailSettings? current,
         string smtpAddress,
-        ILogger<MailSettingsWindow>? logger = null)
+        ILogger<MailSettingsWindow>? logger = null,
+        string? collectionName = null,
+        bool signatureMode = false)
     {
+        this.signatureMode = signatureMode;
         InitializeComponent();
         this.logger = logger ?? NullLogger<MailSettingsWindow>.Instance;
-        this.smtpAddress = string.IsNullOrWhiteSpace(smtpAddress)
+        this.smtpAddress = !signatureMode && string.IsNullOrWhiteSpace(smtpAddress)
             ? throw new ArgumentException("La cuenta remitente es obligatoria.", nameof(smtpAddress))
             : smtpAddress.Trim();
         SenderAddressRun.Text = this.smtpAddress;
+        if (collectionName is not null)
+        {
+            Title = EditorHeading.Text = $"Correo de la colección «{collectionName}»";
+        }
         if (current is null)
         {
             BodyEditor.Document = FlowDocumentHtmlConverter.FromXhtml($"<p>{RequestIdsMarker}</p>");
@@ -43,7 +52,22 @@ public partial class MailSettingsWindow : Window
         UpdateMarkerStatus();
     }
 
+    /// <summary>Reuses the rich editor for the principal user's optional common signature.</summary>
+    public MailSettingsWindow(MailSignature? current, ILogger<MailSettingsWindow>? logger = null)
+        : this(null, string.Empty, logger, signatureMode: true)
+    {
+        Title = EditorHeading.Text = "Configurar firma del correo";
+        EditorDescription.Text = "Firma del usuario principal, común a todas las colecciones. Se añadirá una sola vez al final de cada correo. Puedes dejarla vacía.";
+        ContentHint.Text = "Pega aquí tu firma con formato e imágenes. No incluyas Request ID. Si tu correo anterior ya tenía una firma, retírala del contenido de las colecciones al configurar esta firma común.";
+        foreach (UIElement element in new UIElement[] { OutlookNotice, SenderBorder, ToLabel, ToBox, ToHint,
+                     CcLabel, CcBox, CcHint, SubjectLabel, SubjectBox, InsertIdsButton, InsertTableButton, MarkerStatusBorder })
+            element.Visibility = Visibility.Collapsed;
+        BodyEditor.Document = FlowDocumentHtmlConverter.FromXhtml(
+            string.IsNullOrWhiteSpace(current?.HtmlContent) ? "<p></p>" : current.HtmlContent, current?.InlineImages);
+    }
+
     public MailSettings? Settings { get; private set; }
+    public MailSignature? Signature { get; private set; }
 
     private void InsertTable_Click(object sender, RoutedEventArgs e)
     {
@@ -137,7 +161,7 @@ public partial class MailSettingsWindow : Window
 
     private void Save_Click(object sender, RoutedEventArgs e)
     {
-        if (CountMarkers() != 1)
+        if (!signatureMode && CountMarkers() != 1)
         {
             UrgentMessageBox.Show($"Incluye {RequestIdsMarker} exactamente una vez.", "Marcador obligatorio",
                 MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -146,8 +170,18 @@ public partial class MailSettingsWindow : Window
 
         try
         {
-            FlowDocumentMailContent content = FlowDocumentHtmlConverter.ToMailContent(BodyEditor.Document);
-            Settings = new MailSettings
+            FlowDocumentMailContent content = FlowDocumentHtmlConverter.ToMailContent(BodyEditor.Document, !signatureMode);
+            if (signatureMode)
+            {
+                Signature = CollectionMailComposer.ValidateSignature(new MailSignature
+                {
+                    HtmlContent = content.HtmlTemplate,
+                    InlineImages = content.InlineImages
+                });
+                DialogResult = true;
+                return;
+            }
+            Settings = new MailSettingsValidator().ValidateAndNormalize(new MailSettings
             {
                 SmtpAddress = smtpAddress,
                 Subject = SubjectBox.Text,
@@ -155,10 +189,11 @@ public partial class MailSettingsWindow : Window
                 CcRecipients = SplitRecipients(CcBox.Text),
                 HtmlTemplate = content.HtmlTemplate,
                 InlineImages = content.InlineImages
-            };
+            });
             DialogResult = true;
         }
-        catch (Exception exception) when (exception is NotSupportedException or OutlookHtmlCompositionException)
+        catch (Exception exception) when (exception is NotSupportedException or OutlookHtmlCompositionException or
+                                          OutlookValidationException or InvalidOperationException)
         {
             UrgentMessageBox.Show(exception.Message, "Contenido no compatible",
                 MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -167,7 +202,7 @@ public partial class MailSettingsWindow : Window
 
     private void UpdateMarkerStatus()
     {
-        if (!IsInitialized || MarkerStatusBorder is null) return;
+        if (!IsInitialized || MarkerStatusBorder is null || signatureMode) return;
         int count = CountMarkers();
         bool valid = count == 1;
         MarkerStatusBorder.Background = new SolidColorBrush(valid

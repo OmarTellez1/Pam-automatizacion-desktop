@@ -8,10 +8,12 @@ namespace PamAutomation.App.Views;
 public partial class FavoritesCatalogWindow : Window
 {
     private readonly CancellationTokenSource lifetime = new();
+    private readonly string smtpAddress;
 
     /// <summary>Initializes the collections window.</summary>
-    public FavoritesCatalogWindow(FavoritesCatalogViewModel viewModel)
+    public FavoritesCatalogWindow(FavoritesCatalogViewModel viewModel, string smtpAddress = "")
     {
+        this.smtpAddress = smtpAddress;
         DataContext = viewModel ?? throw new ArgumentNullException(nameof(viewModel));
         InitializeComponent();
     }
@@ -32,7 +34,7 @@ public partial class FavoritesCatalogWindow : Window
         var viewModel = (FavoritesCatalogViewModel)DataContext;
         var editor = new FavoriteCollectionEditorWindow(
             viewModel.Favorites,
-            null)
+            null, smtpAddress)
         {
             Owner = this
         };
@@ -48,7 +50,7 @@ public partial class FavoritesCatalogWindow : Window
         var viewModel = (FavoritesCatalogViewModel)DataContext;
         var editor = new FavoriteCollectionEditorWindow(
             viewModel.Favorites,
-            item.Collection)
+            item.Collection, smtpAddress)
         {
             Owner = this
         };

@@ -57,7 +57,7 @@ public static class OutlookMessageValidator
         }
     }
 
-    private static void ValidateInlineImages(string htmlBody, IReadOnlyList<OutlookInlineImage>? images)
+    internal static void ValidateInlineImages(string htmlBody, IReadOnlyList<OutlookInlineImage>? images)
     {
         OutlookInlineImage[] values = (images ?? []).ToArray();
         if (values.Sum(static image => (long)image.Data.Length) > 10_000_000 ||

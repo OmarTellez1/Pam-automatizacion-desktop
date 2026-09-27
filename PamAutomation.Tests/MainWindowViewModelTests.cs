@@ -775,13 +775,109 @@ public sealed class MainWindowViewModelTests
         }
     };
 
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task CollectionMail_SwitchActive_UsesOwnMailForConfirmationAndBothExecutionRoutes(bool reusePending)
+    {
+        var now = new DateTimeOffset(2026, 9, 10, 16, 0, 0, TimeSpan.FromHours(-5));
+        AppSettings settings = CreateSettingsForCollectionTest("Reason", new TimeOnly(17, 0)) with { FinalAction = FinalAction.SendEmail };
+        FavoriteCollection first = Core.Outlook.CollectionMailComposerTests.Collection("First", "first");
+        FavoriteCollection second = Core.Outlook.CollectionMailComposerTests.Collection(FavoriteCollection.AllFavoritesName, "second");
+        var collections = new FakeFavoriteCollectionService(new FavoriteCollectionsState([first, second], first.Id));
+        var signatures = new FakeSignatureStore();
+        var configuration = new FakeConfigurationDialogs();
+        var dialogs = new FakeDialogs(true) { RepeatedPendingDecision = RepeatedPendingDecision.UseExistingRequestIds };
+        var execution = new FakeExecutionService(now) { PendingDuplicateCount = reusePending ? 1 : 0,
+            ReusablePendingIds = reusePending ? ["7001"] : [] };
+        var viewModel = new MainWindowViewModel(execution, new FakeSettingsStore(settings), new FakeCredentialStore(), dialogs,
+            new AppSettingsValidator(new RequestSettingsValidator()), new FixedTimeProvider(now.ToUniversalTime()),
+            configurationDialogs: configuration, mailSettingsStore: new FakeMailSettingsStore(),
+            favoriteCollectionService: collections, mailSignatureStore: signatures);
+        await viewModel.InitializeAsync();
+        await viewModel.StartAutomationCommand.ExecuteAsync(null);
+        Assert.AreEqual("first subject", execution.LastExecutionMail!.Subject);
+        Assert.AreEqual("first@example.com", dialogs.LastConfirmationMail!.ToRecipients[0]);
+        Assert.AreEqual("first.cc@example.com", dialogs.LastConfirmationMail.CcRecipients[0]);
+        Assert.Contains("Firma inicial", execution.LastExecutionMail.HtmlTemplate);
+
+        configuration.SignatureEdit = new MailSignature { HtmlContent = "<p>Firma actualizada</p>" };
+        await viewModel.ConfigureSignatureCommand.ExecuteAsync(null);
+        Assert.AreEqual(1, signatures.SaveCount);
+        configuration.SignatureEdit = null;
+        await viewModel.ConfigureSignatureCommand.ExecuteAsync(null);
+        Assert.AreEqual(1, signatures.SaveCount, "Cancelar no debe guardar la firma.");
+        collections.State = new FavoriteCollectionsState([first, second], second.Id);
+        await viewModel.OpenCollectionsCommand.ExecuteAsync(null);
+        await viewModel.StartAutomationCommand.ExecuteAsync(null);
+        Assert.AreEqual("sender@example.test", configuration.LastCollectionSender);
+        Assert.AreEqual("sender@example.test", execution.LastExecutionMail!.SmtpAddress);
+        Assert.AreEqual("second subject", execution.LastExecutionMail.Subject);
+        Assert.AreEqual("second@example.com", dialogs.LastConfirmationMail!.ToRecipients[0]);
+        Assert.AreEqual("second.cc@example.com", dialogs.LastConfirmationMail.CcRecipients[0]);
+        Assert.AreSame(dialogs.LastConfirmationMail, execution.LastExecutionMail);
+        string body = OutlookHtmlComposer.Compose(execution.LastExecutionMail.HtmlTemplate, ["7001"]);
+        Assert.AreEqual(1, body.Split("Firma actualizada").Length - 1);
+        Assert.DoesNotContain("Firma inicial", body);
+        Assert.DoesNotContain("first content", body);
+        Assert.Contains("second content", body);
+        Assert.DoesNotContain("Firma", first.Mail!.HtmlTemplate);
+        Assert.DoesNotContain("Firma", second.Mail!.HtmlTemplate);
+        Assert.AreEqual(reusePending ? 2 : 0, execution.ExistingPendingCompletionCount);
+        Assert.AreEqual(reusePending ? 0 : 2, execution.RealExecutionCount);
+        Assert.IsNull(dialogs.LastError);
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task CollectionMail_MissingOrInvalid_BlocksOnlyWhenOutlookEnabled(bool invalid)
+    {
+        var now = new DateTimeOffset(2026, 9, 10, 16, 0, 0, TimeSpan.FromHours(-5));
+        var collection = new FavoriteCollection(Guid.NewGuid(), "Needs mail", "Reason",
+            [new FavoriteAccountKey("system", "app", "account")], mail: invalid ? new CollectionMailSettings { Subject = "Incomplete" } : null);
+        var execution = new FakeExecutionService(now);
+        var dialogs = new FakeDialogs(true);
+        var viewModel = new MainWindowViewModel(execution,
+            new FakeSettingsStore(CreateSettingsForCollectionTest("Reason", new TimeOnly(17, 0)) with { FinalAction = FinalAction.SendEmail }),
+            new FakeCredentialStore(), dialogs, new AppSettingsValidator(new RequestSettingsValidator()),
+            new FixedTimeProvider(now.ToUniversalTime()), mailSettingsStore: new FakeMailSettingsStore(),
+            favoriteCollectionService: new FakeFavoriteCollectionService(new FavoriteCollectionsState([collection], collection.Id)));
+        await viewModel.InitializeAsync();
+        Assert.IsFalse(viewModel.CanStartAutomation);
+        Assert.Contains("Needs mail", viewModel.StartAutomationWarningMessage);
+        await viewModel.StartAutomationCommand.ExecuteAsync(null);
+        Assert.AreEqual(0, execution.PreparationCount);
+        Assert.AreEqual(0, dialogs.AutomationStartConfirmationCount);
+        viewModel.SendEmailAtEnd = false;
+        Assert.IsTrue(viewModel.CanStartAutomation);
+        await viewModel.StartAutomationCommand.ExecuteAsync(null);
+        Assert.AreEqual(1, execution.RealExecutionCount);
+        Assert.IsNull(execution.LastExecutionMail);
+        Assert.IsTrue(viewModel.HasRequestIds);
+    }
+
+    private sealed class FakeSignatureStore : IMailSignatureStore
+    {
+        private MailSignature signature = new() { HtmlContent = "<p>Firma inicial</p>" };
+        public int SaveCount { get; private set; }
+        public Task<MailSignature?> LoadAsync(CancellationToken cancellationToken = default) => Task.FromResult<MailSignature?>(signature);
+        public Task SaveAsync(MailSignature value, CancellationToken cancellationToken = default)
+        {
+            signature = value;
+            SaveCount++;
+            return Task.CompletedTask;
+        }
+    }
+
     private static FakeFavoriteCollectionService CreateActiveCollectionService(AppSettings settings)
     {
         var collection = new FavoriteCollection(
             Guid.NewGuid(),
             "Colección de prueba",
             settings.Request.RequestReason,
-            [new FavoriteAccountKey("system", "application", "account")]);
+            [new FavoriteAccountKey("system", "application", "account")],
+            mail: new CollectionMailSettings { ToRecipients = ["recipient@example.test"], Subject = "Results", HtmlTemplate = "<p>{{REQUEST_IDS}}</p>" });
         return new FakeFavoriteCollectionService(new FavoriteCollectionsState([collection], collection.Id));
     }
 
@@ -951,6 +1047,7 @@ public sealed class MainWindowViewModelTests
         public Action? AutomationStartConfirmationAction { get; set; }
         public int AutomationStartConfirmationCount { get; private set; }
         public string? LastAutomationCollectionName { get; private set; }
+        public MailSettings? LastConfirmationMail { get; private set; }
         public int RepeatedPendingConfirmationCount { get; private set; }
         public RepeatedPendingDecision ChooseRepeatedPendingAction(PamExecutionPreparation preparation)
         {
@@ -964,6 +1061,7 @@ public sealed class MainWindowViewModelTests
         {
             AutomationStartConfirmationCount++;
             LastAutomationCollectionName = collectionName;
+            LastConfirmationMail = mailSettings;
             AutomationStartConfirmationAction?.Invoke();
             return confirm;
         }
@@ -1067,18 +1165,20 @@ public sealed class MainWindowViewModelTests
 
         public Task<CredentialConfigurationState> EditCredentialsAsync(CredentialConfigurationState current, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public RequestConfigurationEdit? EditRequest(RequestSettings current, bool testModeEnabled, DateOnly ecuadorToday) => throw new NotSupportedException();
-        public MailConfigurationEdit? EditMail(MailSettings? current, string smtpAddress) => throw new NotSupportedException();
-        public void OpenFavoriteCollections() => throw new NotSupportedException();
+        public MailSignature? SignatureEdit { get; set; }
+        public string? LastCollectionSender { get; private set; }
+        public MailSignature? EditSignature(MailSignature? current) => SignatureEdit;
+        public void OpenFavoriteCollections(string smtpAddress) => LastCollectionSender = smtpAddress;
         public void OpenPamAccounts() => throw new NotSupportedException();
         public void OpenAbout() => throw new NotSupportedException();
     }
 
     private sealed class FakeFavoriteCollectionService(FavoriteCollectionsState initial) : IFavoriteCollectionService
     {
-        private FavoriteCollectionsState state = initial;
+        public FavoriteCollectionsState State { get; set; } = initial;
 
         public Task<FavoriteCollectionsState> LoadAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult(state);
+            Task.FromResult(State);
 
         public Task<FavoriteCollectionsState> SaveCollectionAsync(
             FavoriteCollection collection,
@@ -1100,6 +1200,7 @@ public sealed class MainWindowViewModelTests
     private sealed class FakeExecutionService(DateTimeOffset now) : IPamAutomationExecutionService
     {
         public int RealExecutionCount { get; private set; }
+        public MailSettings? LastExecutionMail { get; private set; }
         public int PreparationCount { get; private set; }
         public Exception? Failure { get; set; }
         public int EmailSendCount { get; private set; }
@@ -1155,6 +1256,7 @@ public sealed class MainWindowViewModelTests
             IProgress<PamRequestSubmissionProgress>? progress = null)
         {
             RealExecutionCount++;
+            LastExecutionMail = mailSettings;
             if (Failure is not null) return Task.FromException<PamExecutionResult>(Failure);
             return Task.FromResult(new PamExecutionResult(
                 PamExecutionMode.Real, now, FinalAction.DisplayRequestIds, 2, 2, 0, ["8001", "8002"]));
@@ -1171,6 +1273,7 @@ public sealed class MainWindowViewModelTests
             CancellationToken cancellationToken = default)
         {
             ExistingPendingCompletionCount++;
+            LastExecutionMail = mailSettings;
             return Task.FromResult(new PamExecutionResult(
                 PamExecutionMode.ExistingPending,
                 now,

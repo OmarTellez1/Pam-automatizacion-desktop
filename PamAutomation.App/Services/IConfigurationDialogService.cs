@@ -10,8 +10,8 @@ public interface IConfigurationDialogService
         CredentialConfigurationState current,
         CancellationToken cancellationToken = default);
     RequestConfigurationEdit? EditRequest(RequestSettings current, bool testModeEnabled, DateOnly ecuadorToday);
-    MailConfigurationEdit? EditMail(MailSettings? current, string smtpAddress);
-    void OpenFavoriteCollections();
+    MailSignature? EditSignature(MailSignature? current);
+    void OpenFavoriteCollections(string smtpAddress);
     void OpenPamAccounts();
     void OpenAbout();
     PamAccountId? SelectPamAccount(IReadOnlyList<PamAccountStatus> accounts);

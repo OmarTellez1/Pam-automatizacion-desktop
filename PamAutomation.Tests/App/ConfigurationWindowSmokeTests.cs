@@ -451,9 +451,68 @@ public sealed class ConfigurationWindowSmokeTests
         Assert.IsTrue(condition(), "La interfaz no alcanzó el estado esperado antes del tiempo límite.");
     }
 
+    [STATestMethod]
+    public void SignatureEditor_HidesRecipientsAndMarker_CancelPreservesOriginal()
+    {
+        EnsureApplicationResources();
+        var signature = new MailSignature { HtmlContent = "<p>Original signature</p>" };
+        var window = new MailSettingsWindow(signature);
+        try
+        {
+            window.Show();
+            Assert.AreEqual("Configurar firma del correo", window.Title);
+            Assert.AreEqual(Visibility.Collapsed, ((TextBox)window.FindName("ToBox")).Visibility);
+            Assert.AreEqual(Visibility.Collapsed, ((Button)window.FindName("InsertIdsButton")).Visibility);
+            var editor = (RichTextBox)window.FindName("BodyEditor");
+            editor.Document = FlowDocumentHtmlConverter.FromXhtml("<p>Unsaved signature</p>");
+            window.Close();
+            Assert.IsNull(window.Signature);
+            Assert.AreEqual("<p>Original signature</p>", signature.HtmlContent);
+        }
+        finally { window.Close(); }
+    }
+
+    [STATestMethod]
+    [DataRow(false, false)]
+    [DataRow(false, true)]
+    [DataRow(true, false)]
+    [DataRow(true, true)]
+    public void CollectionEditor_MailDraftThenCollectionCancelled_DiscardsDraft(bool existingCollection, bool saveMail)
+    {
+        EnsureApplicationResources();
+        var favorite = new FavoriteCatalogEntry("system", "app", "account", "10.0.0.1");
+        FavoriteCollection? original = existingCollection
+            ? new FavoriteCollection(Guid.NewGuid(), FavoriteCollection.AllFavoritesName, "Reason",
+                [FavoriteAccountKey.From(favorite)], true,
+                new CollectionMailSettings { ToRecipients = ["old@example.com"], Subject = "Old subject", HtmlTemplate = "<p>{{REQUEST_IDS}}</p>" })
+            : null;
+        var window = new FavoriteCollectionEditorWindow([favorite], original, "principal@example.com");
+        try
+        {
+            window.Show();
+            ((TextBox)window.FindName("CollectionNameBox")).Text = original?.Name ?? "Unsaved collection";
+            Dispatcher.CurrentDispatcher.BeginInvoke(new Action(() =>
+            {
+                MailSettingsWindow mail = window.OwnedWindows.OfType<MailSettingsWindow>().Single();
+                Assert.Contains(original?.Name ?? "Unsaved collection", mail.Title);
+                ((TextBox)mail.FindName("ToBox")).Text = "new@example.com";
+                ((TextBox)mail.FindName("SubjectBox")).Text = "New subject";
+                if (saveMail) ((Button)mail.FindName("SaveMailButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                else mail.Close();
+            }), DispatcherPriority.ApplicationIdle);
+            ((Button)window.FindName("ConfigureCollectionMailButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Assert.Contains(saveMail || existingCollection ? "Correo configurado" : "Sin correo configurado",
+                ((TextBlock)window.FindName("MailStatusText")).Text);
+            window.Close();
+            Assert.IsNull(window.Collection);
+            if (original is not null) Assert.AreEqual("Old subject", original.Mail!.Subject);
+        }
+        finally { window.Close(); }
+    }
+
     private static void EnsureApplicationResources()
     {
-        Application application = Application.Current ?? new Application();
+        Application application = Application.Current ?? new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
         if (application.Resources.MergedDictionaries.Count > 0) return;
         string applicationAssemblyName = Uri.EscapeDataString(
             typeof(MainWindow).Assembly.GetName().Name ?? throw new InvalidOperationException());

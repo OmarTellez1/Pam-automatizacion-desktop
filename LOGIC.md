@@ -129,11 +129,11 @@ Sus propiedades serán equivalentes a la configuración actual:
 - timeZone debe ser America/Guayaquil.
 - testModeEnabled habilita el modo de prueba y será `false` por defecto.
 
-La configuración de correo se guardará en:
+La configuración de correo pertenece a cada colección y se guarda en:
 
-    %LOCALAPPDATA%\PamAutomation\config\mail-settings.dat
+    %LOCALAPPDATA%\PamAutomation\config\favorite-collections.dat
 
-El archivo contendrá remitente, Para, CC, asunto y HTML enriquecido con el marcador REQUEST_IDS. Debe protegerse con DPAPI CurrentUser. La cuenta seleccionada en Outlook clásico se mantiene separada para poder verificarla antes de que exista una plantilla completa:
+Cada colección contiene Para, CC, asunto, XHTML con un único marcador REQUEST_IDS e imágenes inline. El documento usa esquema 3 y DPAPI CurrentUser. La firma común del usuario principal se guarda separadamente en `mail-signature.dat`, esquema 1; la cuenta seleccionada en Outlook clásico se mantiene separada:
 
     %LOCALAPPDATA%\PamAutomation\config\outlook-account.dat
 
@@ -143,7 +143,9 @@ La única persistencia propia de la aplicación será:
 
     %LOCALAPPDATA%\PamAutomation\config\
     ├── app-settings.json
-    ├── mail-settings.dat
+    ├── favorite-collections.dat
+    ├── mail-signature.dat
+    ├── mail-settings.dat (legado conservado)
     └── outlook-account.dat
 
 No persistir `results`, `logs`, `artifacts`, `temp`, `last-run`, `last-email` ni `delivery-state`. El resultado de una ejecución se representará mediante un modelo en memoria que contenga Request ID, conflictos, estado y errores. La interfaz lo mostrará mientras la aplicación permanezca abierta.
@@ -154,7 +156,7 @@ No habrá auditoría local ni debugging persistente por defecto. El diagnóstico
 
 `Exportar diagnóstico` es la única acción que materializa ese buffer fuera del entorno de desarrollo. El usuario elige explícitamente un ZIP y puede cancelar sin crear archivos. El paquete se construye mediante un temporal junto al destino, se publica atómicamente y contiene manifiesto, entorno, resumen de ejecución y log. El resumen guarda únicamente booleanos, modo, acción, tiempos, conteos y estado de Outlook; Request ID se reduce a su cantidad. El log conserva la plantilla original y solo valores estructurados de una lista permitida, elimina rutas de código y omite el mensaje de las excepciones. Un error recuperable recomienda exportar; un error WPF fatal ofrece hacerlo antes del cierre ordenado.
 
-Las escrituras de `app-settings.json`, `mail-settings.dat` y `outlook-account.dat` son atómicas, incluyen `schemaVersion` y permiten migraciones futuras. Los dos documentos `.dat` se cifran con DPAPI `CurrentUser`; `mail-settings.dat` protege remitente, destinatarios, asunto, XHTML saneado y bytes PNG de imágenes inline. No se escribe configuración dentro de `Program Files` ni junto al ejecutable.
+Las escrituras de configuración son atómicas e incluyen `schemaVersion`. Los documentos `.dat` se cifran con DPAPI `CurrentUser`. `mail-settings.dat` solo se lee para migrar el correo y, si hace falta, el remitente legado; no se vuelve a escribir desde la interfaz ni se usa como fallback. No se escribe configuración dentro de `Program Files` ni junto al ejecutable.
 
 Windows o Playwright pueden utilizar `%TEMP%` para archivos internos transitorios durante el lanzamiento del navegador. No tratar esa ubicación como almacenamiento persistente, no escribir secretos allí y limpiar lo creado por la aplicación cuando sea posible.
 
@@ -297,7 +299,11 @@ La fase 20.5 permite eliminar colecciones creadas por el usuario desde un botón
 
 Antes del preflight de `Pending`, la ejecución con colección vuelve a leer todas las páginas de `Favorites` y resuelve cada clave exacta. Antes del primer envío, `PamRequestRunAuthorization` vuelve a aplicar la misma selección sobre la lectura realizada dentro de la sesión de envío. Si falta una identidad, cambia el total o no coincide la configuración confirmada, no se pulsa `Submit Request`. La reconciliación posterior en `Pending` continúa limitada a las cuentas realmente enviadas.
 
-Las colecciones se guardan separadamente en `%LOCALAPPDATA%\PamAutomation\config\favorite-collections.dat` mediante DPAPI `CurrentUser`, `schemaVersion = 2` y reemplazo atómico. El lector migra el esquema 1 conservando nombre, razón, selección y colección activa, pero descarta la antigua configuración temporal por colección. Si una colección personalizada activa queda vacía durante la reconciliación, `All favorites` pasa a ser la activa.
+Las colecciones se guardan en `%LOCALAPPDATA%\PamAutomation\config\favorite-collections.dat` mediante DPAPI `CurrentUser`, `schemaVersion = 3` y reemplazo atómico. El lector migra los esquemas 1 y 2 conservando nombre, razón, selección y colección activa; del esquema 1 descarta la antigua configuración temporal. Copia el correo global existente a cada colección y vuelve a leer el documento cifrado migrado. El esquema 3 marca que esa copia ya se realizó: cambiar el legado nunca sobrescribe las copias, las colecciones nuevas no lo heredan y eliminar una colección elimina su correo. El archivo global anterior se conserva. Reconciliar Favorites conserva el correo, incluso si la colección pierde sus cuentas. Si una colección personalizada activa queda vacía, `All favorites` pasa a ser la activa.
+
+En fase 26, `CollectionMailComposer` combina exclusivamente el contenido de la colección activa con el remitente principal y la firma vigente. Sanea la firma sin marcador, adapta sus CID para evitar colisiones con las imágenes del contenido y la agrega al final de una plantilla efímera. `OutlookHtmlComposer` reemplaza el único marcador por los IDs al componer el cuerpo. Nunca se guarda esa plantilla combinada en una colección. No se intenta extraer firmas del correo legado: se conserva intacto y la firma común comienza vacía; el usuario debe retirar las firmas antiguas si configura una firma común equivalente.
+
+La confirmación inicial recibe la misma configuración efectiva que el envío normal o la reutilización de Pending; muestra colección, Para, CC, asunto y remitente. Una configuración ausente o inválida bloquea Outlook antes del preflight con un aviso que identifica la colección y el editor. Core valida nuevamente el correo antes de crear solicitudes. Con Outlook desactivado se permite ejecutar sin correo ni firma. Los editores mantienen borradores y solo guardar la colección persiste el correo; cancelar cualquier nivel conserva lo anterior. `All favorites` permite editar motivo y correo aun cuando su catálogo esté vacío, pero no se puede activar sin cuentas.
 
 La entrada nativa WPF presenta fecha, hora de 12 horas con selector `AM/PM` y duración operativa en horas. La razón se obtiene de la colección activa. La conversión temporal se realiza en el dominio y el adaptador comprueba el valor normalizado por PAM. El recorrido confirmado, sus selectores e invariantes se mantienen en `PAM_NAVIGATION.md`.
 
@@ -339,7 +345,7 @@ La pantalla de configuración de credenciales y Outlook tendrá otra acción man
 
 La interfaz utiliza `RichTextBox` y `FlowDocument` como modelo nativo de edición. El usuario pega texto y firma ya compuestos y dispone de `Insertar {{REQUEST_IDS}}`. Debido a la falta de fidelidad consistente de las tablas procedentes de portapapeles externos, la interfaz advierte que no deben pegarse y ofrece `Insertar tabla 2×2`: divide el párrafo en la posición del cursor, inserta una tabla 30/70 con las filas `Solicitudes de PAM` y `Motivo del acceso`, mueve allí el único marcador y deja un párrafo editable después. No permite anidar una tabla dentro de otra. Un convertidor C# propio recorre el `FlowDocument` y genera un subconjunto permitido de HTML para Outlook. No se acepta HTML arbitrario ni se afirma compatibilidad completa.
 
-El documento y sus imágenes se guardan dentro de `mail-settings.dat` protegido con DPAPI CurrentUser. El editor convierte texto con formato, listas, tablas e imágenes pegadas a XHTML saneado. Cada imagen se normaliza a PNG y recibe un Content-ID; el adaptador COM crea un temporal único solo para `Attachments.Add`, configura el CID y lo elimina en el mismo bloque `finally`.
+El editor de correo se abre desde cada colección; su modo firma reutiliza la edición enriquecida, oculta destinatarios, asunto y acciones de Request ID, y explica que se agregará al final. El contenido y sus imágenes se guardan en la colección; la firma y sus imágenes en `mail-signature.dat`, ambos protegidos con DPAPI CurrentUser. Cada imagen se normaliza a PNG y recibe un Content-ID; el adaptador COM crea un temporal único solo para `Attachments.Add`, configura el CID y lo elimina en el mismo bloque `finally`.
 
 Antes de enviar resultados se consulta el almacén asociado exactamente al `SmtpAddress` configurado por una propiedad privada que contiene el conjunto ordenado exacto de Request ID y se exige también el mismo asunto. La búsqueda recorre Enviados, Bandeja de salida y Borradores. La sesión actual conserva además una huella en memoria para impedir dos intentos concurrentes.
 

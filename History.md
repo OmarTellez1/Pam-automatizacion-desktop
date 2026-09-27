@@ -1,5 +1,14 @@
 # Historial — Pam Automation .NET
 
+## 27 de septiembre de 2026 — Fase 26, correo por colección y firma del principal
+
+- Se implementan los cuatro campos de correo e imágenes inline por colección, incluido `All favorites`, dentro del documento protegido de colecciones (esquema 3).
+- La migración desde esquemas 1/2 copia el correo global a las colecciones ya guardadas, verifica la lectura del nuevo estado y conserva el archivo legado. Las copias son independientes; nuevas colecciones no heredan correo y su eliminación retira también el contenido.
+- `Configurar correo de esta colección` reutiliza el editor enriquecido con el remitente principal informativo. Los cambios solo persisten al guardar la colección; cancelar descarta también el borrador de correo.
+- El botón principal pasa a `Configurar firma del correo`. Firma opcional, protegida separadamente y agregada una sola vez en la plantilla efímera de envío. El contenido de las colecciones no se reescribe. La firma antigua, si estaba pegada dentro del correo global, se conserva como contenido y debe retirarse manualmente al configurar la nueva firma común.
+- Confirmación, inicio y reutilización de Pending utilizan exclusivamente el correo activo. Outlook incompleto bloquea antes de contactar PAM; Outlook desactivado no exige correo ni firma. SMTP continúa asociado al principal.
+- Verificación local: compilación Release x64 y pruebas focalizadas de migración, firma, colecciones, editores WPF, confirmaciones y composición/envío mediante dobles. Ninguna solicitud PAM ni correo real. Se conserva la advertencia previa MSTEST0032 de la prueba de descubrimiento, ajena a esta fase.
+
 ## 8 de septiembre de 2026 — Inicio documental
 
 - Se decidió construir una aplicación nueva desde cero exclusivamente con C# y .NET.

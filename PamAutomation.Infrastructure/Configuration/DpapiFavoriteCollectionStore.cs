@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using PamAutomation.Core.Favorites;
 using PamAutomation.Core.Interfaces.Favorites;
+using PamAutomation.Core.Models.Configuration;
 
 namespace PamAutomation.Infrastructure.Configuration;
 
@@ -48,7 +49,7 @@ public sealed class DpapiFavoriteCollectionStore : IFavoriteCollectionStore
             clearBytes = ProtectedData.Unprotect(protectedBytes, Entropy, DataProtectionScope.CurrentUser);
             CollectionDocument document = JsonSerializer.Deserialize<CollectionDocument>(clearBytes, JsonOptions)
                 ?? throw new InvalidDataException("El documento protegido de colecciones está vacío.");
-            if (document.SchemaVersion is not 1 and not FavoriteCollectionsState.CurrentSchemaVersion ||
+            if (document.SchemaVersion is < 1 or > FavoriteCollectionsState.CurrentSchemaVersion ||
                 document.Collections is null)
             {
                 throw new InvalidDataException("El documento protegido de colecciones no tiene un esquema compatible.");
@@ -57,6 +58,19 @@ public sealed class DpapiFavoriteCollectionStore : IFavoriteCollectionStore
             FavoriteCollection[] collections = document.Collections
                 .Select(item => ToDomain(item, document.SchemaVersion))
                 .ToArray();
+            if (document.SchemaVersion < 3)
+            {
+                // The schema transition is the migration marker. Never fall back to global mail in schema 3.
+                MailSettings? legacy = await new DpapiMailSettingsStore(configurationDirectory)
+                    .LoadAsync(cancellationToken).ConfigureAwait(false);
+                collections = collections.Select(collection => new FavoriteCollection(
+                    collection.Id, collection.Name, collection.RequestReason, collection.Accounts,
+                    collection.IsAllFavorites, legacy is null ? null : CollectionMailSettings.FromMail(legacy))).ToArray();
+                await SaveAsync(new FavoriteCollectionsState(collections, document.ActiveCollectionId), cancellationToken)
+                    .ConfigureAwait(false);
+                // Read back the protected replacement; keep the legacy mail file as a recovery source.
+                return await LoadAsync(cancellationToken).ConfigureAwait(false);
+            }
             return new FavoriteCollectionsState(collections, document.ActiveCollectionId);
         }
         catch (CryptographicException exception)
@@ -145,7 +159,8 @@ public sealed class DpapiFavoriteCollectionStore : IFavoriteCollectionStore
                 account.System,
                 account.Application,
                 account.Account)).ToArray(),
-            isAllFavorites);
+            isAllFavorites,
+            document.Mail);
     }
 
     private static CollectionItemDocument ToDocument(FavoriteCollection collection) => new(
@@ -157,7 +172,8 @@ public sealed class DpapiFavoriteCollectionStore : IFavoriteCollectionStore
         collection.Accounts.Select(account => new AccountKeyDocument(
             account.SystemName,
             account.ApplicationName,
-            account.AccountName)).ToArray());
+            account.AccountName)).ToArray(),
+        collection.Mail);
 
     private static string GetDefaultConfigurationDirectory()
     {
@@ -181,7 +197,8 @@ public sealed class DpapiFavoriteCollectionStore : IFavoriteCollectionStore
         [property: JsonPropertyName("requestReason")] string? RequestReason,
         [property: JsonPropertyName("isAllFavorites")] bool IsAllFavorites,
         [property: JsonPropertyName("request")] LegacyRequestDocument? Request,
-        [property: JsonPropertyName("accounts")] IReadOnlyList<AccountKeyDocument>? Accounts);
+        [property: JsonPropertyName("accounts")] IReadOnlyList<AccountKeyDocument>? Accounts,
+        [property: JsonPropertyName("mail")] CollectionMailSettings? Mail = null);
 
     private sealed record LegacyRequestDocument(
         [property: JsonPropertyName("startDate")] DateOnly StartDate,

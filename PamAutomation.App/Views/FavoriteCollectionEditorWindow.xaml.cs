@@ -2,6 +2,8 @@ using System.Collections.ObjectModel;
 using System.Windows;
 using PamAutomation.App.ViewModels;
 using PamAutomation.Core.Favorites;
+using PamAutomation.Core.Models.Configuration;
+using PamAutomation.Core.Outlook;
 
 namespace PamAutomation.App.Views;
 
@@ -9,15 +11,21 @@ namespace PamAutomation.App.Views;
 public partial class FavoriteCollectionEditorWindow : Window
 {
     private readonly FavoriteCollection? existing;
+    private readonly string smtpAddress;
+    private CollectionMailSettings? mailDraft;
 
     /// <summary>Initializes the editor from the protected Favorites catalog.</summary>
     public FavoriteCollectionEditorWindow(
         IReadOnlyList<FavoriteCatalogEntry> favorites,
-        FavoriteCollection? existing)
+        FavoriteCollection? existing,
+        string smtpAddress = "")
     {
         ArgumentNullException.ThrowIfNull(favorites);
         InitializeComponent();
         this.existing = existing;
+        this.smtpAddress = smtpAddress;
+        mailDraft = existing?.Mail?.Copy();
+        RefreshMailStatus();
         HashSet<FavoriteAccountKey> selected = existing?.Accounts.ToHashSet() ?? [];
         Favorites = new ObservableCollection<FavoriteSelectionItemViewModel>(favorites.Select(entry =>
             new FavoriteSelectionItemViewModel(entry, selected.Contains(FavoriteAccountKey.From(entry)))));
@@ -59,7 +67,7 @@ public partial class FavoriteCollectionEditorWindow : Window
                 .Where(static item => item.IsSelected)
                 .Select(static item => FavoriteAccountKey.From(item.Entry))
                 .ToArray();
-        if (selected.Length == 0)
+        if (selected.Length == 0 && existing?.IsAllFavorites != true)
         {
             ShowValidation("Selecciona al menos una solicitud favorita.");
             return;
@@ -72,7 +80,8 @@ public partial class FavoriteCollectionEditorWindow : Window
                 CollectionNameBox.Text,
                 ReasonBox.Text,
                 selected,
-                existing?.IsAllFavorites == true);
+                existing?.IsAllFavorites == true,
+                mailDraft);
             DialogResult = true;
         }
         catch (ArgumentException exception)
@@ -86,4 +95,26 @@ public partial class FavoriteCollectionEditorWindow : Window
         ValidationText.Text = message;
         ValidationBorder.Visibility = Visibility.Visible;
     }
+
+    private void ConfigureMail_Click(object sender, RoutedEventArgs e)
+    {
+        if (string.IsNullOrWhiteSpace(smtpAddress))
+        {
+            ShowValidation("Configura y verifica primero la cuenta de Outlook del usuario principal en Editar credenciales.");
+            return;
+        }
+        string name = string.IsNullOrWhiteSpace(CollectionNameBox.Text) ? "Nueva colección" : CollectionNameBox.Text.Trim();
+        var editor = new MailSettingsWindow(
+            mailDraft is null ? null : CollectionMailComposer.ForEditor(mailDraft, smtpAddress),
+            smtpAddress, collectionName: name) { Owner = this };
+        if (editor.ShowDialog() == true && editor.Settings is not null)
+        {
+            mailDraft = CollectionMailSettings.FromMail(editor.Settings);
+            RefreshMailStatus();
+        }
+    }
+
+    private void RefreshMailStatus() => MailStatusText.Text = mailDraft is null
+        ? "Sin correo configurado. Solo es obligatorio si activas Outlook."
+        : "Correo configurado. Los cambios se aplican al guardar la colección.";
 }

@@ -33,8 +33,11 @@ public sealed partial class MainWindowViewModel : ObservableObject
     private readonly IUserDialogService? dialogs;
     private readonly IConfigurationDialogService? configurationDialogs;
     private readonly IMailSettingsStore? mailSettingsStore;
+    private readonly IMailSignatureStore? mailSignatureStore;
+    private MailSignature? mailSignature;
+    private string mailConfigurationError = string.Empty;
+    private string signatureLoadError = string.Empty;
     private readonly IOutlookAccountSettingsStore? outlookAccountSettingsStore;
-    private readonly MailSettingsValidator mailSettingsValidator;
     private readonly AppSettingsValidator settingsValidator;
     private readonly TimeProvider timeProvider;
     private readonly ILogger<MainWindowViewModel> logger;
@@ -86,7 +89,6 @@ public sealed partial class MainWindowViewModel : ObservableObject
         TimeProvider timeProvider,
         IConfigurationDialogService? configurationDialogs = null,
         IMailSettingsStore? mailSettingsStore = null,
-        MailSettingsValidator? mailSettingsValidator = null,
         IOutlookAccountSettingsStore? outlookAccountSettingsStore = null,
         ILogger<MainWindowViewModel>? logger = null,
         IDiagnosticExportService? diagnosticExportService = null,
@@ -94,7 +96,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
         Version? applicationVersion = null,
         IPamInteractiveAccessService? interactiveAccessService = null,
         IFavoriteCollectionService? favoriteCollectionService = null,
-        IPamAccountService? pamAccountService = null)
+        IPamAccountService? pamAccountService = null,
+        IMailSignatureStore? mailSignatureStore = null)
     {
         this.executionService = executionService;
         this.settingsStore = settingsStore;
@@ -102,8 +105,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
         this.dialogs = dialogs;
         this.configurationDialogs = configurationDialogs;
         this.mailSettingsStore = mailSettingsStore;
+        this.mailSignatureStore = mailSignatureStore;
         this.outlookAccountSettingsStore = outlookAccountSettingsStore;
-        this.mailSettingsValidator = mailSettingsValidator ?? new MailSettingsValidator();
         this.settingsValidator = settingsValidator ?? throw new ArgumentNullException(nameof(settingsValidator));
         this.timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
         this.logger = logger ?? NullLogger<MainWindowViewModel>.Instance;
@@ -119,7 +122,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         ConfigureRequestCommand = new AsyncRelayCommand(
             ConfigureRequestAsync,
             () => AreControlsEnabled && favoriteCollectionsState.ActiveCollection is not null);
-        ConfigureMailCommand = new AsyncRelayCommand(ConfigureMailAsync, () => AreControlsEnabled);
+        ConfigureSignatureCommand = new AsyncRelayCommand(ConfigureSignatureAsync, () => AreControlsEnabled);
         OpenCollectionsCommand = new AsyncRelayCommand(OpenCollectionsAsync, () => AreControlsEnabled && configurationDialogs is not null);
         OpenPamAccountsCommand = new AsyncRelayCommand(OpenPamAccountsAsync, () => AreControlsEnabled && configurationDialogs is not null);
         OpenAboutCommand = new RelayCommand(OpenAbout, () => AreControlsEnabled && configurationDialogs is not null);
@@ -134,7 +137,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     public IAsyncRelayCommand ConfigureCredentialsCommand { get; }
     public IRelayCommand ConfigureRequestCommand { get; }
-    public IRelayCommand ConfigureMailCommand { get; }
+    public IAsyncRelayCommand ConfigureSignatureCommand { get; }
     public IAsyncRelayCommand OpenCollectionsCommand { get; }
     public IAsyncRelayCommand OpenPamAccountsCommand { get; }
     public IRelayCommand OpenAboutCommand { get; }
@@ -168,7 +171,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     public string RequestActionText => favoriteCollectionsState.ActiveCollection is null
         ? "Selecciona una colección"
         : IsRequestConfigured ? "Editar solicitud" : "Configurar solicitud";
-    public string MailActionText => IsMailConfigured ? "Editar envío de correo" : "Configurar envío de correo";
+    public string SignatureActionText => "Configurar firma del correo";
     public string ActiveCollectionText => favoriteCollectionsState.ActiveCollection is FavoriteCollection collection
         ? $"Colección activa: {collection.Name}"
         : "Selecciona una colección para automatizar";
@@ -208,23 +211,27 @@ public sealed partial class MainWindowViewModel : ObservableObject
             SendEmailAtEnd = settings.FinalAction == FinalAction.SendEmail;
             await ReloadFavoriteCollectionsAsync(cancellationToken);
             IsRequestConfigured = IsEffectiveRequestConfigured;
-            mailSettings = mailSettingsStore is null ? null : await mailSettingsStore.LoadAsync(cancellationToken);
-            if (mailSettings is not null) mailSettings = mailSettingsValidator.ValidateAndNormalize(mailSettings);
             OutlookAccountSettings? outlookAccount = outlookAccountSettingsStore is null
                 ? null
                 : await outlookAccountSettingsStore.LoadAsync(cancellationToken);
-            if (outlookAccount is null && mailSettings is not null && outlookAccountSettingsStore is not null)
+            MailSettings? legacyMail = outlookAccount is null && mailSettingsStore is not null
+                ? await mailSettingsStore.LoadAsync(cancellationToken) : null;
+            if (outlookAccount is null && legacyMail is not null && outlookAccountSettingsStore is not null)
             {
-                outlookAccount = new OutlookAccountSettings { SmtpAddress = mailSettings.SmtpAddress };
+                outlookAccount = new OutlookAccountSettings { SmtpAddress = legacyMail.SmtpAddress };
                 await outlookAccountSettingsStore.SaveAsync(outlookAccount, cancellationToken);
             }
-            outlookSmtpAddress = outlookAccount?.SmtpAddress ?? mailSettings?.SmtpAddress ?? string.Empty;
-            if (mailSettings is not null && !string.IsNullOrWhiteSpace(outlookSmtpAddress))
+            outlookSmtpAddress = outlookAccount?.SmtpAddress ?? legacyMail?.SmtpAddress ?? string.Empty;
+            try
             {
-                mailSettings = mailSettingsValidator.ValidateAndNormalize(
-                    mailSettings with { SmtpAddress = outlookSmtpAddress });
+                mailSignature = mailSignatureStore is null ? null : await mailSignatureStore.LoadAsync(cancellationToken);
             }
-            IsMailConfigured = mailSettings is not null;
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                signatureLoadError = "No se pudo leer la firma. Abre Configurar firma del correo para volver a guardarla.";
+                logger.LogWarning(exception, "The protected mail signature could not be loaded.");
+            }
+            RefreshEffectiveMail();
             StatusMessage = requestStartAdjusted
                 ? "La fecha y hora vencidas se actualizaron automáticamente a la primera hora válida."
                 : IsConfigurationComplete
@@ -402,6 +409,14 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     private async Task StartAutomationAsync()
     {
+        RefreshEffectiveMail();
+        if (SendEmailAtEnd && !IsMailConfigured)
+        {
+            StatusMessage = mailConfigurationError;
+            dialogs?.ShowError(StatusMessage);
+            return;
+        }
+        MailSettings? executionMail = SendEmailAtEnd ? mailSettings : null;
         AppSettings executionSettings = GetEffectiveSettings();
         if (!ValidateRequestAtExecutionBoundary(executionSettings, confirmationWasShown: false)) return;
         if (!TryGetExecutionDependencies(out PamCredentials? credentials)) return;
@@ -414,7 +429,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
             return;
         }
 
-        if (!dialogs!.ConfirmAutomationStart(executionSettings, mailSettings, activeCollection.Name))
+        if (!dialogs!.ConfirmAutomationStart(executionSettings, executionMail, activeCollection.Name))
         {
             logger.LogInformation("Real PAM execution was cancelled before preparation.");
             StatusMessage = "Ejecución cancelada. No se inició ninguna validación ni se creó ninguna solicitud.";
@@ -448,14 +463,14 @@ public sealed partial class MainWindowViewModel : ObservableObject
                     return;
                 }
 
-                if (mailSettings is null)
+                if (executionMail is null)
                 {
                     throw new InvalidOperationException("La configuración de correo no está disponible.");
                 }
 
                 StatusMessage = "Enviando correo con los Request ID existentes en Pending…";
                 PamExecutionResult existingResult = await executionService
-                    .CompleteWithExistingPendingAsync(preparation, mailSettings)
+                    .CompleteWithExistingPendingAsync(preparation, executionMail)
                     .ConfigureAwait(true);
                 PresentResult(existingResult);
                 PresentExistingPendingMailOutcome(existingResult.MailDelivery);
@@ -464,7 +479,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
             var progress = new Progress<PamRequestSubmissionProgress>(PresentSubmissionProgress);
             PamExecutionResult result = await executionService.ExecuteRealAsync(
-                credentials!, preparation, GetEcuadorNow(), mailSettings, progress: progress);
+                credentials!, preparation, GetEcuadorNow(), executionMail, progress: progress);
             PresentResult(result);
         }
         catch (Exception exception)
@@ -496,11 +511,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
             AreCredentialsConfigured = state.HasPamCredentials;
             await RefreshInteractivePamAccountAvailabilityAsync();
             outlookSmtpAddress = state.OutlookSmtpAddress;
-            if (mailSettings is not null && !string.IsNullOrWhiteSpace(outlookSmtpAddress))
-            {
-                mailSettings = mailSettingsValidator.ValidateAndNormalize(
-                    mailSettings with { SmtpAddress = outlookSmtpAddress });
-            }
+            RefreshEffectiveMail();
             StatusMessage = state == currentState
                 ? "Configuración de credenciales sin cambios."
                 : "Configuración de credenciales actualizada.";
@@ -583,7 +594,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         try
         {
             logger.LogInformation("Collections dialog opened.");
-            configurationDialogs.OpenFavoriteCollections();
+            configurationDialogs.OpenFavoriteCollections(outlookSmtpAddress);
             await ReloadFavoriteCollectionsAsync();
             logger.LogInformation("Collections dialog closed.");
         }
@@ -647,6 +658,12 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     private async Task StartTestAsync()
     {
+        RefreshEffectiveMail();
+        if (SendEmailAtEnd && !IsMailConfigured)
+        {
+            dialogs?.ShowError(mailConfigurationError);
+            return;
+        }
         if (!TryGetExecutionDependencies(out PamCredentials? credentials)) return;
 
         IsRunning = true;
@@ -688,37 +705,31 @@ public sealed partial class MainWindowViewModel : ObservableObject
         }
     }
 
-    private async Task ConfigureMailAsync()
+    private async Task ConfigureSignatureAsync()
     {
-        if (configurationDialogs is null || mailSettingsStore is null)
+        if (configurationDialogs is null || mailSignatureStore is null)
         {
-            ShowPendingFeature("La configuración de correo no está disponible en este contexto.");
+            ShowPendingFeature("La configuración de firma no está disponible en este contexto.");
             return;
         }
 
-        if (string.IsNullOrWhiteSpace(outlookSmtpAddress))
-        {
-            dialogs?.ShowError("Configura y verifica primero tu cuenta de Outlook en Editar credenciales.");
-            return;
-        }
-
-        MailConfigurationEdit? edit = configurationDialogs.EditMail(mailSettings, outlookSmtpAddress);
+        MailSignature? edit = configurationDialogs.EditSignature(mailSignature);
         if (edit is null)
         {
-            logger.LogInformation("Mail configuration dialog was cancelled.");
+            logger.LogInformation("Mail signature dialog was cancelled.");
             return;
         }
         IsRunning = true;
-        StatusMessage = "Validando y guardando la configuración de correo…";
+        StatusMessage = "Validando y guardando la firma común…";
         try
         {
-            MailSettings normalized = mailSettingsValidator.ValidateAndNormalize(
-                edit.Settings with { SmtpAddress = outlookSmtpAddress });
-            await mailSettingsStore.SaveAsync(normalized);
-            mailSettings = normalized;
-            IsMailConfigured = true;
-            StatusMessage = "Configuración de correo validada y guardada de forma protegida.";
-            logger.LogInformation("Mail configuration was stored successfully.");
+            MailSignature normalized = CollectionMailComposer.ValidateSignature(edit);
+            await mailSignatureStore.SaveAsync(normalized);
+            mailSignature = normalized;
+            signatureLoadError = string.Empty;
+            RefreshEffectiveMail();
+            StatusMessage = "Firma guardada de forma protegida. Se usará en los próximos correos de todas las colecciones.";
+            logger.LogInformation("The principal mail signature was stored successfully.");
         }
         catch (Exception exception)
         {
@@ -1007,8 +1018,33 @@ public sealed partial class MainWindowViewModel : ObservableObject
     private void ApplyFavoriteCollectionsState(FavoriteCollectionsState state)
     {
         favoriteCollectionsState = state;
+        RefreshEffectiveMail();
         IsRequestConfigured = state.ActiveCollection is not null &&
                               settingsValidator.Validate(GetEffectiveSettings(), GetEcuadorNow()).IsValid;
+        RefreshPresentationState();
+    }
+
+    private void RefreshEffectiveMail()
+    {
+        mailSettings = null;
+        FavoriteCollection? collection = favoriteCollectionsState.ActiveCollection;
+        mailConfigurationError = collection is null
+            ? "Selecciona una colección y configura su correo."
+            : $"Configura el correo de la colección «{collection.Name}» en Colecciones → Configurar correo de esta colección: Para, CC opcional, asunto y contenido con un marcador de Request ID.";
+        if (collection is not null)
+        {
+            try
+            {
+                if (!string.IsNullOrEmpty(signatureLoadError)) throw new InvalidOperationException(signatureLoadError);
+                mailSettings = CollectionMailComposer.Resolve(collection, outlookSmtpAddress, mailSignature);
+                mailConfigurationError = string.Empty;
+            }
+            catch (Exception exception) when (exception is OutlookValidationException or OutlookHtmlCompositionException or InvalidOperationException or System.IO.InvalidDataException)
+            {
+                mailConfigurationError += " " + exception.Message;
+            }
+        }
+        IsMailConfigured = mailSettings is not null;
         RefreshPresentationState();
     }
 
@@ -1106,7 +1142,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
         if (SendEmailAtEnd && !IsMailConfigured)
         {
-            return "El botón está desactivado porque elegiste enviar el resultado por Outlook y falta configurar el correo. Abre Configurar envío de correo.";
+            return "El botón está desactivado porque elegiste Outlook. " + mailConfigurationError;
         }
 
         return string.Empty;
@@ -1129,11 +1165,11 @@ public sealed partial class MainWindowViewModel : ObservableObject
         OnPropertyChanged(nameof(ConfigurationSummaryText));
         OnPropertyChanged(nameof(CredentialsActionText));
         OnPropertyChanged(nameof(RequestActionText));
-        OnPropertyChanged(nameof(MailActionText));
+        OnPropertyChanged(nameof(SignatureActionText));
         OnPropertyChanged(nameof(ActiveCollectionText));
         ConfigureCredentialsCommand.NotifyCanExecuteChanged();
         ConfigureRequestCommand.NotifyCanExecuteChanged();
-        ConfigureMailCommand.NotifyCanExecuteChanged();
+        ConfigureSignatureCommand.NotifyCanExecuteChanged();
         OpenCollectionsCommand.NotifyCanExecuteChanged();
         OpenPamAccountsCommand.NotifyCanExecuteChanged();
         OpenAboutCommand.NotifyCanExecuteChanged();

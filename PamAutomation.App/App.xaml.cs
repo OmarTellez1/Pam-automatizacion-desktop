@@ -166,7 +166,6 @@ namespace PamAutomation.App
                     pamAccountService,
                     loggerFactory.CreateLogger<PamAccountsWindow>()),
                 mailSettingsStore,
-                new MailSettingsValidator(),
                 outlookAccountStore,
                 loggerFactory.CreateLogger<MainWindowViewModel>(),
                 diagnosticExportService,
@@ -174,7 +173,8 @@ namespace PamAutomation.App
                 typeof(App).Assembly.GetName().Version,
                 interactiveAccess,
                 favoriteCollections,
-                pamAccountService);
+                pamAccountService,
+                new DpapiMailSignatureStore());
             viewModel.BeginInitialization();
             var window = new MainWindow { DataContext = viewModel };
             MainWindow = window;

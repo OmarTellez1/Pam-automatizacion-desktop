@@ -157,6 +157,36 @@ public sealed class FavoriteCollectionServiceTests
         "Prueba",
         [new FavoriteAccountKey(system, "app", $"account-{system}")]);
 
+    [TestMethod]
+    public async Task AllFavorites_EmptySavedCollection_CanStillConfigureMail()
+    {
+        var store = new MemoryStore();
+        var service = new FavoriteCollectionService(store);
+        var all = new FavoriteCollection(Guid.NewGuid(), FavoriteCollection.AllFavoritesName, "Reason", [], true);
+        await store.SaveAsync(new FavoriteCollectionsState([all], all.Id));
+        var mail = new PamAutomation.Core.Models.Configuration.CollectionMailSettings { Subject = "Future requests" };
+        FavoriteCollectionsState state = await service.SaveCollectionAsync(
+            new FavoriteCollection(all.Id, all.Name, all.RequestReason, all.Accounts, true, mail));
+        Assert.AreEqual("Future requests", state.ActiveCollection!.Mail!.Subject);
+        Assert.IsEmpty(state.ActiveCollection.Accounts);
+    }
+
+    [TestMethod]
+    public async Task Reconcile_MailEditedForAllAndCustom_PreservesMailWhenFavoritesChange()
+    {
+        var service = new FavoriteCollectionService(new MemoryStore());
+        FavoriteCollection all = (await service.ReconcileAsync(CreateCatalog("system-1"))).ActiveCollection!;
+        var allMail = new PamAutomation.Core.Models.Configuration.CollectionMailSettings { Subject = "All subject" };
+        await service.SaveCollectionAsync(new FavoriteCollection(all.Id, all.Name, all.RequestReason, all.Accounts, true, allMail));
+        var custom = new FavoriteCollection(Guid.NewGuid(), "Custom", "Reason", all.Accounts,
+            mail: allMail with { Subject = "Custom subject" });
+        await service.SaveCollectionAsync(custom);
+        FavoriteCollectionsState state = await service.ReconcileAsync(CreateCatalog("system-2"));
+        Assert.AreEqual("All subject", state.Collections.Single(c => c.IsAllFavorites).Mail!.Subject);
+        Assert.AreEqual("Custom subject", state.Collections.Single(c => c.Id == custom.Id).Mail!.Subject);
+        Assert.IsEmpty(state.Collections.Single(c => c.Id == custom.Id).Accounts);
+    }
+
     private static FavoriteCatalogSnapshot CreateCatalog(params string[] systems) => new(
         DateTimeOffset.UtcNow,
         systems.Select(system => new FavoriteCatalogEntry(system, "app", $"account-{system}", "10.0.0.1")).ToArray());

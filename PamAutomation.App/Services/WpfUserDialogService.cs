@@ -70,6 +70,9 @@ public sealed class WpfUserDialogService : IUserDialogService
             settings.FinalAction == FinalAction.SendEmail && mailSettings is not null
                 ? $"CC: {ccRecipients}"
                 : string.Empty,
+            settings.FinalAction == FinalAction.SendEmail && mailSettings is not null
+                ? $"Asunto: {mailSettings.Subject}\nRemitente: {mailSettings.SmtpAddress}"
+                : string.Empty,
             string.Empty,
             "Después de confirmar, las validaciones se ejecutarán en segundo plano.",
             "Solo se solicitará otra decisión si existen solicitudes idénticas en Pending; podrás reutilizar un conjunto completo para el correo o cancelar.");

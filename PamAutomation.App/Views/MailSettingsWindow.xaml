@@ -8,14 +8,14 @@
             <RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
         <StackPanel Margin="0,0,0,10">
-            <TextBlock FontSize="20" FontWeight="Bold" Text="Configurar envío de correo"/>
-            <TextBlock Margin="0,6,0,0" Foreground="{StaticResource TextSecondaryBrush}"
+            <TextBlock x:Name="EditorHeading" FontSize="20" FontWeight="Bold" TextWrapping="Wrap" Text="Configurar envío de correo"/>
+            <TextBlock x:Name="EditorDescription" Margin="0,6,0,0" TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}"
                        Text="Define los destinatarios y el contenido que acompañará a los Request ID."/>
         </StackPanel>
 
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
             <StackPanel Margin="0,0,8,0">
-                <Border Padding="10" Background="{StaticResource PrimarySoftBrush}"
+                <Border x:Name="OutlookNotice" Padding="10" Background="{StaticResource PrimarySoftBrush}"
                         BorderBrush="{StaticResource PrimaryBrush}" BorderThickness="1" CornerRadius="9">
                     <TextBlock TextWrapping="Wrap" FontWeight="SemiBold">
                         <Run Text="El envío automático requiere Outlook clásico instalado y una sesión iniciada. "/>
@@ -32,26 +32,26 @@
                             <RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
 
-                        <Border Padding="12" Background="{StaticResource SuccessSoftBrush}" CornerRadius="8">
+                        <Border x:Name="SenderBorder" Padding="12" Background="{StaticResource SuccessSoftBrush}" CornerRadius="8">
                             <TextBlock TextWrapping="Wrap">
                                 <Run Text="Cuenta remitente: " FontWeight="SemiBold"/>
                                 <Run x:Name="SenderAddressRun"/>
                             </TextBlock>
                         </Border>
 
-                        <TextBlock Grid.Row="1" Margin="0,10,0,0" FontWeight="SemiBold" Text="Para"/>
+                        <TextBlock x:Name="ToLabel" Grid.Row="1" Margin="0,10,0,0" FontWeight="SemiBold" Text="Para"/>
                         <TextBox x:Name="ToBox" Grid.Row="2" Height="38" Margin="0,5,0,3"
                                  AutomationProperties.Name="Destinatarios Para"/>
-                        <TextBlock Grid.Row="3" Foreground="{StaticResource TextMutedBrush}" FontSize="12"
+                        <TextBlock x:Name="ToHint" Grid.Row="3" Foreground="{StaticResource TextMutedBrush}" FontSize="12"
                                    Text="Separa varias direcciones con punto y coma (;)."/>
 
-                        <TextBlock Grid.Row="4" Margin="0,9,0,0" FontWeight="SemiBold" Text="CC (opcional)"/>
+                        <TextBlock x:Name="CcLabel" Grid.Row="4" Margin="0,9,0,0" FontWeight="SemiBold" Text="CC (opcional)"/>
                         <TextBox x:Name="CcBox" Grid.Row="5" Height="38" Margin="0,5,0,3"
                                  AutomationProperties.Name="Destinatarios CC opcionales"/>
-                        <TextBlock Grid.Row="6" Foreground="{StaticResource TextMutedBrush}" FontSize="12"
+                        <TextBlock x:Name="CcHint" Grid.Row="6" Foreground="{StaticResource TextMutedBrush}" FontSize="12"
                                    Text="Separa varias direcciones con punto y coma (;)."/>
 
-                        <TextBlock Grid.Row="7" Margin="0,9,0,0" FontWeight="SemiBold" Text="Asunto"/>
+                        <TextBlock x:Name="SubjectLabel" Grid.Row="7" Margin="0,9,0,0" FontWeight="SemiBold" Text="Asunto"/>
                         <TextBox x:Name="SubjectBox" Grid.Row="8" Height="38" Margin="0,5,0,9"
                                  AutomationProperties.Name="Asunto del correo"/>
 
@@ -63,16 +63,16 @@
                                 <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                                 <TextBlock VerticalAlignment="Center" FontWeight="SemiBold" Text="Contenido"/>
                                 <StackPanel Grid.Column="1" Orientation="Horizontal">
-                                    <Button Content="Insertar tabla 2×2" Click="InsertTable_Click"
+                                    <Button x:Name="InsertTableButton" Content="Insertar tabla 2×2" Click="InsertTable_Click"
                                             Style="{StaticResource SecondaryButtonStyle}"/>
-                                    <Button Margin="6,0,0,0" Content="Insertar {{REQUEST_IDS}}"
+                                    <Button x:Name="InsertIdsButton" Margin="6,0,0,0" Content="Insertar {{REQUEST_IDS}}"
                                             Click="InsertRequestIds_Click" Style="{StaticResource TestButtonStyle}"/>
                                 </StackPanel>
                             </Grid>
                             <Border Grid.Row="1" Margin="0,7,0,0" Padding="8"
                                     Background="{StaticResource PrimarySoftBrush}" CornerRadius="7">
-                                <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}"
-                                           Text="Importante: no pegues tablas dentro del contenido. Insértalas manualmente con el botón Insertar tabla 2×2; el texto y la firma sí pueden copiarse y pegarse normalmente."/>
+                                <TextBlock x:Name="ContentHint" TextWrapping="Wrap" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}"
+                                           Text="Inserta tablas con Insertar tabla 2×2. La firma común se configura en la pantalla principal y se añade automáticamente al final; no la copies en este contenido."/>
                             </Border>
                             <RichTextBox x:Name="BodyEditor" Grid.Row="2" MinHeight="180" Margin="0,7,0,0" Padding="9"
                                          VerticalScrollBarVisibility="Auto" AcceptsTab="True"
@@ -84,7 +84,7 @@
                         <Border x:Name="MarkerStatusBorder" Grid.Row="10" Margin="0,8,0,0" Padding="8" CornerRadius="8">
                             <TextBlock x:Name="MarkerStatusText" TextWrapping="Wrap" TextAlignment="Center" FontSize="12"/>
                         </Border>
-                        <Button Grid.Row="11" MinHeight="42" Margin="0,9,0,0"
+                        <Button x:Name="SaveMailButton" Grid.Row="11" MinHeight="42" Margin="0,9,0,0"
                                 Content="Guardar configuración  →" Click="Save_Click"
                                 Style="{StaticResource PrimaryButtonStyle}"/>
                     </Grid>

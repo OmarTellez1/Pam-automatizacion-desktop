@@ -74,8 +74,14 @@
                                 Background="#FFE8F1FF" BorderBrush="#FF9BBCEF"
                                 BorderThickness="1" CornerRadius="8" Visibility="Collapsed">
                             <TextBlock TextWrapping="Wrap"
-                                       Text="All favorites se sincroniza automáticamente con Favorites. Solo puedes editar su motivo." />
+                                       Text="All favorites se sincroniza automáticamente con Favorites. Puedes editar su motivo y su correo." />
                         </Border>
+                        <Button x:Name="ConfigureCollectionMailButton" Margin="0,16,0,0"
+                                Click="ConfigureMail_Click" Style="{StaticResource SecondaryButtonStyle}">
+                            <TextBlock Text="Configurar correo de esta colección" TextWrapping="Wrap" TextAlignment="Center" />
+                        </Button>
+                        <TextBlock x:Name="MailStatusText" Margin="0,8,0,0" TextWrapping="Wrap"
+                                   Foreground="{StaticResource TextSecondaryBrush}" />
                     </StackPanel>
                 </ScrollViewer>
             </Border>

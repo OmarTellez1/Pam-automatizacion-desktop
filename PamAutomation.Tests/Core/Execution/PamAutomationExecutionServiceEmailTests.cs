@@ -121,10 +121,53 @@ public sealed class PamAutomationExecutionServiceEmailTests
         HtmlTemplate = "<p>{{REQUEST_IDS}}</p>",
     };
 
+    [TestMethod]
+    public async Task ExecuteReal_MissingCollectionMail_StopsBeforePamSubmission()
+    {
+        var outlook = new RecordingOutlookClient();
+        var service = CreateService(outlook);
+        var preparation = new PamExecutionPreparation(1, new RequestSettings(), FinalAction.SendEmail);
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(() => service.ExecuteRealAsync(
+            new PamCredentials("synthetic", "synthetic", "JBSWY3DPEHPK3PXP"), preparation, DateTimeOffset.UtcNow));
+        Assert.AreEqual(0, outlook.SendCount);
+        Assert.AreEqual(0, outlook.LookupCount);
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task CollectionMail_NormalAndExistingPending_ComposesSignatureOnceInFinalSend(bool existingPending)
+    {
+        var outlook = new RecordingOutlookClient();
+        var service = CreateService(outlook);
+        FavoriteCollection collection = PamAutomation.Tests.Core.Outlook.CollectionMailComposerTests.Collection("Operations", "operations");
+        MailSettings mail = CollectionMailComposer.Resolve(collection, "principal@example.com",
+            new MailSignature { HtmlContent = "<p>Common signature</p>" });
+        if (existingPending)
+        {
+            var preparation = new PamExecutionPreparation(1, new RequestSettings(), FinalAction.SendEmail,
+                ["7001"], 1, reusablePendingRequestIds: ["7001"]);
+            await service.CompleteWithExistingPendingAsync(preparation, mail);
+        }
+        else await service.SendResultEmailAsync(mail, ["7001"], false);
+        Assert.AreEqual(1, outlook.SendCount);
+        OutlookSendRequest sent = outlook.LastRequest!;
+        Assert.AreEqual("operations@example.com", sent.ToRecipients[0]);
+        Assert.AreEqual("operations.cc@example.com", sent.CcRecipients[0]);
+        Assert.AreEqual("principal@example.com", sent.SmtpAddress);
+        Assert.AreEqual("operations subject", sent.Subject);
+        Assert.Contains("7001", sent.HtmlBody);
+        Assert.Contains("operations content", sent.HtmlBody);
+        Assert.DoesNotContain("{{REQUEST_IDS}}", sent.HtmlBody);
+        Assert.AreEqual(1, sent.HtmlBody.Split("Common signature").Length - 1);
+        Assert.IsTrue(sent.HtmlBody.IndexOf("7001", StringComparison.Ordinal) < sent.HtmlBody.IndexOf("Common signature", StringComparison.Ordinal));
+    }
+
     private sealed class RecordingOutlookClient : IOutlookClassicClient
     {
         public int LookupCount { get; private set; }
         public int SendCount { get; private set; }
+        public OutlookSendRequest? LastRequest { get; private set; }
         public Exception? DuplicateLookupFailure { get; init; }
         public Exception? ObservationFailure { get; init; }
 
@@ -163,6 +206,7 @@ public sealed class PamAutomationExecutionServiceEmailTests
         {
             cancellationToken.ThrowIfCancellationRequested();
             SendCount++;
+            LastRequest = request;
             return Task.FromResult(OutlookDeliveryResult.SubmittedUnconfirmed());
         }
     }

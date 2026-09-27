@@ -60,18 +60,16 @@ public sealed class WpfConfigurationDialogService : IConfigurationDialogService
         return dialog.ShowDialog() == true ? dialog.Edit : null;
     }
 
-    public MailConfigurationEdit? EditMail(MailSettings? current, string smtpAddress)
+    public MailSignature? EditSignature(MailSignature? current)
     {
-        var dialog = new MailSettingsWindow(current, smtpAddress, mailSettingsWindowLogger)
+        var dialog = new MailSettingsWindow(current, mailSettingsWindowLogger)
         {
             Owner = Application.Current.MainWindow
         };
-        return dialog.ShowDialog() == true && dialog.Settings is not null
-            ? new MailConfigurationEdit(dialog.Settings)
-            : null;
+        return dialog.ShowDialog() == true ? dialog.Signature : null;
     }
 
-    public void OpenFavoriteCollections()
+    public void OpenFavoriteCollections(string smtpAddress)
     {
         if (favoriteCatalogService is null)
         {
@@ -82,7 +80,7 @@ public sealed class WpfConfigurationDialogService : IConfigurationDialogService
             favoriteCatalogService,
             favoriteCollectionService,
             favoritesCatalogLogger);
-        var dialog = new FavoritesCatalogWindow(viewModel) { Owner = Application.Current.MainWindow };
+        var dialog = new FavoritesCatalogWindow(viewModel, smtpAddress) { Owner = Application.Current.MainWindow };
         dialog.ShowDialog();
     }
 

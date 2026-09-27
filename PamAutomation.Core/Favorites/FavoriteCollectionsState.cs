@@ -4,7 +4,7 @@ namespace PamAutomation.Core.Favorites;
 public sealed record FavoriteCollectionsState
 {
     /// <summary>Current persistence schema.</summary>
-    public const int CurrentSchemaVersion = 2;
+    public const int CurrentSchemaVersion = 3;
 
     /// <summary>Initializes a collections state.</summary>
     public FavoriteCollectionsState(

@@ -538,6 +538,30 @@ Validación: compilación Release x64, 36 pruebas existentes de `MainWindowViewM
 
 ## Fases pendientes
 
+### Fase 26 — Correo por colección y firma común
+
+**Estado: implementada y validada localmente el 27 de septiembre de 2026.** Cada colección tiene su propia configuración de correo: **Para**, **CC**, asunto, contenido e imágenes inline. `Configurar colección` incorpora `Configurar correo de esta colección` y reutiliza el editor enriquecido. `All favorites` admite su propio correo; su nombre y sus solicitudes siguen administrados por la aplicación. Elegir otra colección cambia el correo efectivo; editar una no altera las demás.
+
+La cuenta remitente continúa siendo la configurada y verificada para el usuario principal. La pantalla principal sustituye el botón de correo global por `Configurar firma del correo`. La firma es opcional, común y protegida separadamente; se añade una vez al final del correo sin modificar lo guardado en las colecciones. Cambiarla afecta los envíos posteriores. `Enviar correo con Outlook` sigue controlando si se envía correo o solo se muestran los ID.
+
+#### Fase 26.1 — Modelo protegido y migración
+
+**Completada.** `CollectionMailSettings` vive dentro de cada colección, identificada por su GUID, en `favorite-collections.dat` esquema 3. `MailSignature` usa `mail-signature.dat` esquema 1. Ambos emplean DPAPI `CurrentUser` y reemplazo atómico; SMTP continúa en `outlook-account.dat`. La migración de esquemas 1/2 copia el correo global a todas las colecciones ya guardadas, vuelve a leer el nuevo documento y conserva el legado. El esquema impide repetir la copia. Sin correo global y para colecciones nuevas, el correo queda ausente. Eliminar una colección elimina también su correo y reconciliar Favorites lo conserva.
+
+El HTML legado se conserva íntegro, incluidas firmas pegadas como contenido. La firma común comienza vacía. No hay una forma fiable de separar automáticamente una firma antigua del resto del contenido: al configurar la firma común, el usuario debe retirar las firmas antiguas equivalentes de las colecciones. La ventana explica esta limitación.
+
+#### Fase 26.2 — Edición en la interfaz
+
+**Completada.** `FavoriteCollectionEditorWindow` abre `MailSettingsWindow` con el nombre de la colección y SMTP informativo. Guarda el borrador solo junto con la colección; cancelar cualquiera de los editores no persiste cambios ni deja correo huérfano. `All favorites` admite edición de correo. El editor de firma reutiliza RichTextBox, formato y pegado enriquecido, oculta destinatarios/asunto/acciones de IDs y explica su incorporación automática al final. La pantalla principal ofrece únicamente la configuración de firma en el lugar del antiguo correo global.
+
+#### Fase 26.3 — Composición y ejecución
+
+**Completada.** `CollectionMailComposer` resuelve el contenido activo con la firma y el remitente principal, sanea HTML y evita colisiones CID en la plantilla efímera. La confirmación identifica colección, Para, CC, asunto y SMTP; pasa la misma configuración al envío normal o a `CompleteWithExistingPendingAsync`. Outlook incompleto bloquea antes del preflight e indica qué colección configurar. Core vuelve a validar antes de crear solicitudes. Se conservan composición de IDs, imágenes y barreras de duplicados de Outlook. Sin Outlook, la falta de correo/firma no impide solicitar accesos y mostrar resultados.
+
+#### Fase 26.4 — Aceptación
+
+**Completada localmente.** Compilación `Release | x64` correcta y 120 pruebas relacionadas aprobadas, cero fallos y cero omisiones. Cubren migraciones 1/2 con/sin correo global, independencia, DPAPI e imágenes, eliminación/reconciliación, dos colecciones con datos distintos, remitente estable, cambio de firma sin duplicación, cancelaciones de editores WPF, confirmaciones, envío normal, Pending existente y Outlook desactivado. Se usaron dobles de PAM/Outlook; no se crearon solicitudes ni se enviaron correos reales. Permanece la advertencia previa MSTEST0032 de la prueba de descubrimiento. La aceptación operativa real y la publicación no forman parte de esta validación local.
+
 ### Ajuste posterior a la fase 25 — Diagnóstico del formulario de solicitud
 
 La validación previa a `Submit Request` mantiene el bloqueo seguro cuando PAM cambia o no permite leer los valores del formulario. Ahora comunica al diagnóstico la etapa, los campos discrepantes, intentos/fallos de lectura y valores esperados/observados de fecha, hora, duración y `Application Session`. El motivo se representa solo por longitud y discrepancia para evitar registrar secretos introducidos accidentalmente en texto libre. Los valores inesperados del portal se filtran por formato; no se crea ninguna solicitud para producir estas pruebas. Compilación Release x64 y pruebas focalizadas del diagnóstico aprobadas. La comprobación real queda para una ejecución operativa posterior del usuario. **Instrumentación completada.**
@@ -571,6 +595,8 @@ Fases 20–22 completadas ──► Fase 23.1 completada ──► 23.2 completa
 Fase 24.1 completada ──► 24.2 completada ──► 24.3 completada ──► 24.4 completada
 
 Fase 25 completada ──► validación real administrada en fase 19
+
+Fases 26.1–26.4 completadas ──► aceptación operativa administrada en fase 19
 ```
 
 La fase 18 quedó completada tras validar el manifiesto GitHub real. El coordinador solo podrá paralelizar una parte futura si vuelve a demostrar independencia, contratos congelados y ausencia de archivos compartidos.

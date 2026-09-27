@@ -40,9 +40,15 @@ La aplicación permitirá:
 
 El modo de prueba permanece deshabilitado por defecto mediante `testModeEnabled`, pero ya no se expone como opción editable en `Configurar solicitud`. Si está habilitado en una configuración de desarrollo compatible, su botón solo será visible cuando las configuraciones necesarias estén completas. Su correo continúa limitado a `tellezoe@hitss.com`, sin utilizar Para ni CC configurados y con confirmación explícita.
 
-`Editar credenciales` separa las tarjetas `Credenciales del PAM` y `Cuenta de Outlook`. La primera permite guardar y probar un login no destructivo; la segunda guarda y verifica la cuenta clásica y ofrece, tras confirmación, un correo de prueba desde y hacia la misma dirección, sin CC. La plantilla, destinatarios y marcador `{{REQUEST_IDS}}` se administran aparte en `Editar envío de correo`.
+`Editar credenciales` separa las tarjetas `Credenciales del PAM` y `Cuenta de Outlook`. La primera permite guardar y probar un login no destructivo; la segunda guarda y verifica la cuenta clásica y ofrece, tras confirmación, un correo de prueba desde y hacia la misma dirección, sin CC. El remitente sigue perteneciendo al usuario principal y no cambia al elegir otra colección.
 
-El texto y la firma del correo se componen en otra aplicación y se pegan conservando el formato compatible. Las tablas no deben pegarse: `Insertar tabla 2×2` crea en la posición del cursor la estructura de solicitudes y motivo, incorpora un único `{{REQUEST_IDS}}` y deja una línea posterior editable. El botón independiente `Insertar {{REQUEST_IDS}}` continúa disponible.
+La fase 26 incorpora `Configurar correo de esta colección` dentro de `Configurar colección`, también para `All favorites`. Cada colección guarda Para, CC, asunto, contenido con un único `{{REQUEST_IDS}}` e imágenes inline. Cancelar la colección descarta también su borrador de correo. La pantalla principal ofrece `Configurar firma del correo`: es opcional, común al principal y se añade una sola vez al final al preparar los envíos futuros, sin reescribir las colecciones.
+
+La actualización copia el correo global anterior a cada colección ya guardada; las copias son independientes. Las nuevas empiezan sin correo. Si Outlook está activado, una colección sin correo válido muestra qué debe configurarse y bloquea el inicio antes de contactar PAM; con Outlook desactivado permite solicitar accesos y mostrar IDs. La ruta que reutiliza IDs existentes en Pending usa el mismo correo de la colección activa y la firma común.
+
+La migración conserva íntegro el contenido anterior y deja vacía la nueva firma común. Si el contenido antiguo ya incluía una firma, retírala manualmente del contenido de las colecciones al configurar la firma común para evitar duplicarla; no se intenta reconocer ni recortar automáticamente texto del usuario.
+
+El texto del correo y la firma pueden pegarse conservando el formato compatible en sus respectivos editores. En el contenido de la colección, `Insertar tabla 2×2` crea la estructura de solicitudes y motivo con un único `{{REQUEST_IDS}}`; no pegues tablas externas en ese contenido. La firma no admite marcadores de Request ID.
 
 Las operaciones de guardado y comprobación muestran un indicador circular animado, un mensaje inmediato de solicitud recibida y controles temporalmente deshabilitados. El indicador desaparece al finalizar. El correo de prueba solo muestra éxito cuando Outlook acepta `Send()`; un resultado `NotConfirmed` se presenta como error y no como confirmación verde.
 
@@ -85,18 +91,21 @@ La configuración no secreta se guardará en:
 
 Incluye la acción final, duración, fecha, hora, zona horaria y un campo de razón legado para compatibilidad. La razón efectiva procede siempre de la colección activa. La fecha se persiste internamente en formato ISO, aunque la interfaz la muestra como dd/MM.
 
-La configuración de correo se guardará en:
+El correo se guarda dentro de cada colección en:
 
-    %LOCALAPPDATA%\PamAutomation\config\mail-settings.dat
+    %LOCALAPPDATA%\PamAutomation\config\favorite-collections.dat
 
-Ese archivo contendrá remitente, destinatarios, copias, asunto y contenido HTML. Se protegerá con DPAPI CurrentUser porque el contenido del correo puede ser sensible.
+Ese archivo usa esquema 3, DPAPI CurrentUser y escritura atómica. La firma se guarda separadamente en `mail-signature.dat` y el remitente en `outlook-account.dat`, también protegidos. `mail-settings.dat` se conserva únicamente como fuente histórica de migración; nunca se usa como correo alternativo de una colección.
 
 La configuración es privada y específica del usuario. La estructura persistente completa queda limitada a:
 
     %LOCALAPPDATA%\PamAutomation\
     └── config\
         ├── app-settings.json
-        └── mail-settings.dat
+        ├── favorite-collections.dat
+        ├── mail-signature.dat
+        ├── outlook-account.dat
+        └── mail-settings.dat (legado conservado)
 
 No crear ni mantener carpetas persistentes de `results`, `logs`, `artifacts` o `temp` en `%PROGRAMDATA%`, `%LOCALAPPDATA%` ni junto al ejecutable. Los resultados de una ejecución deben vivir en memoria y mostrarse en la interfaz mientras la aplicación esté abierta. Si la acción final es correo, el envío se realiza dentro de la misma ejecución; no se necesita conservar un `last-run` para completar la operación.
 
