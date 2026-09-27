@@ -9,7 +9,7 @@ public partial class AboutWindow : Window
     public AboutWindow()
     {
         InitializeComponent();
-        VersionText = typeof(AboutWindow).Assembly.GetName().Version?.ToString(3) ?? "1.0.2";
+        VersionText = typeof(AboutWindow).Assembly.GetName().Version?.ToString(3) ?? "1.0.3";
         DataContext = this;
     }
 

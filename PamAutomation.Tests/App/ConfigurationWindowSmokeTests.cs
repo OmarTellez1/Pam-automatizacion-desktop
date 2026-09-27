@@ -161,7 +161,7 @@ public sealed class ConfigurationWindowSmokeTests
             Assert.IsNotNull(secondaryWindow.FindName("UsernameBox"));
             Assert.IsNotNull(secondaryWindow.FindName("PasswordBox"));
             Assert.IsNotNull(secondaryWindow.FindName("TotpSeedBox"));
-            Assert.AreEqual("1.0.2", aboutWindow.VersionText);
+            Assert.AreEqual("1.0.3", aboutWindow.VersionText);
             var author = Assert.IsInstanceOfType<TextBlock>(aboutWindow.FindName("AuthorText"));
             Assert.AreEqual("Hitss Omar Téllez", author.Text);
             Assert.IsNotNull(aboutWindow.FindName("CloseButton"));
