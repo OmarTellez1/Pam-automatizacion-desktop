@@ -21,6 +21,7 @@ public sealed class WpfConfigurationDialogService : IConfigurationDialogService
     private readonly ILogger<FavoritesCatalogViewModel> favoritesCatalogLogger;
     private readonly IPamAccountService? pamAccountService;
     private readonly ILogger<PamAccountsWindow> pamAccountsWindowLogger;
+    private readonly PamAutomation.Core.Execution.RequestIdAccumulator? accumulator;
 
     public WpfConfigurationDialogService(
         ICredentialConfigurationWorkflow credentialWorkflow,
@@ -30,7 +31,8 @@ public sealed class WpfConfigurationDialogService : IConfigurationDialogService
         IFavoriteCollectionService? favoriteCollectionService = null,
         ILogger<FavoritesCatalogViewModel>? favoritesCatalogLogger = null,
         IPamAccountService? pamAccountService = null,
-        ILogger<PamAccountsWindow>? pamAccountsWindowLogger = null)
+        ILogger<PamAccountsWindow>? pamAccountsWindowLogger = null,
+        PamAutomation.Core.Execution.RequestIdAccumulator? accumulator = null)
     {
         this.credentialWorkflow = credentialWorkflow ?? throw new ArgumentNullException(nameof(credentialWorkflow));
         this.credentialsWindowLogger = credentialsWindowLogger ?? NullLogger<CredentialsWindow>.Instance;
@@ -40,6 +42,7 @@ public sealed class WpfConfigurationDialogService : IConfigurationDialogService
         this.favoritesCatalogLogger = favoritesCatalogLogger ?? NullLogger<FavoritesCatalogViewModel>.Instance;
         this.pamAccountService = pamAccountService;
         this.pamAccountsWindowLogger = pamAccountsWindowLogger ?? NullLogger<PamAccountsWindow>.Instance;
+        this.accumulator = accumulator;
     }
 
     public Task<CredentialConfigurationState> EditCredentialsAsync(
@@ -79,7 +82,7 @@ public sealed class WpfConfigurationDialogService : IConfigurationDialogService
         var viewModel = new FavoritesCatalogViewModel(
             favoriteCatalogService,
             favoriteCollectionService,
-            favoritesCatalogLogger);
+            favoritesCatalogLogger, accumulator);
         var dialog = new FavoritesCatalogWindow(viewModel, smtpAddress) { Owner = Application.Current.MainWindow };
         dialog.ShowDialog();
     }

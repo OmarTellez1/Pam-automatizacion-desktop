@@ -226,6 +226,14 @@ El diagnóstico añade duración por lectura y, ante fallos, operación, página
 
 ## Próximo paso
 
+La **fase 27 está implementada** en el código: activa `Acumular solicitudes para un solo correo` para sumar los Request ID nuevos de ejecuciones completas de la misma colección (8 + 6 = 14, sin duplicados). Mientras esté activo, las acciones finales automáticas quedan deshabilitadas y se conserva su preferencia anterior. El contador, `Enviar correo` y `Descartar acumulado` aparecen junto al modo.
+
+Con IDs pendientes no puedes cambiar/desactivar/eliminar la colección vinculada ni salir del modo. Actualizar Favorites tampoco cambia su selección: si queda vacía, puedes corregir su correo y enviar los IDs, pero no iniciar solicitudes nuevas. Puedes ajustar inicio/duración/motivo para otra ejecución; duplicados exactos en Pending bloquean ese intento y no agregan IDs antiguos. Fuera del modo se conserva el comportamiento habitual.
+
+`Enviar correo` valida el correo actual de esa colección, remitente principal y firma común, y pide una sola confirmación. Confirmar Enviados vacía el acumulado. Ante un envío incierto se conservan los IDs y el botón pasa a `Comprobar envío`, sin reenviar. Descartar requiere confirmación y no cancela solicitudes PAM ni elimina correos. Al cerrar normalmente se advierte la pérdida de IDs: solo viven en memoria y no se recuperan tras un cierre inesperado.
+
+Validación de fase 27: compilación `Release | x64` y 119 pruebas relacionadas aprobadas, incluidas pruebas WPF y dobles de PAM/Outlook. Advertencia heredada `MSTEST0032`, sin errores de compilación. No se crearon solicitudes ni se enviaron correos reales. Sin cambio de versión ni publicación; el ejecutable publicado anterior no incorpora esta fase. Comandos y límites en `Fases.md`.
+
 La copia local más reciente está en `artifacts/publish/copy-request-ids-20260922/PAM Automation.exe`, Windows x64 autocontenida con `InformationalVersion=1.0.2-copy-request-ids.20260922`. Incluye las mejoras anteriores de Pending y Outlook. Debe conservarse la carpeta completa con sus dependencias. No se publica un release externo ni se modifica la versión estable del proyecto.
 
 La ventana de resultados con IDs incorpora `Copiar Request ID`, que copia únicamente los identificadores, uno por línea y en el orden mostrado. Confirma la copia dentro de la misma ventana y permite reintentar si el portapapeles está ocupado. La lista es seleccionable y desplazable; `Aceptar` o Escape cierra el resultado. La compilación Release x64, 36 pruebas de la ventana principal y la comprobación visual WPF con 12/250 IDs aprobaron. La copia y el portapapeles ocupado se comprobaron con un destino simulado, sin alterar el portapapeles del usuario.

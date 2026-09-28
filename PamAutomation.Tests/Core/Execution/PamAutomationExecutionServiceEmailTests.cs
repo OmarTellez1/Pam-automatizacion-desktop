@@ -19,6 +19,48 @@ namespace PamAutomation.Tests.Core.Execution;
 public sealed class PamAutomationExecutionServiceEmailTests
 {
     [TestMethod]
+    public async Task AccumulatedEmail_SafeLookupFailure_CanRetryAfterCorrection()
+    {
+        var outlook = new RecordingOutlookClient { DuplicateLookupFailure = new InvalidOperationException() };
+        var service = CreateService(outlook);
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(() => service.SendAccumulatedEmailAsync(CreateMailSettings(), ["100"]));
+        Assert.AreEqual(0, outlook.SendCount);
+        outlook.DuplicateLookupFailure = null;
+        Assert.IsTrue((await service.SendAccumulatedEmailAsync(CreateMailSettings(), ["100"])).IsConfirmed);
+        Assert.AreEqual(1, outlook.SendCount);
+    }
+
+    [TestMethod]
+    public async Task AccumulatedEmail_SubmissionThrows_ObservesSameMessageWithoutAnotherSend()
+    {
+        var outlook = new RecordingOutlookClient { SendFailure = new InvalidOperationException() };
+        var service = CreateService(outlook);
+        await Assert.ThrowsExactlyAsync<OutlookDeliveryUncertainException>(() => service.SendAccumulatedEmailAsync(CreateMailSettings(), ["100"]));
+        Assert.IsTrue((await service.ObserveResultEmailAsync(CreateMailSettings(), ["100"])).IsConfirmed);
+        Assert.AreEqual(1, outlook.SendCount);
+        Assert.AreEqual(OutlookDeliveryStatus.DuplicateInMemory,
+            (await service.SendAccumulatedEmailAsync(CreateMailSettings(), ["100"])).Status);
+        Assert.AreEqual(1, outlook.SendCount);
+    }
+
+    [TestMethod]
+    public async Task AccumulatedEmail_ComposesOnlyAccumulatedIdsWithOneSignature()
+    {
+        var outlook = new RecordingOutlookClient();
+        var service = CreateService(outlook);
+        FavoriteCollection collection = PamAutomation.Tests.Core.Outlook.CollectionMailComposerTests.Collection("Ops", "ops");
+        MailSettings mail = CollectionMailComposer.Resolve(collection, "principal@example.com",
+            new MailSignature { HtmlContent = "<p>Common signature</p>" });
+        await service.SendAccumulatedEmailAsync(mail, ["101", "102"]);
+        Assert.AreEqual("ops@example.com", outlook.LastRequest!.ToRecipients[0]);
+        Assert.AreEqual("ops.cc@example.com", outlook.LastRequest.CcRecipients[0]);
+        Assert.AreEqual("principal@example.com", outlook.LastRequest.SmtpAddress);
+        Assert.Contains("101", outlook.LastRequest.HtmlBody);
+        Assert.Contains("102", outlook.LastRequest.HtmlBody);
+        Assert.AreEqual(1, outlook.LastRequest.HtmlBody.Split("Common signature").Length - 1);
+    }
+
+    [TestMethod]
     public async Task OrdinaryRepeatedEmail_RemainsBlockedByInMemoryGuard()
     {
         var outlook = new RecordingOutlookClient();
@@ -168,7 +210,8 @@ public sealed class PamAutomationExecutionServiceEmailTests
         public int LookupCount { get; private set; }
         public int SendCount { get; private set; }
         public OutlookSendRequest? LastRequest { get; private set; }
-        public Exception? DuplicateLookupFailure { get; init; }
+        public Exception? DuplicateLookupFailure { get; set; }
+        public Exception? SendFailure { get; set; }
         public Exception? ObservationFailure { get; init; }
 
         public Task<OutlookExistingMessageStatus> ObserveDeliveryAsync(
@@ -207,6 +250,7 @@ public sealed class PamAutomationExecutionServiceEmailTests
             cancellationToken.ThrowIfCancellationRequested();
             SendCount++;
             LastRequest = request;
+            if (SendFailure is not null) return Task.FromException<OutlookDeliveryResult>(SendFailure);
             return Task.FromResult(OutlookDeliveryResult.SubmittedUnconfirmed());
         }
     }

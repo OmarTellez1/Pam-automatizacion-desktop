@@ -12,6 +12,7 @@
             <TextBlock Style="{StaticResource PageTitleTextStyle}" Text="Colecciones"/>
             <TextBlock Margin="0,6,0,0" Style="{StaticResource BodyTextStyle}"
                        Text="Crea grupos de Favorites con su propio motivo y selecciona cuál usar en la automatización."/>
+            <TextBlock Text="{Binding AccumulationNotice}" TextWrapping="Wrap" Foreground="#8A4B08"/>
         </StackPanel>
 
         <Grid Grid.Row="1">

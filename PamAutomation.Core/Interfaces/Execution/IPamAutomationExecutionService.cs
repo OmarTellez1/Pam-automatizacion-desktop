@@ -56,4 +56,12 @@ public interface IPamAutomationExecutionService
         IReadOnlyList<string> requestIds,
         bool isTest,
         CancellationToken cancellationToken = default);
+
+    /// <summary>Sends once with explicit classification of failures after the submission boundary.</summary>
+    Task<OutlookDeliveryResult> SendAccumulatedEmailAsync(MailSettings mailSettings,
+        IReadOnlyList<string> requestIds, CancellationToken cancellationToken = default);
+
+    /// <summary>Observes a previously attempted message without calling Send again.</summary>
+    Task<OutlookDeliveryResult> ObserveResultEmailAsync(MailSettings mailSettings,
+        IReadOnlyList<string> requestIds, CancellationToken cancellationToken = default);
 }

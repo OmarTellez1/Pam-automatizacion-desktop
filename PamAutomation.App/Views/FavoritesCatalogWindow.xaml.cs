@@ -50,7 +50,7 @@ public partial class FavoritesCatalogWindow : Window
         var viewModel = (FavoritesCatalogViewModel)DataContext;
         var editor = new FavoriteCollectionEditorWindow(
             viewModel.Favorites,
-            item.Collection, smtpAddress)
+            item.Collection, smtpAddress, allowEmpty: viewModel.AccumulatedCollectionId == item.Collection.Id)
         {
             Owner = this
         };
@@ -79,7 +79,7 @@ public partial class FavoritesCatalogWindow : Window
         finally
         {
             toggle.IsChecked = item.IsActive;
-            toggle.IsEnabled = true;
+            toggle.IsEnabled = item.CanActivate;
         }
     }
 

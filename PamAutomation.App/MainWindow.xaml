@@ -11,6 +11,9 @@
         Background="{StaticResource AppBackgroundBrush}"
         FontFamily="Segoe UI"
         TextOptions.TextFormattingMode="Display">
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
+    </Window.Resources>
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -168,7 +171,7 @@
             <StackPanel Grid.Row="1"
                         HorizontalAlignment="Center"
                         VerticalAlignment="Center">
-                <Button Width="500"
+                <Button x:Name="StartAutomationButton" Width="500"
                         AutomationProperties.Name="Iniciar automatización PAM"
                         Command="{Binding StartAutomationCommand}"
                         Content="Iniciar automatización"
@@ -297,15 +300,30 @@
                             Content="Exportar diagnóstico"
                             IsEnabled="{Binding CanExportDiagnostics}"
                             Style="{StaticResource SecondaryButtonStyle}" />
-                    <ToggleButton VerticalAlignment="Center"
+                    <ToggleButton x:Name="FinalActionToggle" VerticalAlignment="Center"
                                   AutomationProperties.Name="Seleccionar acción final"
                                   Command="{Binding ToggleFinalActionCommand}"
                                   IsChecked="{Binding SendEmailAtEnd, Mode=OneWay}"
-                                  IsEnabled="{Binding AreControlsEnabled}"
+                                  IsEnabled="{Binding CanChangeFinalAction}"
                                   Style="{StaticResource OutlookActionToggleStyle}" />
                 </StackPanel>
 
-                <UniformGrid Grid.Row="1"
+                <StackPanel Grid.Row="1">
+                    <CheckBox x:Name="AccumulationModeToggle" Content="Acumular solicitudes para un solo correo"
+                              HorizontalAlignment="Center" Margin="0,0,0,8"
+                              IsChecked="{Binding IsAccumulating, Mode=OneWay}"
+                              Command="{Binding ToggleAccumulationCommand}" IsEnabled="{Binding CanToggleAccumulation}" />
+                    <StackPanel Visibility="{Binding IsAccumulating, Converter={StaticResource BooleanToVisibilityConverter}}">
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,8">
+                            <TextBlock x:Name="AccumulatedCountText" Text="{Binding AccumulatedCountText}" VerticalAlignment="Center" Margin="0,0,12,0" />
+                            <Button x:Name="SendAccumulatedButton" Content="{Binding AccumulatedMailActionText}"
+                                    Command="{Binding SendAccumulatedMailCommand}" Style="{StaticResource SecondaryButtonStyle}" />
+                            <Button x:Name="DiscardAccumulatedButton" Content="Descartar acumulado" Margin="8,0,0,0"
+                                    Command="{Binding DiscardAccumulatedCommand}" Style="{StaticResource SecondaryButtonStyle}" />
+                        </StackPanel>
+                        <TextBlock Text="{Binding AccumulationNotice}" TextWrapping="Wrap" HorizontalAlignment="Center" Margin="0,0,0,8" />
+                    </StackPanel>
+                <UniformGrid
                              HorizontalAlignment="Stretch"
                              Columns="4">
                 <Button Margin="0,0,10,0"
@@ -390,6 +408,7 @@
                     </Grid>
                 </Button>
                 </UniformGrid>
+                </StackPanel>
             </Grid>
         </Grid>
 

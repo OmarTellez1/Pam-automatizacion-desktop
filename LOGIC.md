@@ -4,6 +4,16 @@
 
 Este documento describe la lógica objetivo de la aplicación nueva. Ya existen la estructura base, la configuración, el almacenamiento protegido de credenciales, TOTP, navegador automático restringido y oculto, acceso PAM interactivo visible, lectura de Favorites, solicitudes reales, validación segura de formularios, composición HTML saneada, Outlook clásico aislado y la coordinación del flujo PAM desde la interfaz.
 
+## Fase 27 — Acumulado de una sola colección
+
+**Implementada.** El modo opcional de acumulación suprime las acciones finales automáticas y reúne solo los IDs nuevos reconciliados de ejecuciones completas de la misma colección. La identidad estable vincula el lote; no se puede cambiar de colección, desactivar el modo ni eliminar la colección vinculada con IDs pendientes. Envío confirmado o descarte explícito libera el vínculo. No se agregan resultados parciales ni IDs antiguos automáticamente; los duplicados exactos en este modo bloquean la ejecución sin envío inmediato de reutilización. El comportamiento habitual fuera del modo se conserva.
+
+El botón manual usa el correo de la colección vinculada, remitente principal y firma vigente, congelados junto con los IDs después de confirmar. El estado incierto de Outlook conserva el lote sin repetir `Send()`. Descartar nunca cancela solicitudes PAM ni retira correos. Los resultados solo viven en memoria y el cierre normal exige advertir su pérdida. Especificación y criterios completos en `Fases.md`, fase 27.
+
+`RequestIdAccumulator` admite lotes atómicos únicamente con todas las filas procesadas y un ID numérico por solicitud nueva sin conflicto; rechaza modos de prueba/reutilización, resultados parciales y correo ya ejecutado. Deduplica entre lotes y mantiene el orden. Mientras envía/observa bloquea altas, descarte y edición de la colección vinculada. Ante fallo seguro vuelve a Ready; si existe o puede existir un correo queda en AwaitingConfirmation y solo admite observación con la instantánea original. Nuevas ejecuciones permanecen bloqueadas hasta resolver o descartar ese estado.
+
+La actualización de Favorites conserva el GUID activo vinculado incluso sin accesos disponibles. Esa colección vacía admite correcciones de correo pero no solicitudes nuevas. Las otras colecciones siguen administrables fuera de una operación en curso. La preferencia de acción final no se persiste de nuevo por activar/desactivar acumulación. El cierre normal usa No como opción predeterminada; el fin de sesión de Windows omite el diálogo. Validación local: 119 pruebas relacionadas aprobadas, sin operaciones reales.
+
 ## Capas
 
 - WPF/XAML: interfaz y presentación.

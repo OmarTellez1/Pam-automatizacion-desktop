@@ -8,6 +8,42 @@ namespace PamAutomation.Tests.Core.Favorites;
 public sealed class FavoriteCollectionServiceTests
 {
     [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task Accumulation_LocksSelectionAndDeletion_ReconcileRetainsEmptyAndEditableMail(bool useAll)
+    {
+        var accumulator = new PamAutomation.Core.Execution.RequestIdAccumulator();
+        accumulator.SetEnabled(true);
+        var service = new FavoriteCollectionService(new MemoryStore(), accumulator);
+        FavoriteCollection all = (await service.ReconcileAsync(CreateCatalog("system-1"))).ActiveCollection!;
+        FavoriteCollection custom = CreateCollection("Custom", "system-1");
+        await service.SaveCollectionAsync(custom);
+        FavoriteCollection bound = useAll ? all : custom;
+        await service.SetActiveCollectionAsync(bound.Id);
+        accumulator.Add(bound.Id, Execution.RequestIdAccumulatorTests.Batch("100"));
+        await Assert.ThrowsExactlyAsync<FavoriteCollectionException>(() => service.SetActiveCollectionAsync(null));
+        await Assert.ThrowsExactlyAsync<FavoriteCollectionException>(() => service.SetActiveCollectionAsync(useAll ? custom.Id : all.Id));
+        await Assert.ThrowsExactlyAsync<FavoriteCollectionException>(() => service.DeleteCollectionAsync(bound.Id));
+        FavoriteCollection other = CreateCollection("Other", "system-1");
+        await service.SaveCollectionAsync(other);
+        await service.DeleteCollectionAsync(other.Id);
+        FavoriteCollectionsState reconciled = await service.ReconcileAsync(CreateCatalog("system-2"));
+        Assert.AreEqual(bound.Id, reconciled.ActiveCollectionId);
+        if (!useAll) Assert.IsEmpty(reconciled.ActiveCollection!.Accounts);
+        else Assert.AreEqual("system-2", reconciled.ActiveCollection!.Accounts[0].SystemName);
+        var edited = new FavoriteCollection(bound.Id, bound.Name, bound.RequestReason, reconciled.ActiveCollection!.Accounts, bound.IsAllFavorites,
+            new PamAutomation.Core.Models.Configuration.CollectionMailSettings { Subject = "Corrected" });
+        Assert.AreEqual("Corrected", (await service.SaveCollectionAsync(edited)).ActiveCollection!.Mail!.Subject);
+        accumulator.BeginMailOperation(false);
+        await Assert.ThrowsExactlyAsync<FavoriteCollectionException>(() => service.SaveCollectionAsync(edited));
+        await Assert.ThrowsExactlyAsync<FavoriteCollectionException>(() => service.ReconcileAsync(CreateCatalog("system-1")));
+        accumulator.CompleteMailOperation(false, false);
+        accumulator.Discard();
+        await service.SetActiveCollectionAsync(null);
+        Assert.IsNull((await service.LoadAsync()).ActiveCollectionId);
+    }
+
+    [TestMethod]
     public async Task SaveAndActivateAsync_MultipleCollections_KeepsOneActive()
     {
         var store = new MemoryStore();

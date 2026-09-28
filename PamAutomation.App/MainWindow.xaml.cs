@@ -6,6 +6,7 @@ namespace PamAutomation.App
 {
     public partial class MainWindow : Window
     {
+        internal bool IsSystemShutdown { get; set; }
         internal static readonly TimeSpan RequestTimeRefreshInterval = TimeSpan.FromMinutes(1);
         private readonly DispatcherTimer requestTimeRefreshTimer;
 
@@ -19,6 +20,7 @@ namespace PamAutomation.App
             requestTimeRefreshTimer.Tick += RefreshRequestTimeState;
             Loaded += StartRequestTimeRefresh;
             Closed += StopRequestTimeRefresh;
+            Closing += (_, e) => e.Cancel = (DataContext as MainWindowViewModel)?.TryClose(IsSystemShutdown) == false;
         }
 
         private void StartRequestTimeRefresh(object sender, RoutedEventArgs e)

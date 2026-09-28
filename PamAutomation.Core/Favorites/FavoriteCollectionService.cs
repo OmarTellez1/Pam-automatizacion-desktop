@@ -1,4 +1,5 @@
 using PamAutomation.Core.Interfaces.Favorites;
+using PamAutomation.Core.Execution;
 
 namespace PamAutomation.Core.Favorites;
 
@@ -8,10 +9,14 @@ public sealed class FavoriteCollectionService : IFavoriteCollectionService
     private const string DefaultAllFavoritesReason = "Solicitud de acceso PAM";
     private readonly IFavoriteCollectionStore store;
     private readonly SemaphoreSlim gate = new(1, 1);
+    private readonly RequestIdAccumulator? accumulator;
 
     /// <summary>Initializes the collection service.</summary>
-    public FavoriteCollectionService(IFavoriteCollectionStore store) =>
+    public FavoriteCollectionService(IFavoriteCollectionStore store, RequestIdAccumulator? accumulator = null)
+    {
         this.store = store ?? throw new ArgumentNullException(nameof(store));
+        this.accumulator = accumulator;
+    }
 
     /// <inheritdoc />
     public Task<FavoriteCollectionsState> LoadAsync(CancellationToken cancellationToken = default) =>
@@ -23,14 +28,13 @@ public sealed class FavoriteCollectionService : IFavoriteCollectionService
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(collection);
-        if (collection.Accounts.Count == 0 && !collection.IsAllFavorites)
-        {
-            throw new FavoriteCollectionException("Selecciona al menos una solicitud favorita para guardar la colección.");
-        }
-
         return UpdateAsync(state =>
         {
             FavoriteCollection? current = state.Collections.FirstOrDefault(existing => existing.Id == collection.Id);
+            CheckAccumulation(() => accumulator?.EnsureCollectionChangeAllowed(collection.Id, deleting: false));
+            if (collection.Accounts.Count == 0 && !collection.IsAllFavorites &&
+                !(current?.Accounts.Count == 0 && accumulator?.CollectionId == collection.Id))
+                throw new FavoriteCollectionException("Selecciona al menos una solicitud favorita para guardar la colección.");
             if (current?.IsAllFavorites == true &&
                 (!collection.IsAllFavorites || !current.Accounts.SequenceEqual(collection.Accounts)))
             {
@@ -66,6 +70,7 @@ public sealed class FavoriteCollectionService : IFavoriteCollectionService
         CancellationToken cancellationToken = default) =>
         UpdateAsync(state =>
         {
+            CheckAccumulation(() => accumulator?.EnsureSelectionAllowed(collectionId));
             if (collectionId is Guid id)
             {
                 FavoriteCollection selected = state.Collections.FirstOrDefault(collection => collection.Id == id)
@@ -91,6 +96,7 @@ public sealed class FavoriteCollectionService : IFavoriteCollectionService
 
         return UpdateAsync(state =>
         {
+            CheckAccumulation(() => accumulator?.EnsureCollectionChangeAllowed(collectionId, deleting: true));
             FavoriteCollection collection = state.Collections
                 .FirstOrDefault(existing => existing.Id == collectionId)
                 ?? throw new FavoriteCollectionException("La colección que deseas eliminar ya no existe.");
@@ -143,7 +149,12 @@ public sealed class FavoriteCollectionService : IFavoriteCollectionService
             FavoriteCollection? active = retainedActiveId is Guid activeId
                 ? reconciled.FirstOrDefault(collection => collection.Id == activeId)
                 : null;
-            if (active is null || active.Accounts.Count == 0)
+            if (accumulator?.CollectionId is Guid lockedId)
+            {
+                CheckAccumulation(() => accumulator.EnsureCollectionChangeAllowed(lockedId, deleting: false));
+                retainedActiveId = lockedId;
+            }
+            else if (active is null || active.Accounts.Count == 0)
             {
                 retainedActiveId = synchronizedAll.Id;
             }
@@ -161,6 +172,7 @@ public sealed class FavoriteCollectionService : IFavoriteCollectionService
         {
             FavoriteCollectionsState current = await store.LoadAsync(cancellationToken).ConfigureAwait(false);
             FavoriteCollectionsState updated = update(current);
+            CheckAccumulation(() => accumulator?.EnsureSelectionAllowed(updated.ActiveCollectionId));
             await store.SaveAsync(updated, cancellationToken).ConfigureAwait(false);
             return updated;
         }
@@ -168,5 +180,11 @@ public sealed class FavoriteCollectionService : IFavoriteCollectionService
         {
             gate.Release();
         }
+    }
+
+    private static void CheckAccumulation(Action check)
+    {
+        try { check(); }
+        catch (InvalidOperationException exception) { throw new FavoriteCollectionException(exception.Message); }
     }
 }

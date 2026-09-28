@@ -536,6 +536,77 @@ La ventana de resultados con IDs utiliza `AutomationResultWindow` para ofrecer `
 
 Validación: compilación Release x64, 36 pruebas existentes de `MainWindowViewModelTests` y comprobación visible de la ventana WPF con 12 y 250 IDs, copia exacta y fallo/reintento simulado. No se abrió PAM ni Outlook ni se alteró el portapapeles real. No se incorporaron dependencias. **Característica completada.**
 
+## Fase 27 — Acumulación de Request ID por colección y correo manual
+
+**Estado: implementada y validada localmente el 27 de septiembre de 2026.** Permite reunir los resultados de varias automatizaciones de una misma colección para enviar un único correo: ocho IDs en una ejecución y seis en otra producen catorce IDs acumulados. Depende del correo por colección de la fase 26. No sustituye la reconciliación de Pending ni implementa una cola programada. Las siguientes reglas describen el alcance implementado.
+
+### Reglas de negocio
+
+1. Añadir la opción explícita `Acumular solicitudes para un solo correo`. Separarla del botón de acción `Enviar correo`, habilitado únicamente cuando exista un acumulado y no haya otra operación incompatible.
+2. Mientras el modo esté activo, deshabilitar `Mostrar IDs al final` / `Enviar correo con Outlook` y omitir ambas acciones automáticas al terminar cada ejecución. Conservar la preferencia anterior y restaurarla al salir del modo sin IDs pendientes, sin sobrescribirla por activar la acumulación.
+3. El primer resultado válido vincula el acumulado a la identidad estable de la colección utilizada, no a su nombre. Solo resultados posteriores de esa misma colección pueden agregarse. Los IDs son únicos y conservan el orden de incorporación.
+4. Con IDs acumulados, impedir cambiar de colección o desactivar el modo hasta enviar el correo de forma confirmada o descartar expresamente el acumulado. Aplicar la regla en la lógica y en todos los caminos de selección, no solo en controles visuales.
+5. Impedir eliminar la colección vinculada y que una sincronización de Favorites seleccione otra silenciosamente. Si la colección pierde todos sus accesos, informar y bloquear nuevas ejecuciones sin perder los IDs ni cambiar de colección. Las colecciones no vinculadas pueden seguir administrándose.
+6. Permitir configurar otra fecha/hora o duración para la siguiente ejecución de la misma colección, conservando las validaciones actuales y los seis minutos de anticipación. Acumular no autoriza solicitudes idénticas ya existentes.
+7. Mantener el acumulado exclusivamente en memoria durante la sesión. No crear archivos operativos ni escribirlo en configuración o logs persistentes. Advertir antes del cierre normal; no prometer recuperación tras un cierre inesperado.
+
+### Fase 27.1 — Estado en memoria e integridad
+
+**Completada.** `RequestIdAccumulator` valida e incorpora lotes completos de modo real, conserva orden y unicidad, vincula por GUID y controla los estados Ready/Sending/AwaitingConfirmation. No tiene almacenamiento persistente.
+
+Introducir una responsabilidad pequeña en Core para colección vinculada, conjunto de IDs y estado de envío. Cada ejecución mantiene independiente su línea base de Pending; el acumulador recibe una copia del resultado validado, no modifica la reconciliación ni recupera resultados de ejecuciones antiguas.
+
+Agregar el lote de forma atómica únicamente tras completar correctamente la creación/reconciliación de esa ejecución. Validar colección y conjunto antes de incorporarlos; un ID duplicado no aumenta el contador. Un error, cancelación o lote parcial/no reconciliado no aporta IDs y conserva íntegros los anteriores. Si PAM creó solicitudes antes de fallar, informar que pueden existir en Pending pero no se agregaron al acumulado.
+
+No incorporar automáticamente IDs preexistentes. Como alcance conservador de esta fase, los duplicados exactos en Pending bloquean esa ejecución en modo acumulación e indican cambiar inicio, duración o motivo: no ejecutar el envío inmediato de reutilización ni agregar esos IDs antiguos. Fuera del modo se conserva la opción vigente de enviar los IDs existentes. La confirmación inicial explica que los resultados nuevos se acumularán sin enviar correo todavía.
+
+### Fase 27.2 — Interfaz y bloqueo de colección
+
+**Completada.** La ventana principal incorpora modo, contador y acciones manuales. `FavoriteCollectionService` impide cambiar/desactivar/eliminar la colección vinculada; reconciliar Favorites conserva su selección aunque quede vacía. En ese caso se permite corregir su correo y enviarlo, pero no ejecutar solicitudes nuevas. Las filas WPF aplican el mismo bloqueo y mantienen administrables otras colecciones.
+
+Añadir el modo, un contador compacto (`14 solicitudes acumuladas`), `Enviar correo` y `Descartar acumulado`. Con cero IDs se permite cambiar de colección o salir del modo. Con IDs, explicar: `Tienes solicitudes acumuladas de esta colección. Envía el correo o descarta el acumulado antes de seleccionar otra.` Mantener el progreso actual durante la ejecución sin recuperar mensajes permanentes redundantes en la zona central.
+
+Descartar requiere confirmación: solo retira IDs de la aplicación, no cancela solicitudes PAM ni elimina correos de Outlook. Confirmar limpia contador, vínculo y estado; cancelar conserva todo. No ejecutar automatizaciones simultáneas ni enviar mientras se agrega un lote. Durante el envío, bloquear nuevas ejecuciones, descarte y cambios que afecten el conjunto/correo autorizado. `Acceder a PAM` conserva su separación y reglas de concurrencia actuales.
+
+### Fase 27.3 — Correo explícito y cierre seguro
+
+**Completada.** El coordinador carga el correo/firma/remitente vigentes, confirma una vez y congela la operación. Reutiliza las barreras y observación existentes de Outlook. Ante incertidumbre, `Comprobar envío` observa la misma instantánea; no vuelve a enviar. La colección se libera tras confirmar Enviados o descartar expresamente. El cierre normal exige confirmación con opción segura por defecto; el cierre de sesión de Windows no espera esa decisión.
+
+Al pulsar `Enviar correo`, validar la configuración vigente de la colección vinculada, remitente principal y firma común. Presentar una única confirmación con colección, cantidad de IDs, Para, CC, asunto y remitente. Tras confirmar, congelar el correo y los IDs de esa operación; componer únicamente ese conjunto, con la firma una vez, mediante el flujo saneado de fase 26. La configuración ausente puede corregirse sin borrar el acumulado.
+
+Reutilizar las barreras de envíos concurrentes/duplicados y la observación de Outlook. Confirmar Enviados no significa confirmar recepción. Una vez confirmado en Enviados, mostrar éxito y limpiar el acumulado; el modo puede permanecer activo para un lote nuevo y se libera el cambio de colección.
+
+Un fallo seguro anterior al envío conserva IDs y permite corregir/reintentar. Si Outlook aceptó `Send()` pero no se confirma su estado, o permanece en Bandeja de salida, conservar los IDs e informar sin repetir `Send()` ni permitir un envío ciego. Una nueva comprobación puede observar el mismo correo; un estado incierto no debe presentarse como fallo que invite a reenviar. El descarte explícito nunca retira ese correo de Outlook.
+
+Con IDs sin resolver, el cierre normal muestra un aviso urgente: `Hay 14 solicitudes acumuladas. Si cierras la aplicación, estos IDs dejarán de estar disponibles aquí; las solicitudes seguirán en PAM.` Ofrecer volver a la aplicación o cerrar y descartar, con elección segura por defecto. No enviar automáticamente al cerrar ni bloquear indefinidamente el cierre de Windows.
+
+### Fase 27.4 — Aceptación y documentación
+
+**Completada.** Compilación `Release | x64` sin errores y **119 pruebas relacionadas aprobadas, cero fallidas/omitidas**. Incluyen acumulador, coordinación principal, selección/reconciliación, composición, envío/observación con dobles, regresión de Pending existente y WPF a 1050×660 y 800×540. Se conserva la advertencia heredada `MSTEST0032` de `TestExplorerSmokeTests`, ajena a esta fase. No se crearon solicitudes PAM ni se enviaron correos reales; no se cambió versión ni se publicó.
+
+Comandos de validación:
+
+```text
+dotnet build PamAutomation.slnx -c Release -p:Platform=x64 --no-restore
+dotnet run --project PamAutomation.Tests\PamAutomation.Tests.csproj -c Release -p:Platform=x64 --no-build -- --filter "FullyQualifiedName~RequestIdAccumulatorTests|FullyQualifiedName~MainWindowViewModelTests|FullyQualifiedName~FavoriteCollectionServiceTests|FullyQualifiedName~PamAutomationExecutionService|FullyQualifiedName~FavoriteCollectionItemViewModelTests|FullyQualifiedName~ConfigurationWindowSmokeTests|FullyQualifiedName~CollectionMailComposerTests|FullyQualifiedName~OutlookDeliveryConfirmationServiceTests"
+```
+
+Límites: no hay recuperación del acumulado tras cierre inesperado; Enviados confirma ubicación del mensaje, no recepción. Si Outlook no puede confirmar, los IDs permanecen y solo se observa el correo existente o se descarta expresamente. La validación operativa real no se ejecutó en esta fase por el alcance solicitado.
+
+Compilar `Release | x64` y ejecutar pruebas relacionadas con dobles de PAM/Outlook y validación WPF focalizada. Casos mínimos: 8 + 6 = 14; deduplicación; colección distinta rechazada; bloqueo de cambio/desactivación/eliminación y selección automática; liberación tras enviar/descartar; fallo o resultado parcial conserva lote previo; cero IDs; modo desactivado conserva comportamiento anterior; configuración ausente; firma única y destinatarios correctos; confirmación cancelada; fallo seguro recuperable; envío incierto sin segundo `Send()`; doble clic; cierre cancelado/confirmado; sesión nueva vacía.
+
+No crear solicitudes ni enviar correos reales durante pruebas. Actualizar README, LOGIC, History y structure con evidencia al implementar. No cambiar versión ni publicar como parte de esta fase. No introducir proyectos o dependencias grandes para esta función.
+
+### Capas y carpetas recomendadas
+
+- `PamAutomation.Core`: reglas de acumulación, identidad de colección, admisión atómica de resultados y estados; reutilizar ejecución, colecciones y correo existentes.
+- `PamAutomation.App`: controles WPF, contador, confirmaciones, coordinación y cierre/selección; mantener reglas fuera del code-behind.
+- `PamAutomation.Outlook`: reutilizar envío y observación COM; ampliar solo un contrato directamente necesario, sin reenviar operaciones inciertas.
+- `PamAutomation.Tests`: pruebas focalizadas de acumulado, coordinación, selección y presentación.
+- `PamAutomation.Infrastructure`: sin almacén persistente de resultados; solo conectar dependencias existentes si hace falta. `PamAutomation.Browser` no requiere un lector nuevo para acumular.
+
+Los módulos concretos y sus responsabilidades están registrados en `structure.md`; se reutilizaron los proyectos existentes, sin nuevas dependencias ni cambios en Browser/Infrastructure/Outlook.
+
 ## Fases pendientes
 
 ### Fase 26 — Correo por colección y firma común
@@ -580,6 +651,7 @@ La clasificación siguiente se refiere únicamente a dependencias entre fases pe
 |---|---|---|---|
 | 19 — Pruebas finales administradas | **Independiente** | Ninguna fase pendiente. | Es la validación final del producto publicado en el entorno Windows objetivo y se ejecutará sobre la reconciliación de fase 24 y las esperas adaptativas de fase 25. |
 | 20.6+ — Administración ampliada de colecciones | **Dependiente** | Fases 20.2–20.5 implementadas. | Podrá añadir duplicación u otras mejoras que el usuario confirme; no son necesarias para crear, editar, eliminar, seleccionar y ejecutar una colección. |
+| 27 — Acumulado por colección y correo manual | **Completada** | Fase 26 completada; no requiere terminar la fase 19. | Implementada; compilación Release x64 y 119 pruebas relacionadas aprobadas. Reconciliación PAM conservada. |
 
 ## Mapa recomendado de trabajo paralelo
 
@@ -597,6 +669,8 @@ Fase 24.1 completada ──► 24.2 completada ──► 24.3 completada ──�
 Fase 25 completada ──► validación real administrada en fase 19
 
 Fases 26.1–26.4 completadas ──► aceptación operativa administrada en fase 19
+
+Fase 26 completada ──► Fase 27 completada: acumulado por colección y correo manual
 ```
 
 La fase 18 quedó completada tras validar el manifiesto GitHub real. El coordinador solo podrá paralelizar una parte futura si vuelve a demostrar independencia, contratos congelados y ausencia de archivos compartidos.

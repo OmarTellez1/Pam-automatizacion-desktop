@@ -123,8 +123,9 @@ namespace PamAutomation.App
                 credentialStore,
                 new DpapiFavoriteCatalogStore(),
                 TimeProvider.System);
+            var accumulator = new PamAutomation.Core.Execution.RequestIdAccumulator();
             var favoriteCollections = new FavoriteCollectionService(
-                new DpapiFavoriteCollectionStore());
+                new DpapiFavoriteCollectionStore(), accumulator);
             var execution = new PamAutomationExecutionService(
                 favorites,
                 new PamRequestSubmissionService(
@@ -164,7 +165,7 @@ namespace PamAutomation.App
                     favoriteCollections,
                     loggerFactory.CreateLogger<FavoritesCatalogViewModel>(),
                     pamAccountService,
-                    loggerFactory.CreateLogger<PamAccountsWindow>()),
+                    loggerFactory.CreateLogger<PamAccountsWindow>(), accumulator),
                 mailSettingsStore,
                 outlookAccountStore,
                 loggerFactory.CreateLogger<MainWindowViewModel>(),
@@ -174,7 +175,7 @@ namespace PamAutomation.App
                 interactiveAccess,
                 favoriteCollections,
                 pamAccountService,
-                new DpapiMailSignatureStore());
+                new DpapiMailSignatureStore(), accumulator);
             viewModel.BeginInitialization();
             var window = new MainWindow { DataContext = viewModel };
             MainWindow = window;
@@ -272,6 +273,12 @@ namespace PamAutomation.App
             applicationLifetime.Dispose();
             loggerFactory.Dispose();
             base.OnExit(e);
+        }
+
+        protected override void OnSessionEnding(SessionEndingCancelEventArgs e)
+        {
+            if (MainWindow is MainWindow window) window.IsSystemShutdown = true;
+            base.OnSessionEnding(e);
         }
 
         private async void LogDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)

@@ -13,16 +13,19 @@ public partial class FavoriteCollectionEditorWindow : Window
     private readonly FavoriteCollection? existing;
     private readonly string smtpAddress;
     private CollectionMailSettings? mailDraft;
+    private readonly bool allowEmpty;
 
     /// <summary>Initializes the editor from the protected Favorites catalog.</summary>
     public FavoriteCollectionEditorWindow(
         IReadOnlyList<FavoriteCatalogEntry> favorites,
         FavoriteCollection? existing,
-        string smtpAddress = "")
+        string smtpAddress = "",
+        bool allowEmpty = false)
     {
         ArgumentNullException.ThrowIfNull(favorites);
         InitializeComponent();
         this.existing = existing;
+        this.allowEmpty = allowEmpty && existing?.Accounts.Count == 0;
         this.smtpAddress = smtpAddress;
         mailDraft = existing?.Mail?.Copy();
         RefreshMailStatus();
@@ -67,7 +70,7 @@ public partial class FavoriteCollectionEditorWindow : Window
                 .Where(static item => item.IsSelected)
                 .Select(static item => FavoriteAccountKey.From(item.Entry))
                 .ToArray();
-        if (selected.Length == 0 && existing?.IsAllFavorites != true)
+        if (selected.Length == 0 && existing?.IsAllFavorites != true && !allowEmpty)
         {
             ShowValidation("Selecciona al menos una solicitud favorita.");
             return;

@@ -25,7 +25,7 @@ using PamAutomation.Core.Validation;
 namespace PamAutomation.Tests;
 
 [TestClass]
-public sealed class MainWindowViewModelTests
+public sealed partial class MainWindowViewModelTests
 {
     [TestMethod]
     public void InitialState_IsSafeAndIncomplete()
@@ -1048,6 +1048,9 @@ public sealed class MainWindowViewModelTests
         public int AutomationStartConfirmationCount { get; private set; }
         public string? LastAutomationCollectionName { get; private set; }
         public MailSettings? LastConfirmationMail { get; private set; }
+        public bool? ConfirmAccumulated { get; set; }
+        public int AccumulatedConfirmationCount { get; private set; }
+        public bool LastConfirmationAccumulates { get; private set; }
         public int RepeatedPendingConfirmationCount { get; private set; }
         public RepeatedPendingDecision ChooseRepeatedPendingAction(PamExecutionPreparation preparation)
         {
@@ -1057,15 +1060,25 @@ public sealed class MainWindowViewModelTests
         public bool ConfirmAutomationStart(
             AppSettings settings,
             MailSettings? mailSettings,
-            string? collectionName = null)
+            string? collectionName = null,
+            bool accumulate = false)
         {
             AutomationStartConfirmationCount++;
             LastAutomationCollectionName = collectionName;
             LastConfirmationMail = mailSettings;
+            LastConfirmationAccumulates = accumulate;
             AutomationStartConfirmationAction?.Invoke();
             return confirm;
         }
         public bool ConfirmTestEmail(string recipient) => confirm;
+        public bool ConfirmAccumulatedEmail(string collectionName, int count, MailSettings mailSettings)
+        {
+            AccumulatedConfirmationCount++;
+            LastConfirmationMail = mailSettings;
+            return ConfirmAccumulated ?? confirm;
+        }
+        public bool ConfirmDiscardAccumulated(int count) => ConfirmAccumulated ?? confirm;
+        public bool ConfirmCloseAccumulated(int count) => ConfirmAccumulated ?? confirm;
         public bool ConfirmOutlookTestEmail(string recipient) => confirm;
         public void ShowResult(string title, string message, string? requestIdsText = null)
         {
@@ -1199,6 +1212,12 @@ public sealed class MainWindowViewModelTests
 
     private sealed class FakeExecutionService(DateTimeOffset now) : IPamAutomationExecutionService
     {
+        public PamExecutionResult? NextResult { get; set; }
+        public OutlookDeliveryResult AccumulatedDelivery { get; set; } = OutlookDeliveryResult.SentConfirmed();
+        public Exception? AccumulatedFailure { get; set; }
+        public TaskCompletionSource<OutlookDeliveryResult>? PendingMail { get; set; }
+        public int ObservationCount { get; private set; }
+        public MailSettings? LastAccumulatedMail { get; private set; }
         public int RealExecutionCount { get; private set; }
         public MailSettings? LastExecutionMail { get; private set; }
         public int PreparationCount { get; private set; }
@@ -1258,7 +1277,7 @@ public sealed class MainWindowViewModelTests
             RealExecutionCount++;
             LastExecutionMail = mailSettings;
             if (Failure is not null) return Task.FromException<PamExecutionResult>(Failure);
-            return Task.FromResult(new PamExecutionResult(
+            return Task.FromResult(NextResult ?? new PamExecutionResult(
                 PamExecutionMode.Real, now, FinalAction.DisplayRequestIds, 2, 2, 0, ["8001", "8002"]));
         }
 
@@ -1292,6 +1311,24 @@ public sealed class MainWindowViewModelTests
             LastEmailIds = requestIds.ToArray();
             LastEmailWasTest = isTest;
             return Task.FromResult(OutlookDeliveryResult.SubmittedUnconfirmed());
+        }
+        public Task<OutlookDeliveryResult> SendAccumulatedEmailAsync(MailSettings mailSettings,
+            IReadOnlyList<string> requestIds, CancellationToken cancellationToken = default)
+        {
+            EmailSendCount++;
+            LastEmailIds = requestIds.ToArray();
+            LastAccumulatedMail = mailSettings;
+            return AccumulatedFailure is not null ? Task.FromException<OutlookDeliveryResult>(AccumulatedFailure)
+                : PendingMail?.Task ?? Task.FromResult(AccumulatedDelivery);
+        }
+        public Task<OutlookDeliveryResult> ObserveResultEmailAsync(MailSettings mailSettings,
+            IReadOnlyList<string> requestIds, CancellationToken cancellationToken = default)
+        {
+            ObservationCount++;
+            LastAccumulatedMail = mailSettings;
+            LastEmailIds = requestIds.ToArray();
+            return AccumulatedFailure is not null ? Task.FromException<OutlookDeliveryResult>(AccumulatedFailure)
+                : Task.FromResult(AccumulatedDelivery);
         }
     }
 }

@@ -97,7 +97,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
         IPamInteractiveAccessService? interactiveAccessService = null,
         IFavoriteCollectionService? favoriteCollectionService = null,
         IPamAccountService? pamAccountService = null,
-        IMailSignatureStore? mailSignatureStore = null)
+        IMailSignatureStore? mailSignatureStore = null,
+        RequestIdAccumulator? accumulator = null)
     {
         this.executionService = executionService;
         this.settingsStore = settingsStore;
@@ -106,6 +107,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
         this.configurationDialogs = configurationDialogs;
         this.mailSettingsStore = mailSettingsStore;
         this.mailSignatureStore = mailSignatureStore;
+        this.accumulator = accumulator ?? new RequestIdAccumulator();
         this.outlookAccountSettingsStore = outlookAccountSettingsStore;
         this.settingsValidator = settingsValidator ?? throw new ArgumentNullException(nameof(settingsValidator));
         this.timeProvider = timeProvider ?? throw new ArgumentNullException(nameof(timeProvider));
@@ -128,11 +130,12 @@ public sealed partial class MainWindowViewModel : ObservableObject
         OpenAboutCommand = new RelayCommand(OpenAbout, () => AreControlsEnabled && configurationDialogs is not null);
         StartTestCommand = new AsyncRelayCommand(StartTestAsync, () => IsTestActionEnabled);
         StartAutomationCommand = new AsyncRelayCommand(StartAutomationAsync, () => CanStartAutomation);
-        ToggleFinalActionCommand = new AsyncRelayCommand(ToggleFinalActionAsync, () => AreControlsEnabled);
+        ToggleFinalActionCommand = new AsyncRelayCommand(ToggleFinalActionAsync, () => CanChangeFinalAction);
         ExportDiagnosticsCommand = new AsyncRelayCommand(ExportDiagnosticsAsync, () => CanExportDiagnostics);
         AccessPamCommand = new AsyncRelayCommand(AccessPamAsync, () => CanAccessPam);
         ShowResultCommand = new RelayCommand(ShowResult, () => CanShowResult);
         DismissUpdateCommand = new RelayCommand(() => IsUpdateAvailable = false);
+        InitializeAccumulationCommands();
     }
 
     public IAsyncRelayCommand ConfigureCredentialsCommand { get; }
@@ -158,11 +161,11 @@ public sealed partial class MainWindowViewModel : ObservableObject
                                     ? configurationDialogs is not null && hasInteractivePamAccount
                                     : credentialStore is not null && AreCredentialsConfigured);
     public bool CanShowResult => dialogs is not null && HasResult && AreControlsEnabled;
-    public bool IsEffectiveRequestConfigured => favoriteCollectionsState.ActiveCollection is not null &&
+    public bool IsEffectiveRequestConfigured => favoriteCollectionsState.ActiveCollection is { Accounts.Count: > 0 } &&
                                                 settingsValidator.Validate(GetEffectiveSettings(), GetEcuadorNow()).IsValid;
-    public bool IsConfigurationComplete => AreCredentialsConfigured && IsEffectiveRequestConfigured && (!SendEmailAtEnd || IsMailConfigured);
-    public bool CanStartAutomation => AreControlsEnabled && IsConfigurationComplete;
-    public bool IsTestActionVisible => IsTestModeEnabled && IsConfigurationComplete;
+    public bool IsConfigurationComplete => AreCredentialsConfigured && IsEffectiveRequestConfigured && (IsAccumulating || !SendEmailAtEnd || IsMailConfigured);
+    public bool CanStartAutomation => AreControlsEnabled && IsConfigurationComplete && accumulator.MailState == AccumulatedMailState.Ready;
+    public bool IsTestActionVisible => !IsAccumulating && IsTestModeEnabled && IsConfigurationComplete;
     public bool IsTestActionEnabled => AreControlsEnabled && IsTestActionVisible;
     public bool IsStartAutomationWarningVisible => AreControlsEnabled && !IsConfigurationComplete;
     public string StartAutomationWarningMessage => GetStartAutomationWarningMessage();
@@ -409,27 +412,36 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     private async Task StartAutomationAsync()
     {
+        if (!AreControlsEnabled || accumulator.MailState != AccumulatedMailState.Ready) return;
         RefreshEffectiveMail();
-        if (SendEmailAtEnd && !IsMailConfigured)
+        if (!IsAccumulating && SendEmailAtEnd && !IsMailConfigured)
         {
             StatusMessage = mailConfigurationError;
             dialogs?.ShowError(StatusMessage);
             return;
         }
-        MailSettings? executionMail = SendEmailAtEnd ? mailSettings : null;
+        MailSettings? executionMail = !IsAccumulating && SendEmailAtEnd ? mailSettings : null;
         AppSettings executionSettings = GetEffectiveSettings();
+        if (IsAccumulating) executionSettings = executionSettings with { FinalAction = FinalAction.DisplayRequestIds };
         if (!ValidateRequestAtExecutionBoundary(executionSettings, confirmationWasShown: false)) return;
         if (!TryGetExecutionDependencies(out PamCredentials? credentials)) return;
 
         FavoriteCollection? activeCollection = favoriteCollectionsState.ActiveCollection;
-        if (activeCollection is null)
+        if (activeCollection is null || activeCollection.Accounts.Count == 0)
         {
-            StatusMessage = "Selecciona una colección antes de iniciar la automatización.";
+            StatusMessage = activeCollection is null
+                ? "Selecciona una colección antes de iniciar la automatización."
+                : "La colección activa no contiene accesos disponibles. Actualiza Favorites o sus accesos antes de iniciar otra ejecución.";
             dialogs!.ShowError(StatusMessage);
             return;
         }
 
-        if (!dialogs!.ConfirmAutomationStart(executionSettings, executionMail, activeCollection.Name))
+        if (accumulator.CollectionId is Guid lockedId && activeCollection.Id != lockedId)
+        {
+            dialogs!.ShowError(RequestIdAccumulator.CollectionLockMessage);
+            return;
+        }
+        if (!dialogs!.ConfirmAutomationStart(executionSettings, executionMail, activeCollection.Name, IsAccumulating))
         {
             logger.LogInformation("Real PAM execution was cancelled before preparation.");
             StatusMessage = "Ejecución cancelada. No se inició ninguna validación ni se creó ninguna solicitud.";
@@ -451,6 +463,12 @@ public sealed partial class MainWindowViewModel : ObservableObject
                 GetEcuadorNow());
             if (preparation.HasExactPendingDuplicates)
             {
+                if (IsAccumulating)
+                {
+                    StatusMessage = "Ya existen solicitudes idénticas en Pending. Cambia inicio, duración o motivo. No se incorporaron IDs antiguos ni se envió correo.";
+                    dialogs!.ShowError(StatusMessage);
+                    return;
+                }
                 RepeatedPendingDecision decision = dialogs!.ChooseRepeatedPendingAction(preparation);
                 if (decision != RepeatedPendingDecision.UseExistingRequestIds)
                 {
@@ -480,11 +498,27 @@ public sealed partial class MainWindowViewModel : ObservableObject
             var progress = new Progress<PamRequestSubmissionProgress>(PresentSubmissionProgress);
             PamExecutionResult result = await executionService.ExecuteRealAsync(
                 credentials!, preparation, GetEcuadorNow(), executionMail, progress: progress);
-            PresentResult(result);
+            if (IsAccumulating)
+            {
+                accumulator.Add(activeCollection.Id, result);
+                lastExecutionResult = result;
+                HasResult = false;
+                HasRequestIds = false;
+                RequestIdsText = string.Empty;
+                StatusMessage = $"Ejecución completada. {AccumulatedCountText}. No se envió correo.";
+            }
+            else PresentResult(result);
         }
         catch (Exception exception)
         {
-            PresentError(exception);
+            if (IsAccumulating)
+            {
+                logger.LogError(exception, "Accumulating PAM execution failed; previous IDs retained.");
+                HasResult = false;
+                StatusMessage = "La ejecución no aportó IDs al acumulado. Se conservan los anteriores. Pueden existir solicitudes creadas en Pending; revísalas antes de reintentar.";
+                dialogs?.ShowError(GetSafeErrorMessage(exception) + " " + StatusMessage);
+            }
+            else PresentError(exception);
         }
         finally
         {
@@ -658,6 +692,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     private async Task StartTestAsync()
     {
+        if (IsAccumulating) return;
         RefreshEffectiveMail();
         if (SendEmailAtEnd && !IsMailConfigured)
         {
@@ -992,6 +1027,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     private async Task ToggleFinalActionAsync()
     {
+        if (!CanChangeFinalAction) return;
         SendEmailAtEnd = !SendEmailAtEnd;
         if (settingsStore is null) return;
         try
@@ -1118,6 +1154,11 @@ public sealed partial class MainWindowViewModel : ObservableObject
             return "El botón está desactivado porque no hay una colección activa. Abre Colecciones y selecciona una.";
         }
 
+        if (favoriteCollectionsState.ActiveCollection.Accounts.Count == 0)
+            return AccumulatedCount > 0
+                ? "La colección activa ya no tiene accesos disponibles. El acumulado se conserva y no se cambiará de colección; actualiza sus accesos o envía/descarta el acumulado."
+                : "La colección activa no contiene accesos disponibles. Actualiza Favorites o selecciona una colección con accesos.";
+
         if (!IsEffectiveRequestConfigured)
         {
             ConfigurationValidationFailure? failure = settingsValidator
@@ -1140,7 +1181,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
             };
         }
 
-        if (SendEmailAtEnd && !IsMailConfigured)
+        if (!IsAccumulating && SendEmailAtEnd && !IsMailConfigured)
         {
             return "El botón está desactivado porque elegiste Outlook. " + mailConfigurationError;
         }
@@ -1150,6 +1191,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
 
     private void RefreshPresentationState()
     {
+        RefreshAccumulationPresentation();
         OnPropertyChanged(nameof(AreControlsEnabled));
         OnPropertyChanged(nameof(IsBusy));
         OnPropertyChanged(nameof(CanExportDiagnostics));

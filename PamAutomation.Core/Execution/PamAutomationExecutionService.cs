@@ -402,7 +402,8 @@ public sealed class PamAutomationExecutionService : IPamAutomationExecutionServi
         IReadOnlyList<string> requestIds,
         bool isTest,
         bool allowExplicitDuplicateSend,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool distinguishUncertainSubmission = false)
     {
         if (action != FinalAction.SendEmail)
         {
@@ -483,6 +484,8 @@ public sealed class PamAutomationExecutionService : IPamAutomationExecutionServi
             {
                 if (!externalStateMayExist && fingerprintWasAdded) attemptedMail.Remove(fingerprint);
                 logger.LogError(exception, "Email delivery coordination failed. ExternalStateMayExist={ExternalStateMayExist}.", externalStateMayExist);
+                if (distinguishUncertainSubmission && externalStateMayExist)
+                    throw new OutlookDeliveryUncertainException(exception);
                 throw;
             }
         }
@@ -506,4 +509,18 @@ public sealed class PamAutomationExecutionService : IPamAutomationExecutionServi
             cancellationToken)
             .ConfigureAwait(false)
         ?? throw new InvalidOperationException("No fue posible preparar el correo.");
+
+    public async Task<OutlookDeliveryResult> SendAccumulatedEmailAsync(MailSettings mailSettings,
+        IReadOnlyList<string> requestIds, CancellationToken cancellationToken = default) =>
+        await DeliverIfRequestedAsync(FinalAction.SendEmail, mailSettings, requestIds, false, false,
+            cancellationToken, distinguishUncertainSubmission: true).ConfigureAwait(false)
+        ?? throw new InvalidOperationException("No fue posible preparar el correo.");
+
+    public Task<OutlookDeliveryResult> ObserveResultEmailAsync(MailSettings mailSettings,
+        IReadOnlyList<string> requestIds, CancellationToken cancellationToken = default)
+    {
+        if (outlookConfirmationService is null) throw new InvalidOperationException("Outlook no está disponible.");
+        return outlookConfirmationService.WaitForConfirmationAsync(mailSettings.SmtpAddress,
+            mailSettings.Subject, requestIds, OutlookDeliveryResult.NotConfirmed(), cancellationToken);
+    }
 }

@@ -21,6 +21,73 @@ namespace PamAutomation.Tests.App;
 [DoNotParallelize]
 public sealed class ConfigurationWindowSmokeTests
 {
+    [TestMethod]
+    public void AccumulatedEmailConfirmation_ContainsAuthorizedEnvelopeAndCount()
+    {
+        var mail = new MailSettings { SmtpAddress = "principal@example.test", Subject = "Batch subject",
+            ToRecipients = ["to@example.test"], CcRecipients = ["cc@example.test"] };
+        string confirmation = WpfUserDialogService.FormatAccumulatedEmailConfirmation("Bound collection", 14, mail);
+        foreach (string expected in new[] { "Bound collection", "14 Request ID", "principal@example.test", "Batch subject", "to@example.test", "cc@example.test" })
+            Assert.Contains(expected, confirmation);
+    }
+
+    [STATestMethod]
+    [DataRow(1050d, 660d)]
+    [DataRow(800d, 540d)]
+    public void MainWindow_AccumulationControls_RenderAndDisableFinalAction(double width, double height)
+    {
+        EnsureApplicationResources();
+        var accumulator = new RequestIdAccumulator();
+        accumulator.SetEnabled(true);
+        accumulator.Add(Guid.NewGuid(), PamAutomation.Tests.Core.Execution.RequestIdAccumulatorTests.Batch(
+            Enumerable.Range(100, 14).Select(i => i.ToString()).ToArray()));
+        var vm = new MainWindowViewModel(null, null, null, null,
+            new PamAutomation.Core.Validation.AppSettingsValidator(new PamAutomation.Core.Validation.RequestSettingsValidator()),
+            TimeProvider.System, accumulator: accumulator);
+        var window = new MainWindow { DataContext = vm, WindowState = WindowState.Normal, Width = width, Height = height };
+        try
+        {
+            window.Show();
+            Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
+            var toggle = Assert.IsInstanceOfType<System.Windows.Controls.Primitives.ToggleButton>(window.FindName("FinalActionToggle"));
+            Assert.IsFalse(toggle.IsEnabled);
+            var mode = Assert.IsInstanceOfType<CheckBox>(window.FindName("AccumulationModeToggle"));
+            Assert.IsTrue(mode.IsChecked);
+            Assert.IsFalse(mode.IsEnabled);
+            var count = Assert.IsInstanceOfType<TextBlock>(window.FindName("AccumulatedCountText"));
+            Assert.IsTrue(count.IsVisible);
+            Assert.AreEqual("14 solicitudes acumuladas", count.Text);
+            var discard = Assert.IsInstanceOfType<Button>(window.FindName("DiscardAccumulatedButton"));
+            Assert.IsTrue(discard.IsEnabled);
+            var hero = Assert.IsInstanceOfType<Button>(window.FindName("StartAutomationButton"));
+            Assert.IsLessThan(mode.TranslatePoint(new Point(0, 0), window).Y,
+                hero.TranslatePoint(new Point(0, hero.ActualHeight), window).Y);
+            window.Close();
+            Assert.IsTrue(window.IsVisible, "Closing must not discard the accumulated IDs without confirmation.");
+        }
+        finally { window.IsSystemShutdown = true; window.Close(); }
+    }
+
+    [STATestMethod]
+    public void CollectionEditor_EmptyAccumulatedCollection_CanSaveMailCorrection()
+    {
+        EnsureApplicationResources();
+        var collection = new FavoriteCollection(Guid.NewGuid(), "Empty bound collection", "Reason", [],
+            mail: new CollectionMailSettings { ToRecipients = ["to@example.test"], Subject = "Mail", HtmlTemplate = "<p>{{REQUEST_IDS}}</p>" });
+        var window = new FavoriteCollectionEditorWindow([], collection, "principal@example.test", allowEmpty: true);
+        try
+        {
+            window.Loaded += (_, _) => Dispatcher.CurrentDispatcher.BeginInvoke(new Action(() =>
+                ((Button)window.FindName("SaveCollectionButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent))),
+                DispatcherPriority.ApplicationIdle);
+            Assert.IsTrue(window.ShowDialog());
+            Assert.IsNotNull(window.Collection);
+            Assert.IsEmpty(window.Collection.Accounts);
+            Assert.AreEqual("Mail", window.Collection.Mail!.Subject);
+        }
+        finally { window.Close(); }
+    }
+
     [STATestMethod]
     public void MainWindow_WithDiagnosticAction_RendersSuccessfully()
     {

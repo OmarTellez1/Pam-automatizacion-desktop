@@ -28,10 +28,10 @@ public sealed class WpfUserDialogService : IUserDialogService
         return window.Decision;
     }
 
-    public bool ConfirmAutomationStart(AppSettings settings, MailSettings? mailSettings, string? collectionName = null)
+    public bool ConfirmAutomationStart(AppSettings settings, MailSettings? mailSettings, string? collectionName = null, bool accumulate = false)
     {
         ArgumentNullException.ThrowIfNull(settings);
-        string message = FormatAutomationStartMessage(settings, mailSettings, collectionName);
+        string message = FormatAutomationStartMessage(settings, mailSettings, collectionName, accumulate);
         return UrgentMessageBox.Show(message, "Iniciar automatización PAM", MessageBoxButton.YesNo,
             MessageBoxImage.Warning, MessageBoxResult.No) == MessageBoxResult.Yes;
     }
@@ -39,7 +39,8 @@ public sealed class WpfUserDialogService : IUserDialogService
     internal static string FormatAutomationStartMessage(
         AppSettings settings,
         MailSettings? mailSettings,
-        string? collectionName = null)
+        string? collectionName = null,
+        bool accumulate = false)
     {
         ArgumentNullException.ThrowIfNull(settings);
         RequestSettings request = settings.Request;
@@ -63,7 +64,8 @@ public sealed class WpfUserDialogService : IUserDialogService
             $"Inicio: {request.StartDate:dd/MM/yyyy} {startTime}",
             $"Duración: {request.SessionHours.ToString(CultureInfo.InvariantCulture)} hora(s)",
             $"Razón: {request.RequestReason}",
-            $"Acción final: {(settings.FinalAction == FinalAction.SendEmail ? "Enviar correo" : "Mostrar Request ID")}",
+            accumulate ? "Acción final: acumular los nuevos Request ID, sin mostrarlos automáticamente ni enviar correo todavía."
+                : $"Acción final: {(settings.FinalAction == FinalAction.SendEmail ? "Enviar correo" : "Mostrar Request ID")}",
             settings.FinalAction == FinalAction.SendEmail && mailSettings is not null
                 ? $"Para: {toRecipients}"
                 : string.Empty,
@@ -75,8 +77,24 @@ public sealed class WpfUserDialogService : IUserDialogService
                 : string.Empty,
             string.Empty,
             "Después de confirmar, las validaciones se ejecutarán en segundo plano.",
-            "Solo se solicitará otra decisión si existen solicitudes idénticas en Pending; podrás reutilizar un conjunto completo para el correo o cancelar.");
+            accumulate ? "Las solicitudes idénticas existentes en Pending bloquearán esta ejecución; sus IDs no se agregarán al acumulado."
+                : "Solo se solicitará otra decisión si existen solicitudes idénticas en Pending; podrás reutilizar un conjunto completo para el correo o cancelar.");
     }
+
+    public bool ConfirmAccumulatedEmail(string collectionName, int count, MailSettings mailSettings) =>
+        UrgentMessageBox.Show(FormatAccumulatedEmailConfirmation(collectionName, count, mailSettings),
+            "Enviar correo acumulado", MessageBoxButton.YesNo, MessageBoxImage.Question, MessageBoxResult.No) == MessageBoxResult.Yes;
+
+    internal static string FormatAccumulatedEmailConfirmation(string collectionName, int count, MailSettings mail) =>
+        $"¿Enviar un único correo con {count} Request ID?\n\nColección: {collectionName}\nPara: {string.Join("; ", mail.ToRecipients)}\nCC: {string.Join("; ", mail.CcRecipients)}\nAsunto: {mail.Subject}\nRemitente: {mail.SmtpAddress}";
+
+    public bool ConfirmDiscardAccumulated(int count) => UrgentMessageBox.Show(
+        $"¿Descartar {count} solicitudes acumuladas?\n\nSolo se retirarán los IDs de esta aplicación. Las solicitudes seguirán en PAM y no se eliminará ningún correo de Outlook.",
+        "Descartar acumulado", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) == MessageBoxResult.Yes;
+
+    public bool ConfirmCloseAccumulated(int count) => UrgentMessageBox.Show(
+        $"Hay {count} solicitudes acumuladas. Si cierras la aplicación, estos IDs dejarán de estar disponibles aquí; las solicitudes seguirán en PAM.\n\n¿Cerrar y descartar el acumulado? Elige No para volver a la aplicación. No se eliminará ningún correo de Outlook.",
+        "Solicitudes acumuladas pendientes", MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) == MessageBoxResult.Yes;
 
     public bool ConfirmTestEmail(string recipient) => UrgentMessageBox.Show(
         $"La validación PAM terminó. ¿Enviar ahora el resultado de prueba únicamente a {recipient}, sin CC?",

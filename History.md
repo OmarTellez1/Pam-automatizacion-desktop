@@ -1,5 +1,22 @@
 # Historial — Pam Automation .NET
 
+## 27 de septiembre de 2026 — Fase 27 implementada, acumulado y correo manual
+
+- Se añade `RequestIdAccumulator` en Core: lotes completos nuevos, deduplicación, vínculo por GUID y estados de envío exclusivamente en memoria.
+- La pantalla principal incorpora modo, contador, envío manual y descarte. Las acciones finales automáticas se deshabilitan sin modificar su preferencia; Pending idéntico bloquea solo la ejecución acumulativa.
+- El servicio de colecciones bloquea selección/desactivación/eliminación del vínculo; actualizar Favorites conserva la selección incluso vacía. Se permite corregir el correo de esa colección sin perder los IDs.
+- El envío usa correo actual, remitente principal y firma común con una única confirmación. Se congela la operación y se reutilizan las barreras de Outlook. Incertidumbre conserva IDs y permite comprobar el mismo mensaje sin reenviarlo; confirmación en Enviados o descarte explícito libera el vínculo.
+- Cierre normal con aviso y elección segura; cierre de Windows sin espera modal. Descartar no cancela PAM ni elimina mensajes de Outlook. No hay recuperación tras cierre inesperado.
+- Evidencia: compilación Release x64 correcta y 119 pruebas relacionadas aprobadas, 0 fallidas/omitidas; incluye WPF, cierre, selección, fallos, doble clic, firma y rutas de correo mediante dobles. La primera pasada detectó dos fixtures con catálogo vacío, incompatible con el contrato existente; se ajustaron para retirar las cuentas de la colección con un catálogo válido y la selección final aprobó completa. Se conserva MSTEST0032 heredada. No se operó PAM/Outlook real, no se cambió versión ni se publicó.
+
+## 27 de septiembre de 2026 — Planificación de fase 27, acumulado por colección
+
+- El usuario confirma que varias automatizaciones podrán reunir sus Request ID en memoria para un único correo manual, exclusivamente dentro de una misma colección.
+- Con IDs acumulados, cambiar de colección o desactivar el modo queda bloqueado hasta enviar de forma confirmada o descartar. Las acciones finales automáticas se deshabilitan mientras el modo esté activo.
+- Se documentan incorporación atómica de resultados nuevos reconciliados, preservación ante fallos, bloqueo de selección automática/eliminación, configuración de correo de la colección vinculada, estado incierto de Outlook sin reenvío y advertencia de cierre.
+- El alcance conservador evita reutilizar automáticamente IDs antiguos en este modo; los duplicados exactos bloquean esa ejecución. La opción habitual de correo con IDs existentes permanece fuera del modo.
+- Solo se actualiza documentación; implementación y pruebas quedan pendientes de Astra. No se modificó código ni se ejecutaron PAM/Outlook.
+
 ## 27 de septiembre de 2026 — Fase 26, correo por colección y firma del principal
 
 - Se implementan los cuatro campos de correo e imágenes inline por colección, incluido `All favorites`, dentro del documento protegido de colecciones (esquema 3).

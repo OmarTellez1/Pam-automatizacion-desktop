@@ -15,6 +15,11 @@ public sealed partial class FavoritesCatalogViewModel : ObservableObject
     private readonly IFavoriteCollectionService? collectionService;
     private readonly ILogger<FavoritesCatalogViewModel> logger;
     private bool initialized;
+    private readonly PamAutomation.Core.Execution.RequestIdAccumulator? accumulator;
+    public Guid? AccumulatedCollectionId => accumulator?.CollectionId;
+    public string AccumulationNotice => accumulator?.Count > 0
+        ? PamAutomation.Core.Execution.RequestIdAccumulator.CollectionLockMessage + " Si la colección queda vacía, podrás enviar sus IDs, pero no iniciar nuevas solicitudes."
+        : string.Empty;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(RefreshButtonText))]
@@ -39,10 +44,12 @@ public sealed partial class FavoritesCatalogViewModel : ObservableObject
     public FavoritesCatalogViewModel(
         IFavoriteCatalogService catalogService,
         IFavoriteCollectionService? collectionService = null,
-        ILogger<FavoritesCatalogViewModel>? logger = null)
+        ILogger<FavoritesCatalogViewModel>? logger = null,
+        PamAutomation.Core.Execution.RequestIdAccumulator? accumulator = null)
     {
         this.catalogService = catalogService ?? throw new ArgumentNullException(nameof(catalogService));
         this.collectionService = collectionService;
+        this.accumulator = accumulator;
         this.logger = logger ?? NullLogger<FavoritesCatalogViewModel>.Instance;
         RefreshCommand = new AsyncRelayCommand(RefreshAsync, () => CanRefresh);
     }
@@ -279,10 +286,12 @@ public sealed partial class FavoritesCatalogViewModel : ObservableObject
         {
             Collections.Add(new FavoriteCollectionItemViewModel(
                 collection,
-                state.ActiveCollectionId == collection.Id));
+                state.ActiveCollectionId == collection.Id,
+                accumulator?.CollectionId));
         }
 
         CollectionCount = Collections.Count;
+        OnPropertyChanged(nameof(AccumulationNotice));
     }
 
     partial void OnIsLoadingChanged(bool value)

@@ -945,6 +945,17 @@ La ventana `PamAutomation.App/Views/AutomationResultWindow.xaml` y su code-behin
 - `App/ViewModels/MainWindowViewModel`: firma desde la pantalla principal, resolución del correo al seleccionar colección y antes de confirmar, bloqueo de Outlook incompleto y paso de la misma configuración al flujo normal y a Pending existente. Se retira `Services/MailConfigurationEdit.cs`, que solo representaba la edición global anterior.
 - `Tests/Core/Outlook/CollectionMailComposerTests.cs`, `Tests/Infrastructure/Configuration/CollectionMailMigrationTests.cs` y las pruebas ampliadas de colecciones, coordinación y ventanas verifican separación, migración, DPAPI, cancelaciones y ambas rutas de correo con dobles de PAM/Outlook. No se agregaron dependencias ni proyectos.
 
+## Fase 27 — Acumulación en memoria y correo manual
+
+- `Core/Execution/RequestIdAccumulator.cs`: estado de sesión, GUID vinculado, incorporación atómica/deduplicación y transición Ready/Sending/AwaitingConfirmation; no depende de persistencia ni WPF.
+- `Core/Favorites/FavoriteCollectionService.cs`: aplica el bloqueo de selección/desactivación/eliminación y retiene el vínculo al reconciliar Favorites; permite corregir correo de la colección vinculada vacía.
+- `Core/Outlook/OutlookDeliveryUncertainException.cs`: distingue fallos que pueden haber producido un mensaje externo y prohíben reenvío ciego. `IPamAutomationExecutionService` y su implementación añaden envío acumulativo protegido y observación sin volver a enviar; reutilizan `OutlookDeliveryConfirmationService` y el cliente Outlook existente.
+- `App/ViewModels/MainWindowViewModel.Accumulation.cs`: parcial pequeña para controles, confirmación, instantánea de correo, comprobación de envío, descarte y decisión de cierre. El flujo principal agrega solo resultados completos, suprime la acción final y bloquea reutilización de Pending en este modo.
+- `App/MainWindow.xaml`, `MainWindow.xaml.cs` y `App.xaml.cs`: controles y contador, evento de cierre/fin de sesión y una instancia compartida del acumulador. `WpfUserDialogService` presenta las confirmaciones; `WpfConfigurationDialogService`, filas/VM de Favorites y editor de colección propagan la restricción a selección y correo.
+- `Tests/Core/Execution/RequestIdAccumulatorTests.cs` y `Tests/MainWindowViewModelAccumulationTests.cs`: integridad, fallos, confirmación, instantánea incierta, concurrencia y cierre. Se amplían pruebas de servicio de colecciones, correo, filas y ventanas WPF. Evidencia local: 119 pruebas relacionadas aprobadas.
+
+Sin módulos nuevos en Infrastructure, Browser u Outlook; sin almacenamiento adicional, proyectos ni dependencias. La reconciliación de Pending y el envío COM conservan su implementación.
+
 ## Límites que deben conservarse
 
 - Solo C#, .NET 10, WPF y XAML para la aplicación.
