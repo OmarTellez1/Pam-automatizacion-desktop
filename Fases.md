@@ -562,6 +562,10 @@ No incorporar automáticamente IDs preexistentes. Como alcance conservador de es
 
 ### Fase 27.2 — Interfaz y bloqueo de colección
 
+Ajuste visual posterior: `Acumular solicitudes para un solo correo` se sitúa a la derecha de la acción final y reutiliza `OutlookActionToggleStyle`, con etiqueta propia en dos líneas. Compilación Release x64 y tres pruebas WPF de la ventana principal aprobadas; se verifica alineación, estilo y ausencia de desbordamiento a 1050×660 y 800×540. Sin cambios en las reglas de acumulación.
+
+Corrección de legibilidad: altura automática con mínimo de 64 DIP para evitar recortar la segunda línea. El estilo común usa grises explícitos al deshabilitarse, incluido Outlook durante acumulación. Las tres pruebas WPF verifican ahora también la altura completa del texto y los colores grises con Outlook previamente activado; compilación Release x64 correcta.
+
 **Completada.** La ventana principal incorpora modo, contador y acciones manuales. `FavoriteCollectionService` impide cambiar/desactivar/eliminar la colección vinculada; reconciliar Favorites conserva su selección aunque quede vacía. En ese caso se permite corregir su correo y enviarlo, pero no ejecutar solicitudes nuevas. Las filas WPF aplican el mismo bloqueo y mantienen administrables otras colecciones.
 
 Añadir el modo, un contador compacto (`14 solicitudes acumuladas`), `Enviar correo` y `Descartar acumulado`. Con cero IDs se permite cambiar de colección o salir del modo. Con IDs, explicar: `Tienes solicitudes acumuladas de esta colección. Envía el correo o descarta el acumulado antes de seleccionar otra.` Mantener el progreso actual durante la ejecución sin recuperar mensajes permanentes redundantes en la zona central.

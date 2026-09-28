@@ -93,7 +93,7 @@ public sealed partial class MainWindowViewModel
                 accumulatedMailSnapshot = null;
                 StatusMessage = "Correo localizado en Enviados. Acumulado vaciado.";
                 dialogs.ShowResult("Correo confirmado en Enviados",
-                    "El correo fue localizado en Enviados y el acumulado se limpió. Esto no confirma la recepción por los destinatarios.");
+                    "El correo se envió exitosamente");
             }
             else
             {

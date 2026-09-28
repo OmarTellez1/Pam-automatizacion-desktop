@@ -947,6 +947,10 @@ La ventana `PamAutomation.App/Views/AutomationResultWindow.xaml` y su code-behin
 
 ## Fase 27 — Acumulación en memoria y correo manual
 
+El selector `AccumulationModeToggle` de `MainWindow.xaml` es un `ToggleButton` a la derecha de la acción final; reutiliza `OutlookActionToggleStyle` con contenido propio. No introduce estilos ni módulos adicionales.
+
+Su altura es automática con mínimo de 64 DIP. `Resources/Styles.xaml` define los colores grises del estado deshabilitado del estilo compartido; se conservan las dimensiones horizontales para caber en la ventana mínima.
+
 - `Core/Execution/RequestIdAccumulator.cs`: estado de sesión, GUID vinculado, incorporación atómica/deduplicación y transición Ready/Sending/AwaitingConfirmation; no depende de persistencia ni WPF.
 - `Core/Favorites/FavoriteCollectionService.cs`: aplica el bloqueo de selección/desactivación/eliminación y retiene el vínculo al reconciliar Favorites; permite corregir correo de la colección vinculada vacía.
 - `Core/Outlook/OutlookDeliveryUncertainException.cs`: distingue fallos que pueden haber producido un mensaje externo y prohíben reenvío ciego. `IPamAutomationExecutionService` y su implementación añaden envío acumulativo protegido y observación sin volver a enviar; reutilizan `OutlookDeliveryConfirmationService` y el cliente Outlook existente.

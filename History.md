@@ -1,5 +1,12 @@
 # Historial — Pam Automation .NET
 
+## 27 de septiembre de 2026 — Ajuste visual del selector de acumulación
+
+- Corrección posterior al reporte de texto recortado: altura automática y mínimo de 64 DIP; estado deshabilitado gris explícito en fondo, borde, texto e interruptor. Outlook aparece gris durante acumulación incluso si estaba activado. Compilación Release x64 y tres pruebas WPF aprobadas, con comprobación de texto completo y colores.
+
+- Se reemplaza la casilla estándar por un `ToggleButton` que reutiliza el estilo de la acción final, situado inmediatamente a su derecha. Etiqueta propia en dos líneas, colores y estados visuales coherentes con la aplicación.
+- Compilación Release x64 correcta y tres pruebas WPF de la ventana principal aprobadas, incluida alineación y ausencia de desbordamiento a 800×540 y 1050×660. Permanece la advertencia heredada MSTEST0032; no se cambió la lógica, versión ni publicación.
+
 ## 27 de septiembre de 2026 — Fase 27 implementada, acumulado y correo manual
 
 - Se añade `RequestIdAccumulator` en Core: lotes completos nuevos, deduplicación, vínculo por GUID y estados de envío exclusivamente en memoria.

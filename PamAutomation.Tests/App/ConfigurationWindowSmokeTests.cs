@@ -43,7 +43,7 @@ public sealed class ConfigurationWindowSmokeTests
             Enumerable.Range(100, 14).Select(i => i.ToString()).ToArray()));
         var vm = new MainWindowViewModel(null, null, null, null,
             new PamAutomation.Core.Validation.AppSettingsValidator(new PamAutomation.Core.Validation.RequestSettingsValidator()),
-            TimeProvider.System, accumulator: accumulator);
+            TimeProvider.System, accumulator: accumulator) { SendEmailAtEnd = true };
         var window = new MainWindow { DataContext = vm, WindowState = WindowState.Normal, Width = width, Height = height };
         try
         {
@@ -51,9 +51,28 @@ public sealed class ConfigurationWindowSmokeTests
             Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
             var toggle = Assert.IsInstanceOfType<System.Windows.Controls.Primitives.ToggleButton>(window.FindName("FinalActionToggle"));
             Assert.IsFalse(toggle.IsEnabled);
-            var mode = Assert.IsInstanceOfType<CheckBox>(window.FindName("AccumulationModeToggle"));
+            var mode = Assert.IsInstanceOfType<System.Windows.Controls.Primitives.ToggleButton>(window.FindName("AccumulationModeToggle"));
             Assert.IsTrue(mode.IsChecked);
             Assert.IsFalse(mode.IsEnabled);
+            Assert.AreEqual(toggle.TranslatePoint(new Point(0, toggle.ActualHeight / 2), window).Y,
+                mode.TranslatePoint(new Point(0, mode.ActualHeight / 2), window).Y, 1d);
+            Assert.IsGreaterThanOrEqualTo(toggle.TranslatePoint(new Point(toggle.ActualWidth, 0), window).X,
+                mode.TranslatePoint(new Point(), window).X);
+            Assert.IsLessThanOrEqualTo(window.ActualWidth,
+                mode.TranslatePoint(new Point(mode.ActualWidth, 0), window).X);
+            Assert.AreSame(toggle.Style, mode.Style);
+            Assert.AreEqual("Acumular solicitudes para un solo correo", ((TextBlock)mode.Content).Text);
+            var label = (TextBlock)mode.Content;
+            var fullLabel = new TextBlock { Text = label.Text, FontFamily = label.FontFamily,
+                FontSize = label.FontSize, FontWeight = label.FontWeight, TextWrapping = TextWrapping.Wrap };
+            fullLabel.Measure(new Size(label.ActualWidth, double.PositiveInfinity));
+            Assert.IsGreaterThanOrEqualTo(fullLabel.DesiredSize.Height, label.ActualHeight);
+            Assert.IsLessThanOrEqualTo(mode.ActualHeight - mode.Padding.Bottom - 1,
+                label.TranslatePoint(new Point(0, label.ActualHeight), mode).Y);
+            var pill = (Border)toggle.Template.FindName("Pill", toggle);
+            var track = (Border)toggle.Template.FindName("SwitchTrack", toggle);
+            Assert.AreEqual("#FFF0F1F3", pill.Background.ToString());
+            Assert.AreEqual("#FFA8ADB5", track.Background.ToString());
             var count = Assert.IsInstanceOfType<TextBlock>(window.FindName("AccumulatedCountText"));
             Assert.IsTrue(count.IsVisible);
             Assert.AreEqual("14 solicitudes acumuladas", count.Text);

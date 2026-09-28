@@ -6,6 +6,10 @@ Este documento describe la lógica objetivo de la aplicación nueva. Ya existen 
 
 ## Fase 27 — Acumulado de una sola colección
 
+El modo se presenta como un interruptor con el estilo común, a la derecha de la acción final. El cambio de presentación conserva el comando, los estados y los bloqueos del acumulado.
+
+El estado deshabilitado se representa en gris, sin cambiar la preferencia de Outlook. La etiqueta de acumulación dispone de altura automática para evitar recortes.
+
 **Implementada.** El modo opcional de acumulación suprime las acciones finales automáticas y reúne solo los IDs nuevos reconciliados de ejecuciones completas de la misma colección. La identidad estable vincula el lote; no se puede cambiar de colección, desactivar el modo ni eliminar la colección vinculada con IDs pendientes. Envío confirmado o descarte explícito libera el vínculo. No se agregan resultados parciales ni IDs antiguos automáticamente; los duplicados exactos en este modo bloquean la ejecución sin envío inmediato de reutilización. El comportamiento habitual fuera del modo se conserva.
 
 El botón manual usa el correo de la colección vinculada, remitente principal y firma vigente, congelados junto con los IDs después de confirmar. El estado incierto de Outlook conserva el lote sin repetir `Send()`. Descartar nunca cancela solicitudes PAM ni retira correos. Los resultados solo viven en memoria y el cierre normal exige advertir su pérdida. Especificación y criterios completos en `Fases.md`, fase 27.

@@ -226,6 +226,10 @@ El diagnóstico añade duración por lectura y, ante fallos, operación, página
 
 ## Próximo paso
 
+El selector de acumulación aparece a la derecha de `Mostrar IDs al final` / `Enviar correo con Outlook`, con el mismo estilo redondeado y una etiqueta en dos líneas. El contador y las acciones manuales permanecen debajo.
+
+El control ajusta su altura para mostrar toda la etiqueta. Mientras la acumulación está activa, el selector de Outlook deshabilitado aparece gris.
+
 La **fase 27 está implementada** en el código: activa `Acumular solicitudes para un solo correo` para sumar los Request ID nuevos de ejecuciones completas de la misma colección (8 + 6 = 14, sin duplicados). Mientras esté activo, las acciones finales automáticas quedan deshabilitadas y se conserva su preferencia anterior. El contador, `Enviar correo` y `Descartar acumulado` aparecen junto al modo.
 
 Con IDs pendientes no puedes cambiar/desactivar/eliminar la colección vinculada ni salir del modo. Actualizar Favorites tampoco cambia su selección: si queda vacía, puedes corregir su correo y enviar los IDs, pero no iniciar solicitudes nuevas. Puedes ajustar inicio/duración/motivo para otra ejecución; duplicados exactos en Pending bloquean ese intento y no agregan IDs antiguos. Fuera del modo se conserva el comportamiento habitual.

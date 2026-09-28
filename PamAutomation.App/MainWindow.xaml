@@ -306,13 +306,20 @@
                                   IsChecked="{Binding SendEmailAtEnd, Mode=OneWay}"
                                   IsEnabled="{Binding CanChangeFinalAction}"
                                   Style="{StaticResource OutlookActionToggleStyle}" />
+                    <ToggleButton x:Name="AccumulationModeToggle"
+                                  Width="248" Height="Auto" MinHeight="64"
+                                  Margin="12,0,0,0" VerticalAlignment="Center"
+                                  AutomationProperties.Name="Acumular solicitudes para un solo correo"
+                                  ToolTip="Acumula los Request ID de esta colección para enviarlos juntos en un correo manual."
+                                  IsChecked="{Binding IsAccumulating, Mode=OneWay}"
+                                  Command="{Binding ToggleAccumulationCommand}"
+                                  IsEnabled="{Binding CanToggleAccumulation}"
+                                  Style="{StaticResource OutlookActionToggleStyle}">
+                        <TextBlock Text="Acumular solicitudes para un solo correo" TextWrapping="Wrap" />
+                    </ToggleButton>
                 </StackPanel>
 
                 <StackPanel Grid.Row="1">
-                    <CheckBox x:Name="AccumulationModeToggle" Content="Acumular solicitudes para un solo correo"
-                              HorizontalAlignment="Center" Margin="0,0,0,8"
-                              IsChecked="{Binding IsAccumulating, Mode=OneWay}"
-                              Command="{Binding ToggleAccumulationCommand}" IsEnabled="{Binding CanToggleAccumulation}" />
                     <StackPanel Visibility="{Binding IsAccumulating, Converter={StaticResource BooleanToVisibilityConverter}}">
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,8">
                             <TextBlock x:Name="AccumulatedCountText" Text="{Binding AccumulatedCountText}" VerticalAlignment="Center" Margin="0,0,12,0" />

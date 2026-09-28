@@ -294,7 +294,11 @@
                             <Setter TargetName="Pill" Property="Opacity" Value="0.9" />
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
-                            <Setter TargetName="Pill" Property="Opacity" Value="0.5" />
+                            <Setter TargetName="Pill" Property="Opacity" Value="1" />
+                            <Setter TargetName="Pill" Property="Background" Value="#F0F1F3" />
+                            <Setter TargetName="Pill" Property="BorderBrush" Value="#D3D6DB" />
+                            <Setter TargetName="SwitchTrack" Property="Background" Value="#A8ADB5" />
+                            <Setter Property="Foreground" Value="#737981" />
                             <Setter Property="Cursor" Value="Arrow" />
                         </Trigger>
                     </ControlTemplate.Triggers>
