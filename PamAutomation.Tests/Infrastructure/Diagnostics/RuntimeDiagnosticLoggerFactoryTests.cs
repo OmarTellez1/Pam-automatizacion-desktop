@@ -110,10 +110,17 @@ public sealed class RuntimeDiagnosticLoggerFactoryTests
             readFailureCount: 2,
             lastReadFailure: PamRequestFormReadFailure.Timeout,
             expected: new PamRequestFormDiagnosticValues("September 27, 2026", "00:00", "0", "8", "0", 14, "true"),
-            observed: new PamRequestFormDiagnosticValues("September 27, 2026", "00:01", "0", "8", "0", 12, "false"));
+            observed: new PamRequestFormDiagnosticValues("September 27, 2026", "00:01", "0", "8", "0", 12, "false"))
+        {
+            CorrectionCount = 1,
+            CorrectedFields = PamRequestFormMismatchField.StartTime,
+            ControlReplacementCount = 2,
+            UnavailableFields = PamRequestFormMismatchField.Hours
+        };
         var submissionFailure = new PamRequestSubmissionException(
             PamRequestSubmissionErrorCode.PortalUnavailable,
-            formFailure);
+            formFailure)
+        { Evidence = new PamSubmissionEvidence(false, false, false) };
 
         logger.LogError(submissionFailure, "Application operation failed. Reason={ReasonValue}.", "private reason");
 
@@ -128,6 +135,13 @@ public sealed class RuntimeDiagnosticLoggerFactoryTests
         Assert.AreEqual("00:01", captured.Properties["FormObservedStartTime"]);
         Assert.AreEqual("12", captured.Properties["FormObservedReasonLength"]);
         Assert.AreEqual("false", captured.Properties["FormObservedApplicationSession"]);
+        Assert.AreEqual("1", captured.Properties["FormCorrectionCount"]);
+        Assert.AreEqual("StartTime", captured.Properties["FormCorrectedFields"]);
+        Assert.AreEqual("2", captured.Properties["FormControlReplacementCount"]);
+        Assert.AreEqual("Hours", captured.Properties["FormUnavailableFields"]);
+        Assert.AreEqual("False", captured.Properties["SubmitClickAttempted"]);
+        Assert.AreEqual("False", captured.Properties["SubmitPostObserved"]);
+        Assert.AreEqual("False", captured.Properties["SubmitResponseObserved"]);
         Assert.IsFalse(captured.Properties.ContainsKey("ReasonValue"));
         Assert.DoesNotContain("private reason", captured.MessageTemplate);
     }
@@ -180,6 +194,30 @@ public sealed class RuntimeDiagnosticLoggerFactoryTests
         Assert.AreEqual("UnavailableOrUnexpected", captured.Properties["FormObservedApplicationSession"]);
         Assert.DoesNotContain("secret", string.Join('|', captured.Properties.Values));
     }
+
+    [TestMethod]
+    public void CaptureSnapshot_AttemptStageAndCounts_KeepSameIdAndNormalizedTargetDate()
+    {
+        using var factory = new RuntimeDiagnosticLoggerFactory();
+        var attempt = new PamExecutionAttempt(3, factory.CreateLogger("Test"));
+        using IDisposable scope = attempt.Activate();
+        attempt.RecordTargetDate(new(2027, 1, 4));
+        attempt.RecordStage("Calendar", 2);
+        attempt.RecordCounts(1, 0, uncertain: 1, notAttempted: 1);
+        attempt.RecordFailureStage();
+        attempt.RecordStage("Reconciliation");
+        attempt.Finish("Partial");
+        var events = factory.CaptureSnapshot();
+        Assert.IsTrue(events.All(item => item.Properties["AttemptId"] == attempt.Capture().AttemptId.ToString("D")));
+        Assert.IsTrue(events.All(item => item.Properties["TargetDate"] == "2027-01-04"));
+        var last = events.Last();
+        Assert.AreEqual("Calendar", last.Properties["Stage"]);
+        Assert.AreEqual("Partial", last.Properties["Status"]);
+        Assert.AreEqual("1", last.Properties["AcceptedCount"]);
+        Assert.AreEqual("1", last.Properties["UncertainCount"]);
+        Assert.AreEqual("2", last.Properties["FormOrdinal"]);
+    }
+
 
     private static Exception CaptureException()
     {

@@ -38,6 +38,8 @@ public static class PamOperationTimingPolicy
 
     /// <summary>Maximum time to wait for JavaScript-controlled request values to stabilize.</summary>
     public static TimeSpan FormStabilityTimeout { get; } = TimeSpan.FromSeconds(15);
+    /// <summary>Three observation intervals catch a reset later than the former 250 ms check.</summary>
+    public static TimeSpan FormMinimumStabilityWindow { get; } = TimeSpan.FromMilliseconds(600);
 
     /// <summary>Maximum time to observe a calendar month change or a selected date.</summary>
     public static TimeSpan CalendarTransitionTimeout { get; } = TimeSpan.FromSeconds(8);

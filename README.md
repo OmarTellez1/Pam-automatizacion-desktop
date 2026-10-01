@@ -257,3 +257,11 @@ Outlook filtra candidatos por asunto y valida sus Request ID exactos. Después d
 Validación local: compilación Release x64 y 77 pruebas focalizadas aprobadas, sin abrir Outlook ni enviar correos. Permanece la advertencia heredada MSTEST0032. Una selección inicial por nombre incluyó además el fallo ya conocido del texto de `RepeatedPendingDecisionWindow_CompleteSetWithoutEmail_RequiresOutlook`, ajeno a esta corrección. La próxima ejecución operativa y su diagnóstico permitirán validar la mejora frente al Outlook real.
 
 Completar la fase 19 como aceptación final del ejecutable en otro equipo Windows administrado. Cualquier prueba real contra PAM requerirá autorización expresa.
+
+## Estabilización del 1 de octubre de 2026
+
+El calendario conserva subcausas tipadas, etapa, conteos y las últimas 20 transiciones en memoria. No se aumentaron sus límites de 8/45 segundos. La verificación de formulario exige valores completos durante al menos 600 ms, reinicia la racha ante reemplazos/errores y admite una sola corrección por formulario compartida entre AfterFill y BeforeSubmit. No repite Submit.
+
+Un lote interrumpido conserva todos sus elementos y separa aceptación por respuesta, conflicto, rechazo inequívoco, fallo antes del envío, envío incierto y elemento no intentado. Recupera IDs nuevos consultando Pending con la línea base original. Solo verifica grupos completos e inequívocos; los grupos repetidos incompletos no asignan IDs por orden. El resultado incompleto permite revisar/copiar los IDs recuperados, conserva el acumulado anterior y bloquea correo/incorporación automática del lote.
+
+El diagnóstico distingue el último intento real del último resultado completado, correlaciona etapas/ordinal/conteos y conserva la etapa inicial del fallo durante la recuperación. Incluye versiones/MVID de componentes cargados y versiones efectivas de Edge/Playwright cuando están disponibles. Los logs permanecen acotados en memoria; la exportación de producción continúa siendo explícita. Favorites se conserva y el margen temporal sigue diferido. Evidencia y límites actuales: [problemas.md](problemas.md), sección 11.

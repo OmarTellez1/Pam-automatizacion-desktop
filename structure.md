@@ -90,6 +90,7 @@ PamAutomation\
 ├── History.md
 ├── structure.md
 ├── Fases.md
+├── problemas.md
 ├── Subagentes.md
 ├── PAM_NAVIGATION.md
 ├── .gitignore
@@ -435,6 +436,7 @@ PamAutomation\
 | `History.md` | Registro cronológico de decisiones y cambios relevantes. |
 | `structure.md` | Inventario físico y arquitectura actual y objetivo. |
 | `Fases.md` | Resumen acumulativo de las fases, sus dependencias pendientes y las oportunidades condicionadas de trabajo paralelo. |
+| `problemas.md` | Traspaso técnico de incidentes, riesgos y mejoras de diagnóstico: evidencia, hipótesis, clases implicadas, propuestas y criterios de aceptación. Distingue pendientes de correcciones verificadas. |
 | `Subagentes.md` | Protocolo para coordinar un máximo de dos subagentes en unidades verticales independientes, aislar sus cambios e integrar únicamente trabajo validado. |
 | `.gitignore` | Exclusiones de Git para salidas, configuración local y artefactos de desarrollo. |
 | `PamAutomation.slnx` | Solución .NET que agrupa los seis proyectos en `x64` para operar mediante la CLI `dotnet`. |
@@ -996,3 +998,15 @@ Al terminar cada fase se debe registrar:
 - Dependencias NuGet relevantes.
 - Diferencias entre la estructura planeada y la implementada.
 - Elementos objetivo que ya pasaron a estado actual.
+
+## Estabilización de calendario y resultados — fase 28
+
+- Core/Diagnostics/PamExecutionAttempt.cs: contexto asíncrono acotado de un intento real, contador sincronizado, etapa inicial del fallo, fecha normalizada y versiones de navegador; conecta los logs con la exportación sin persistencia ni identidades.
+- Core/Requests/PamCalendarDiagnostic.cs y PamCalendarSelectionException.cs: condiciones tipadas e historial de hasta 20 observaciones, anexado al fallo compatible.
+- Browser/PamCalendarDateSelector.cs y PlaywrightManagedPage.RequestTest.cs: diagnóstico del calendario, disponibilidad, estabilidad de controles y una corrección limitada. PamRequestFormStabilityTests.cs usa HTML local y Edge externo, con red interceptada en C#.
+- Browser/PlaywrightManagedPage.RequestSubmission.cs: frontera irreversible, evidencia de clic/POST/respuesta y conservación del conflicto conocido ante fallo de limpieza. No introduce reenvíos.
+- Core/Requests/PamRequestSubmissionService.cs, PamRequestRunResult.cs y PamRequestSubmissionException.cs: instantánea defensiva de todas las filas de un lote interrumpido. Core/Execution/PamAutomationExecutionService.cs reutiliza Pending para recuperar grupos completos; PamPendingService.cs permite observar comparaciones parciales sin cambiar sus reglas.
+- Infrastructure/Diagnostics: logger filtra metadata tipada, store recibe conteos sin IProgress y exporter separa último intento/éxito, identifica MVID/versiones de ensamblados conocidos. App/App.xaml.cs comparte el store; MainWindowViewModel muestra resultados incompletos sin incorporarlos al acumulado.
+- Tests: amplían calendario, servicios, ejecución/Pending, logger/ZIP y acumulación; matriz real de formularios descartados para noviembre/diciembre de 2026 y enero/febrero de 2027. Los reportes de desarrollo se guardan en results ignorado; no se generan archivos operativos de producción.
+
+No hay proyectos, dependencias NuGet ni versiones de aplicación nuevas. RequestIdAccumulator y la navegación Favorites permanecen con sus contratos. El margen temporal está diferido.

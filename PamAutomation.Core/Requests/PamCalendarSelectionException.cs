@@ -26,7 +26,8 @@ public sealed class PamCalendarSelectionException : InvalidOperationException
     /// <param name="navigationCount">Number of month-navigation clicks.</param>
     /// <param name="innerException">Underlying browser failure, if available.</param>
     public PamCalendarSelectionException(PamCalendarFailure failure, DateOnly targetDate,
-        DateOnly? observedMonth, int navigationCount, Exception? innerException = null)
+        DateOnly? observedMonth, int navigationCount, Exception? innerException = null,
+        PamCalendarDiagnostic? diagnostic = null)
         : base("No fue posible seleccionar y confirmar la fecha en el calendario PAM. No se envió el formulario afectado.", innerException)
     {
         if (!Enum.IsDefined(failure)) throw new ArgumentOutOfRangeException(nameof(failure));
@@ -35,6 +36,7 @@ public sealed class PamCalendarSelectionException : InvalidOperationException
         TargetDate = targetDate;
         ObservedMonth = observedMonth;
         NavigationCount = navigationCount;
+        Diagnostic = diagnostic is null ? null : diagnostic with { History = Array.AsReadOnly(diagnostic.History.ToArray()) };
     }
 
     /// <summary>Gets the stable failure category.</summary>
@@ -45,4 +47,6 @@ public sealed class PamCalendarSelectionException : InvalidOperationException
     public DateOnly? ObservedMonth { get; }
     /// <summary>Gets how many navigation clicks were issued.</summary>
     public int NavigationCount { get; }
+    /// <summary>Gets the normalized subcause, counters and bounded observation history.</summary>
+    public PamCalendarDiagnostic? Diagnostic { get; }
 }

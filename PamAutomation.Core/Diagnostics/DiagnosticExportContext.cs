@@ -9,7 +9,11 @@ public sealed record DiagnosticExportContext(
     bool CredentialsConfigured,
     bool RequestConfigured,
     bool MailConfigured,
-    DiagnosticExecutionSummary? LastExecution);
+    DiagnosticExecutionSummary? LastExecution)
+{
+    /// <summary>The latest attempt, independent from the last successful execution.</summary>
+    public DiagnosticAttemptSummary? LastAttempt { get; init; }
+}
 
 /// <summary>Contains execution counts and statuses without Request ID or portal identities.</summary>
 /// <param name="Mode">Test or real execution mode.</param>

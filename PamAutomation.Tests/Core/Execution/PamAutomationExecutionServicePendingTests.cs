@@ -168,19 +168,150 @@ public sealed class PamAutomationExecutionServicePendingTests
         }
     }
 
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task ExecuteRealAsync_LostResponse_RecoversOnlyNewIdsWithoutResubmitting(bool appears)
+    {
+        var ports = new RecordingPorts((IReadOnlyList<PamPendingRequest>)[], appears ? Rows("700002") : (IReadOnlyList<PamPendingRequest>)[]);
+        ports.SubmissionOutcomes = [new TimeoutException("lost response")];
+        var mail = new RecordingMail();
+        using var logs = new RuntimeDiagnosticLoggerFactory();
+        var store = new InMemoryPendingReconciliationDiagnosticStore();
+        var service = CreateService(ports, store, logs, mail);
+        var preparation = await service.PrepareRealAsync(Credentials, Settings with { FinalAction = FinalAction.SendEmail }, Now);
+        var mailSettings = new MailSettings { SmtpAddress = "sender@example.test", ToRecipients = ["recipient@example.test"], Subject = "Fixture", HtmlTemplate = "<p>{{REQUEST_IDS}}</p>" };
+        var failure = await Assert.ThrowsExactlyAsync<PamRequestSubmissionException>(() => service.ExecuteRealAsync(Credentials, preparation, Now, mailSettings));
+        Assert.IsNotNull(failure.PartialRun);
+        Assert.AreEqual(1, failure.PartialRun.UncertainCount);
+        Assert.AreEqual(appears ? 0 : 1, failure.PartialRun.UnresolvedCount);
+        Assert.AreEqual(appears ? 1 : 0, failure.PartialRun.PendingVerifiedCount);
+        Assert.AreEqual(appears ? 1 : 0, failure.RecoveredRequestIds.Count);
+        Assert.AreEqual(1, ports.SubmitCalls);
+        Assert.IsFalse(failure.PartialRun.IsComplete);
+        Assert.AreEqual(0, mail.Calls);
+    }
+
+    [TestMethod]
+    public async Task ExecuteRealAsync_TwoAcceptancesThenCalendarFailure_PreservesKnownRowsAndStops()
+    {
+        var ports = new RecordingPorts((IReadOnlyList<PamPendingRequest>)[], Rows("700002", "700003"))
+        {
+            Accounts = [
+                new("private-fixture-system", "application-1", "private-fixture-account"),
+                new("private-fixture-system", "application-2", "private-fixture-account"),
+                new("other-system", "application-3", "other-account"),
+                new("last-system", "application-4", "last-account")],
+            SubmissionOutcomes = [PamRequestPortalOutcome.Submitted(), PamRequestPortalOutcome.Submitted(),
+                new PamCalendarSelectionException(PamCalendarFailure.MonthUnreadable, new(2026, 9, 22), null, 0)]
+        };
+        using var logs = new RuntimeDiagnosticLoggerFactory();
+        var store = new InMemoryPendingReconciliationDiagnosticStore();
+        var service = CreateService(ports, store, logs);
+        var preparation = await service.PrepareRealAsync(Credentials, Settings, Now);
+        var failure = await Assert.ThrowsExactlyAsync<PamRequestSubmissionException>(() => service.ExecuteRealAsync(Credentials, preparation, Now));
+        Assert.IsNotNull(failure.PartialRun);
+        Assert.AreEqual(2, failure.PartialRun.SubmittedCount);
+        Assert.AreEqual(1, failure.PartialRun.FailedBeforeSubmissionCount);
+        Assert.AreEqual(1, failure.PartialRun.NotAttemptedCount);
+        Assert.HasCount(2, failure.RecoveredRequestIds);
+        Assert.AreEqual(3, ports.SubmitCalls); // Portal entries; third fails before a click.
+        Assert.AreEqual(2, store.CaptureSnapshot()!.SubmittedCount);
+        Assert.IsNotNull(store.CaptureSnapshot()!.SubmissionCounts);
+    }
+
+    [TestMethod]
+    [DataRow(1)]
+    [DataRow(3)]
+    public async Task ExecuteRealAsync_IndistinguishableGroupShortOrExcess_DoesNotAssignIdsByOrder(int observed)
+    {
+        var ports = new RecordingPorts((IReadOnlyList<PamPendingRequest>)[], Rows(Enumerable.Range(0, observed).Select(i => (700002 + i).ToString()).ToArray()))
+        {
+            Accounts = [new("private-fixture-system", "application-1", "private-fixture-account"),
+                new("PRIVATE-FIXTURE-SYSTEM", "application-2", "private-fixture-account")],
+            SubmissionOutcomes = [PamRequestPortalOutcome.Submitted(), new TimeoutException()]
+        };
+        using var logs = new RuntimeDiagnosticLoggerFactory();
+        var store = new InMemoryPendingReconciliationDiagnosticStore();
+        var service = CreateService(ports, store, logs);
+        var preparation = await service.PrepareRealAsync(Credentials, Settings, Now);
+        var failure = await Assert.ThrowsExactlyAsync<PamRequestSubmissionException>(() => service.ExecuteRealAsync(Credentials, preparation, Now));
+        Assert.IsEmpty(failure.RecoveredRequestIds);
+        Assert.AreEqual(2, ports.SubmitCalls);
+        Assert.AreEqual(1, failure.PartialRun!.SubmittedCount);
+        Assert.AreEqual(1, failure.PartialRun.UncertainCount);
+    }
+
+    [TestMethod]
+    [DataRow(1)]
+    [DataRow(2)]
+    public async Task ExecuteRealAsync_CanceledAfterAcceptance_PreservesAcceptanceAndDoesNotReadOrSendAgain(int planned)
+    {
+        using var cancel = new CancellationTokenSource();
+        var ports = new RecordingPorts((IReadOnlyList<PamPendingRequest>)[])
+        {
+            Accounts = new PamFavoriteAccount[] { new("private-fixture-system", "application-1", "private-fixture-account"), new("other", "application-2", "other") }.Take(planned).ToArray(),
+            AfterSubmit = () => cancel.Cancel()
+        };
+        using var logs = new RuntimeDiagnosticLoggerFactory();
+        var store = new InMemoryPendingReconciliationDiagnosticStore();
+        var service = CreateService(ports, store, logs);
+        var preparation = await service.PrepareRealAsync(Credentials, Settings, Now);
+        var failure = await Assert.ThrowsExactlyAsync<PamRequestSubmissionException>(() =>
+            service.ExecuteRealAsync(Credentials, preparation, Now, cancellationToken: cancel.Token));
+        Assert.AreEqual(PamRequestSubmissionErrorCode.Canceled, failure.ErrorCode);
+        Assert.AreEqual(1, failure.PartialRun!.SubmittedCount);
+        Assert.AreEqual(planned - 1, failure.PartialRun.NotAttemptedCount);
+        Assert.AreEqual(1, ports.SubmitCalls);
+        Assert.AreEqual(1, ports.ReadCalls); // Only the original preflight.
+    }
+
+
+    [TestMethod]
+    public async Task ExecuteRealAsync_PendingReadFailsAfterPartialMatch_KeepsRecoveredIdAndUnresolvedRow()
+    {
+        var ports = new RecordingPorts((IReadOnlyList<PamPendingRequest>)[], Rows("700002"),
+            new PamPendingException(PamPendingErrorCode.PortalUnavailable))
+        {
+            Accounts = [new("private-fixture-system", "application-1", "private-fixture-account"),
+                new("other-system", "application-2", "other-account")],
+            SubmissionOutcomes = [PamRequestPortalOutcome.Submitted(), new TimeoutException()]
+        };
+        using var logs = new RuntimeDiagnosticLoggerFactory();
+        var store = new InMemoryPendingReconciliationDiagnosticStore();
+        var service = CreateService(ports, store, logs);
+        var preparation = await service.PrepareRealAsync(Credentials, Settings, Now);
+
+        var failure = await Assert.ThrowsExactlyAsync<PamRequestSubmissionException>(() =>
+            service.ExecuteRealAsync(Credentials, preparation, Now));
+
+        Assert.AreEqual(PamRequestSubmissionErrorCode.ReconciliationFailedAfterSubmission, failure.ErrorCode);
+        Assert.IsNotNull(failure.PartialRun);
+        Assert.HasCount(1, failure.RecoveredRequestIds);
+        Assert.AreEqual("700002", failure.RecoveredRequestIds[0]);
+        Assert.AreEqual(1, failure.PartialRun.SubmittedCount);
+        Assert.AreEqual(1, failure.PartialRun.PendingVerifiedCount);
+        Assert.AreEqual(1, failure.PartialRun.UnresolvedCount);
+        Assert.AreEqual(2, ports.SubmitCalls);
+        Assert.IsGreaterThan(2, ports.ReadCalls);
+        Assert.AreEqual(1, store.CaptureSnapshot()!.SubmissionCounts!.RequestIdCount);
+    }
+
     private static PamAutomationExecutionService CreateService(
         RecordingPorts ports,
         InMemoryPendingReconciliationDiagnosticStore store,
-        RuntimeDiagnosticLoggerFactory logs)
+        RuntimeDiagnosticLoggerFactory logs,
+        PamAutomation.Core.Interfaces.Outlook.IOutlookClassicClient? mail = null)
     {
         var validator = new RequestSettingsValidator();
         var favorites = new PamFavoritesService(ports, ports);
         return new PamAutomationExecutionService(
             favorites,
-            new PamRequestSubmissionService(ports, favorites, ports, validator),
+            new PamRequestSubmissionService(ports, favorites, ports, validator, store),
             new PamPendingService(ports, ports, ports, store, logger: logs.CreateLogger<PamPendingService>()),
             new PamRequestTestService(ports, favorites, ports, validator),
             new AppSettingsValidator(validator),
+            outlookClient: mail,
             logger: logs.CreateLogger<PamAutomationExecutionService>(),
             pendingDiagnosticSink: store);
     }
@@ -207,6 +338,9 @@ public sealed class PamAutomationExecutionServicePendingTests
         public int ReadCalls { get; private set; }
         public int SubmitCalls { get; private set; }
         public int SubmissionFactoryCalls { get; private set; }
+        public IReadOnlyList<PamFavoriteAccount> Accounts { get; init; } = [new("private-fixture-system", "favorite-label", "private-fixture-account")];
+        public object[] SubmissionOutcomes { get; set; } = [];
+        public Action? AfterSubmit { get; init; }
 
         public Task<IPamBrowserSession> CreateAuthenticatedAsync(PamCredentials credentials,
             CancellationToken cancellationToken = default)
@@ -230,8 +364,7 @@ public sealed class PamAutomationExecutionServicePendingTests
         }
 
         Task<IReadOnlyList<PamFavoriteAccount>> IPamFavoritesPortal.ReadAllAsync(CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<PamFavoriteAccount>>(
-                [new("private-fixture-system", "favorite-label", "private-fixture-account")]);
+            Task.FromResult(Accounts);
 
         Task<IReadOnlyList<PamPendingRequest>> IPamPendingPortal.ReadAllAsync(CancellationToken cancellationToken)
         {
@@ -245,7 +378,9 @@ public sealed class PamAutomationExecutionServicePendingTests
             CancellationToken cancellationToken)
         {
             SubmitCalls++;
-            return Task.FromResult(PamRequestPortalOutcome.Submitted());
+            object outcome = SubmissionOutcomes.Length > 0 ? SubmissionOutcomes[SubmitCalls - 1] : PamRequestPortalOutcome.Submitted();
+            AfterSubmit?.Invoke();
+            return outcome is Exception exception ? Task.FromException<PamRequestPortalOutcome>(exception) : Task.FromResult((PamRequestPortalOutcome)outcome);
         }
 
         public Task DelayAsync(TimeSpan delay, CancellationToken cancellationToken)
@@ -254,6 +389,39 @@ public sealed class PamAutomationExecutionServicePendingTests
             return Task.CompletedTask;
         }
     }
+
+    private sealed class RecordingMail : PamAutomation.Core.Interfaces.Outlook.IOutlookClassicClient
+    {
+        public int Calls;
+        public Task<PamAutomation.Core.Outlook.OutlookAccount> ResolveAccountAsync(string address, CancellationToken token = default) => throw new NotSupportedException();
+        public Task ValidateAccountAsync(string address, CancellationToken token = default) => throw new NotSupportedException();
+        public Task<PamAutomation.Core.Outlook.OutlookExistingMessageStatus> FindExistingAsync(string address, string subject, IReadOnlyList<string> ids, CancellationToken token = default) { Calls++; throw new NotSupportedException(); }
+        public Task<PamAutomation.Core.Outlook.OutlookExistingMessageStatus> ObserveDeliveryAsync(string address, string subject, IReadOnlyList<string> ids, bool unsent, CancellationToken token = default) { Calls++; throw new NotSupportedException(); }
+        public Task<PamAutomation.Core.Outlook.OutlookDeliveryResult> SendAsync(PamAutomation.Core.Outlook.OutlookSendRequest request, CancellationToken token = default) { Calls++; throw new NotSupportedException(); }
+    }
+
+    [TestMethod]
+    public async Task ExecuteRealAsync_ConflictThenExplicitRejection_PreservesBothAndStops()
+    {
+        var ports = new RecordingPorts((IReadOnlyList<PamPendingRequest>)[])
+        {
+            Accounts = [new("one", "app-1", "one"), new("two", "app-2", "two"), new("three", "app-3", "three")],
+            SubmissionOutcomes = [PamRequestPortalOutcome.ApprovedAccessOverlap(),
+                new PamRequestSubmissionException(PamRequestSubmissionErrorCode.RequestRejected, submitMayHaveOccurred: false, isKnownRejection: true)]
+        };
+        using var logs = new RuntimeDiagnosticLoggerFactory();
+        var store = new InMemoryPendingReconciliationDiagnosticStore();
+        var service = CreateService(ports, store, logs);
+        var preparation = await service.PrepareRealAsync(Credentials, Settings, Now);
+        var failure = await Assert.ThrowsExactlyAsync<PamRequestSubmissionException>(() => service.ExecuteRealAsync(Credentials, preparation, Now));
+        Assert.AreEqual(1, failure.PartialRun!.ConflictCount);
+        Assert.AreEqual(1, failure.PartialRun.RejectedCount);
+        Assert.AreEqual(1, failure.PartialRun.NotAttemptedCount);
+        Assert.AreEqual(0, failure.PartialRun.UncertainCount);
+        Assert.AreEqual(2, ports.SubmitCalls);
+        Assert.AreEqual(1, ports.ReadCalls);
+    }
+
 
     private sealed class Session : IPamBrowserSession
     {

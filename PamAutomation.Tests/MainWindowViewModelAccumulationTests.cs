@@ -34,6 +34,31 @@ public sealed partial class MainWindowViewModelTests
     }
 
     [TestMethod]
+    public async Task Accumulation_PartialResultShowsRecoveredIdsAndRetainsLastSuccessAndPreviousAccumulator()
+    {
+        var (vm, accumulator, execution, _, _) = await CreateAccumulationAsync();
+        await vm.StartAutomationCommand.ExecuteAsync(null);
+        var account = new PamAutomation.Core.Favorites.PamFavoriteAccount("fixture", "fixture", "fixture");
+        var partial = new PamAutomation.Core.Requests.PamRequestRunResult([
+            new(account, PamAutomation.Core.Requests.PamRequestSubmissionStatus.Submitted, null),
+            new(account, PamAutomation.Core.Requests.PamRequestSubmissionStatus.FailedBeforeSubmission, null)]);
+        execution.Failure = new PamAutomation.Core.Requests.PamRequestSubmissionException(
+            PamAutomation.Core.Requests.PamRequestSubmissionErrorCode.PortalUnavailable, processedCount: 1,
+            partialRun: partial, recoveredRequestIds: ["9001"]);
+        await vm.StartAutomationCommand.ExecuteAsync(null);
+        CollectionAssert.AreEqual(new[] { "8001", "8002" }, accumulator.RequestIds.ToArray());
+        Assert.IsTrue(vm.HasResult);
+        Assert.AreEqual("Automatización incompleta", vm.ResultTitle);
+        Assert.AreEqual("9001", vm.RequestIdsText);
+        Assert.AreEqual(0, execution.EmailSendCount);
+        var context = vm.CaptureDiagnosticContext();
+        Assert.AreEqual(2, context.LastExecution!.RequestIdCount);
+        Assert.AreEqual("Partial", context.LastAttempt!.Status);
+        Assert.AreEqual(1, context.LastAttempt.AcceptedCount);
+    }
+
+
+    [TestMethod]
     public async Task Accumulation_RunsWithoutMail_EightPlusSix_NoAutomaticFinalAction_PreservesPreference()
     {
         var (vm, accumulator, execution, dialogs, _) = await CreateAccumulationAsync(false);

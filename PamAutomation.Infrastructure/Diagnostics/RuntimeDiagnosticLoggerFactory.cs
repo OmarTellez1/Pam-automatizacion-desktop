@@ -19,7 +19,7 @@ public sealed partial class RuntimeDiagnosticLoggerFactory : ILoggerFactory, IDi
     {
         "Mode", "Stage", "Status", "FinalAction", "Complete", "IsComplete", "IsTerminating", "Terminating",
         "ElapsedMilliseconds", "FormVerificationStage", "FormFailureKind",
-        "FormMismatchFields", "FormLastReadFailure"
+        "FormMismatchFields", "FormLastReadFailure", "FormOrdinal", "TargetDate"
     };
 
     private readonly object gate = new();
@@ -92,6 +92,15 @@ public sealed partial class RuntimeDiagnosticLoggerFactory : ILoggerFactory, IDi
         if (level == LogLevel.None) return;
         string template = "Unstructured diagnostic event omitted.";
         var properties = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (PamExecutionAttempt.Current?.Capture() is { } attempt)
+        {
+            properties["AttemptId"] = attempt.AttemptId.ToString("D");
+            properties["AttemptStage"] = attempt.Stage;
+            properties["FormOrdinal"] = attempt.FormOrdinal.ToString(CultureInfo.InvariantCulture);
+            properties["ExpectedCount"] = attempt.ExpectedCount.ToString(CultureInfo.InvariantCulture);
+            properties["AcceptedCount"] = attempt.AcceptedCount.ToString(CultureInfo.InvariantCulture);
+            properties["UncertainCount"] = attempt.UncertainCount.ToString(CultureInfo.InvariantCulture);
+        }
         if (state is IEnumerable<KeyValuePair<string, object?>> values)
         {
             foreach (KeyValuePair<string, object?> value in values)
@@ -110,12 +119,28 @@ public sealed partial class RuntimeDiagnosticLoggerFactory : ILoggerFactory, IDi
         var exceptionMetadata = new List<DiagnosticExceptionInfo>();
         for (Exception? current = exception; current is not null; current = current.InnerException)
         {
+            if (current is PamRequestSubmissionException { Evidence: not null } submission)
+            {
+                properties["SubmitClickAttempted"] = submission.Evidence.ClickAttempted.ToString();
+                properties["SubmitPostObserved"] = submission.Evidence.PostObserved.ToString();
+                properties["SubmitResponseObserved"] = submission.Evidence.ResponseObserved.ToString();
+            }
             if (current is PamCalendarSelectionException calendarFailure)
             {
                 properties["CalendarFailure"] = calendarFailure.Failure.ToString();
                 properties["CalendarTargetDate"] = calendarFailure.TargetDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
                 properties["CalendarObservedMonth"] = calendarFailure.ObservedMonth?.ToString("yyyy-MM", CultureInfo.InvariantCulture) ?? "Unavailable";
                 properties["CalendarNavigationCount"] = calendarFailure.NavigationCount.ToString(CultureInfo.InvariantCulture);
+                if (calendarFailure.Diagnostic is { } calendar)
+                {
+                    if (calendar.AttemptId is { } id) properties["AttemptId"] = id.ToString("D");
+                    properties["CalendarFormOrdinal"] = calendar.FormOrdinal.ToString(CultureInfo.InvariantCulture);
+                    properties["CalendarObservationCount"] = calendar.ObservationCount.ToString(CultureInfo.InvariantCulture);
+                    properties["CalendarReadFailureCount"] = calendar.ReadFailureCount.ToString(CultureInfo.InvariantCulture);
+                    properties["CalendarConsecutiveMatchCount"] = calendar.ConsecutiveMatches.ToString(CultureInfo.InvariantCulture);
+                    properties["CalendarHistory"] = string.Join(';', calendar.History.Select(sample =>
+                        $"{sample.Stage}:{sample.Condition}:{sample.ElapsedMilliseconds}:{sample.RemainingMilliseconds}:{SafeCount(sample.CalendarCount)}:{SafeCount(sample.MonthControlCount)}:{SafeCount(sample.YearControlCount)}:{SafeCount(sample.DayCount)}:{sample.HeaderMonth:yyyy-MM}:{sample.GridMonth:yyyy-MM}:{sample.NativeHeader}"));
+                }
             }
             if (current is PamRequestFormVerificationException formFailure)
             {
@@ -146,6 +171,8 @@ public sealed partial class RuntimeDiagnosticLoggerFactory : ILoggerFactory, IDi
         }
     }
 
+    private static string SafeCount(int? count) => count?.ToString(CultureInfo.InvariantCulture) ?? "Unknown";
+
     private static void CaptureFormVerification(
         IDictionary<string, string> properties,
         PamRequestFormVerificationException failure)
@@ -161,6 +188,13 @@ public sealed partial class RuntimeDiagnosticLoggerFactory : ILoggerFactory, IDi
         AddAllowed(properties, "FormObservationCount", failure.ObservationCount);
         AddAllowed(properties, "FormReadFailureCount", failure.ReadFailureCount);
         AddAllowed(properties, "FormLastReadFailure", failure.LastReadFailure);
+        AddAllowed(properties, "FormConsecutiveMatchCount", failure.ConsecutiveMatchCount);
+        AddAllowed(properties, "FormCorrectionCount", failure.CorrectionCount);
+        AddAllowed(properties, "FormControlReplacementCount", failure.ControlReplacementCount);
+        properties["FormUnavailableFields"] = string.Join('.', Enum.GetValues<PamRequestFormMismatchField>()
+            .Where(field => field != PamRequestFormMismatchField.None && failure.UnavailableFields.HasFlag(field)));
+        properties["FormCorrectedFields"] = string.Join('.', Enum.GetValues<PamRequestFormMismatchField>()
+            .Where(field => field != PamRequestFormMismatchField.None && failure.CorrectedFields.HasFlag(field)));
         CaptureFormValues(properties, "Expected", failure.Expected);
         if (failure.Observed is not null)
             CaptureFormValues(properties, "Observed", failure.Observed);
@@ -198,6 +232,12 @@ public sealed partial class RuntimeDiagnosticLoggerFactory : ILoggerFactory, IDi
         safeValue = string.Empty;
         if (!AllowedPropertyNames.Contains(name) && !name.EndsWith("Count", StringComparison.Ordinal)) return false;
         if (value is null) return false;
+        if (name == "TargetDate")
+        {
+            if (value is not DateOnly date) return false;
+            safeValue = date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+            return true;
+        }
 
         if (value is bool or byte or sbyte or short or ushort or int or uint or long or ulong)
         {

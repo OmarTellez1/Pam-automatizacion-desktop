@@ -238,7 +238,8 @@ public sealed class PamPendingService
         TimeSpan retryDelay,
         int sessionAttempt,
         CancellationToken cancellationToken,
-        IReadOnlyCollection<string>? excludedRequestIds)
+        IReadOnlyCollection<string>? excludedRequestIds,
+        Action<PamPendingComparisonResult>? observation = null)
     {
         PamPendingComparisonResult? latest = null;
         for (int attempt = 1; attempt <= maximumAttempts; attempt++)
@@ -254,6 +255,7 @@ public sealed class PamPendingService
             try
             {
                 latest = Compare(requests, expectedAccounts, form, excludedRequestIds);
+                observation?.Invoke(latest);
                 diagnosticSink?.RecordAttempt(CreateDiagnosticAttempt(
                     attempt,
                     requests,
@@ -427,7 +429,8 @@ public sealed class PamPendingService
         int maximumAttempts = PamOperationTimingPolicy.PendingComparisonMaximumAttempts,
         TimeSpan? retryDelay = null,
         CancellationToken cancellationToken = default,
-        IReadOnlyCollection<string>? excludedRequestIds = null)
+        IReadOnlyCollection<string>? excludedRequestIds = null,
+        Action<PamPendingComparisonResult>? observation = null)
     {
         ArgumentNullException.ThrowIfNull(credentials);
         TimeSpan delay = ValidatePollingArguments(
@@ -442,7 +445,7 @@ public sealed class PamPendingService
             credentials,
             "Reconciliation",
             (session, sessionAttempt, readToken) => WaitForCompleteComparisonInSessionAsync(
-                session, expected, form, maximumAttempts, delay, sessionAttempt, readToken, baseline),
+                session, expected, form, maximumAttempts, delay, sessionAttempt, readToken, baseline, observation),
             cancellationToken).ConfigureAwait(false);
     }
 
@@ -596,7 +599,7 @@ public sealed class PamPendingService
     private static string IdentityKey(PamFavoriteAccount account) =>
         CreateIdentityKey(account.SystemName, account.AccountName, account.ApplicationName);
 
-    private static string AccountKey(PamFavoriteAccount account) =>
+    internal static string AccountKey(PamFavoriteAccount account) =>
         string.Join('|', Normalize(account.SystemName), Normalize(account.AccountName));
 
     private static string AccountKey(PamPendingRequest request) =>

@@ -88,7 +88,7 @@ public sealed class DiagnosticExportService : IDiagnosticExportService
                 await WriteJsonEntryAsync(
                     archive,
                     "manifest.json",
-                    new DiagnosticManifest(pendingDiagnostic is null ? 1 : 2, generatedAtUtc, events.Count, files),
+                    new DiagnosticManifest(context.LastAttempt is not null ? 3 : pendingDiagnostic is null ? 1 : 2, generatedAtUtc, events.Count, files),
                     cancellationToken).ConfigureAwait(false);
                 await WriteJsonEntryAsync(
                     archive,
@@ -103,7 +103,8 @@ public sealed class DiagnosticExportService : IDiagnosticExportService
                         RuntimeInformation.OSDescription,
                         RuntimeInformation.ProcessArchitecture.ToString(),
                         generatedAtUtc,
-                        generatedAtUtc.ToOffset(TimeSpan.FromHours(-5))),
+                        generatedAtUtc.ToOffset(TimeSpan.FromHours(-5)),
+                        CaptureComponents()),
                     cancellationToken).ConfigureAwait(false);
                 await WriteJsonEntryAsync(
                     archive,
@@ -112,7 +113,8 @@ public sealed class DiagnosticExportService : IDiagnosticExportService
                         context.CredentialsConfigured,
                         context.RequestConfigured,
                         context.MailConfigured,
-                        context.LastExecution),
+                        context.LastExecution,
+                        context.LastAttempt),
                     cancellationToken).ConfigureAwait(false);
                 await WriteLogEntryAsync(archive, events, cancellationToken).ConfigureAwait(false);
                 if (pendingDiagnostic is not null)
@@ -194,11 +196,24 @@ public sealed class DiagnosticExportService : IDiagnosticExportService
         string OperatingSystem,
         string ProcessArchitecture,
         DateTimeOffset GeneratedAtUtc,
-        DateTimeOffset GeneratedAtEcuador);
+        DateTimeOffset GeneratedAtEcuador,
+        IReadOnlyList<DiagnosticComponent> Components);
+
+    private sealed record DiagnosticComponent(string Name, string Version, string InformationalVersion, Guid ModuleVersionId);
+
+    private static DiagnosticComponent[] CaptureComponents() => AppDomain.CurrentDomain.GetAssemblies()
+        .Where(assembly => assembly.GetName().Name is "PAM Automation" or "PamAutomation.App" or
+            "PamAutomation.Browser" or "PamAutomation.Core" or "PamAutomation.Infrastructure")
+        .Select(assembly => new DiagnosticComponent(assembly.GetName().Name!,
+            assembly.GetName().Version?.ToString() ?? "Unknown",
+            assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "Unknown",
+            assembly.ManifestModule.ModuleVersionId))
+        .OrderBy(component => component.Name, StringComparer.Ordinal).ToArray();
 
     private sealed record DiagnosticApplicationState(
         bool CredentialsConfigured,
         bool RequestConfigured,
         bool MailConfigured,
-        DiagnosticExecutionSummary? LastExecution);
+        DiagnosticExecutionSummary? LastExecution,
+        DiagnosticAttemptSummary? LastAttempt);
 }

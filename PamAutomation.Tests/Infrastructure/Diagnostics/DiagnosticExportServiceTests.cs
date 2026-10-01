@@ -221,6 +221,47 @@ public sealed class DiagnosticExportServiceTests : IDisposable
         Assert.IsFalse(File.Exists(destination));
     }
 
+    [TestMethod]
+    public async Task ExportAsync_FailedAttemptAfterSuccess_PreservesCorrelationHistoryAndComponentIdentity()
+    {
+        Directory.CreateDirectory(directory);
+        string destination = Path.Combine(directory, "attempt.zip");
+        using var loggerFactory = new RuntimeDiagnosticLoggerFactory();
+        var attempt = new PamExecutionAttempt(6);
+        attempt.RecordBrowserVersions(new Version(140, 0, 0, 1), new Version(1, 55, 0));
+        using IDisposable scope = attempt.Activate();
+        attempt.RecordStage("Form", 3);
+        attempt.RecordCounts(2, 0, notAttempted: 3, failedBeforeSubmission: 1);
+        var calendar = new PamCalendarSelectionException(PamCalendarFailure.MonthUnreadable, new(2026, 11, 2), null, 0,
+            new InvalidOperationException("secret-portal-content"), new PamCalendarDiagnostic(attempt.Capture().AttemptId, 3, 6, 40, 2, 0,
+                [new(PamCalendarStage.ReadInitialMonth, PamCalendarReadCondition.HeaderIncomplete, 8100, 36900, 1, 1, 0, null, null, null, true)]));
+        loggerFactory.CreateLogger("Test").LogError(calendar, "Form failed.");
+        attempt.Finish("Partial");
+        var success = new DiagnosticExecutionSummary("Real", DateTimeOffset.UtcNow.AddMinutes(-10), "DisplayRequestIds", 9, 9, 0, 9, null);
+        await new DiagnosticExportService(loggerFactory).ExportAsync(destination,
+            new DiagnosticExportContext(true, true, false, success) { LastAttempt = attempt.Capture() });
+        using ZipArchive archive = ZipFile.OpenRead(destination);
+        string log = ReadEntry(archive.GetEntry("diagnostic.log")!);
+        Assert.Contains(attempt.Capture().AttemptId.ToString("D"), log);
+        Assert.Contains("HeaderIncomplete", log);
+        Assert.Contains("1:1:0:Unknown", log);
+        Assert.Contains("CalendarFormOrdinal=3", log);
+        Assert.DoesNotContain("secret-portal-content", log);
+        using var state = System.Text.Json.JsonDocument.Parse(ReadEntry(archive.GetEntry("execution-summary.json")!));
+        Assert.AreEqual(9, state.RootElement.GetProperty("lastExecution").GetProperty("requestIdCount").GetInt32());
+        Assert.AreEqual("Partial", state.RootElement.GetProperty("lastAttempt").GetProperty("status").GetString());
+        Assert.AreEqual("140.0.0.1", state.RootElement.GetProperty("lastAttempt").GetProperty("edgeVersion").GetString());
+        Assert.AreEqual("1.55.0", state.RootElement.GetProperty("lastAttempt").GetProperty("playwrightVersion").GetString());
+        Assert.AreEqual(2, state.RootElement.GetProperty("lastAttempt").GetProperty("acceptedCount").GetInt32());
+        Assert.AreEqual(1, state.RootElement.GetProperty("lastAttempt").GetProperty("failedBeforeSubmissionCount").GetInt32());
+        using var environment = System.Text.Json.JsonDocument.Parse(ReadEntry(archive.GetEntry("environment.json")!));
+        var components = environment.RootElement.GetProperty("components").EnumerateArray().ToArray();
+        Assert.IsTrue(components.Any(component => component.GetProperty("name").GetString() == "PamAutomation.Core"));
+        Assert.IsTrue(components.Any(component => component.GetProperty("name").GetString() == "PamAutomation.Infrastructure"));
+        foreach (var component in components) Assert.IsTrue(Guid.TryParse(component.GetProperty("moduleVersionId").GetString(), out _));
+    }
+
+
     public void Dispose()
     {
         if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);

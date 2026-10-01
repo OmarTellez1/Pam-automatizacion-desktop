@@ -22,6 +22,8 @@ public sealed record PendingReconciliationDiagnostic(
 
     /// <summary>Gets every attempted read, including failures before a complete snapshot.</summary>
     public IReadOnlyList<PendingReadAttemptDiagnostic> Reads { get; init; } = [];
+    /// <summary>Live counts. Null means submission has not started; the legacy zero is not evidence.</summary>
+    public DiagnosticAttemptSummary? SubmissionCounts { get; init; }
 
     /// <summary>Prevents authorized diagnostic fields from leaking through incidental structured logging.</summary>
     public override string ToString() => "Pending reconciliation diagnostic (explicit export only)";

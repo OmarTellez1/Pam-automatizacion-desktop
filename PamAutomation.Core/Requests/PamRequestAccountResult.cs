@@ -10,6 +10,9 @@ public sealed record PamRequestAccountResult(
     PamRequestSubmissionStatus Status,
     string? ConflictCode)
 {
+    public PamSubmissionEvidence? Evidence { get; init; }
+    /// <summary>The complete indistinguishable Pending group was verified, without assigning IDs by order.</summary>
+    public bool ConfirmedInPending { get; init; }
     /// <inheritdoc />
     public override string ToString() => $"PAM request account result (redacted): {Status}";
 }

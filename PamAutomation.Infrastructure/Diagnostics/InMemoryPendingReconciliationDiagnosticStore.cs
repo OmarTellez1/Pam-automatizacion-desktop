@@ -77,6 +77,15 @@ public sealed class InMemoryPendingReconciliationDiagnosticStore :
         }
     }
 
+    public void RecordSubmissionCounts(DiagnosticAttemptSummary counts)
+    {
+        ArgumentNullException.ThrowIfNull(counts);
+        lock (sync)
+        {
+            if (current is not null) current = current with { SubmissionCounts = counts, SubmittedCount = counts.AcceptedCount };
+        }
+    }
+
     /// <inheritdoc />
     public void RecordAttempt(PendingComparisonAttemptDiagnostic attempt)
     {

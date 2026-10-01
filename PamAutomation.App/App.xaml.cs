@@ -132,7 +132,8 @@ namespace PamAutomation.App
                     authentication,
                     favorites,
                     new PamRequestSubmissionPortalFactory(),
-                    requestValidator),
+                    requestValidator,
+                    pendingDiagnosticStore),
                 new PamPendingService(
                     authentication,
                     new PamPendingPortalFactory(),

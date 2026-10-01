@@ -219,6 +219,10 @@ public sealed class PamRequestSubmissionServiceTests
 
         Assert.AreEqual(1, exception.ProcessedCount);
         Assert.AreEqual(PamRequestSubmissionErrorCode.PortalUnavailable, exception.ErrorCode);
+        Assert.IsNotNull(exception.PartialRun);
+        Assert.AreEqual(1, exception.PartialRun.SubmittedCount);
+        Assert.AreEqual(1, exception.PartialRun.UncertainCount);
+        Assert.HasCount(2, harness.SubmissionPortal.Forms);
     }
 
     [TestMethod]

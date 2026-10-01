@@ -1,10 +1,12 @@
 # Fases de desarrollo — Pam Automation .NET
 
+Guía de continuación: [problemas.md](problemas.md) documenta el diagnóstico pendiente del calendario, la estabilidad del formulario, la recuperación de lotes parciales y la correlación de logs, con clases y criterios de aceptación. Incluye Favorites como mejora verificada y el margen temporal como diferido. Su creación es documental y no completa una fase ni implementa esas propuestas.
+
 ## Ajuste posterior — Navegación reutilizable de Favorites (1 de octubre de 2026)
 
 Implementa el punto 4 priorizado por el usuario, sin iniciar una fase numerada nueva. Browser extrae la preparación a PlaywrightManagedPage.RequestNavigation: comprueba la vista activa, busca primero en la página actual, verifica identidad exacta al resolver Access y recupera una sola vez navegación/apertura fallidas. Core centraliza los límites: 60 segundos compartidos, 10 por control y dos de observación del retorno a Favorites. No hay caché de filas ni persistencia nueva.
 
-La recuperación no incluye llenado, calendario ni Submit. Se mantienen los bloqueos de identidades ambiguas, la autorización, las verificaciones del formulario y la reconciliación. Los puntos 1 (respuesta de envío incierta), 2 (margen temporal) y 3 (estabilidad de hora) quedan pendientes; este ajuste no demuestra la resolución del MonthUnreadable intermitente del diagnóstico 20261001-050359.
+La recuperación de navegación no incluye llenado, calendario ni Submit. Se mantienen los bloqueos de identidades ambiguas, la autorización, las verificaciones del formulario y la reconciliación. Los puntos 1 (respuesta de envío incierta) y 3 (estabilidad de hora), pendientes al cerrar ese ajuste, se implementan en la fase 28. El punto 2 (margen temporal) sigue diferido. Ningún ajuste demuestra la resolución del MonthUnreadable intermitente del diagnóstico 20261001-050359.
 
 Validación reproducible, usando el runner integrado en Release x64:
 
@@ -691,6 +693,7 @@ La clasificación siguiente se refiere únicamente a dependencias entre fases pe
 | 19 — Pruebas finales administradas | **Independiente** | Ninguna fase pendiente. | Es la validación final del producto publicado en el entorno Windows objetivo y se ejecutará sobre la reconciliación de fase 24 y las esperas adaptativas de fase 25. |
 | 20.6+ — Administración ampliada de colecciones | **Dependiente** | Fases 20.2–20.5 implementadas. | Podrá añadir duplicación u otras mejoras que el usuario confirme; no son necesarias para crear, editar, eliminar, seleccionar y ejecutar una colección. |
 | 27 — Acumulado por colección y correo manual | **Completada** | Fase 26 completada; no requiere terminar la fase 19. | Implementada; compilación Release x64 y 119 pruebas relacionadas aprobadas. Reconciliación PAM conservada. |
+| 28 — Diagnóstico, estabilidad y lotes interrumpidos | **Implementación completada** | Conserva fase 27 y Favorites. | Instrumentación y recuperación verificadas; causa original de MonthUnreadable pendiente de reproducción. Matriz y evidencia en problemas.md §11. |
 
 ## Mapa recomendado de trabajo paralelo
 
@@ -721,3 +724,13 @@ La fase 23 no reutiliza el diseño descartado de perfiles completos. Las fases 2
 Esta clasificación es una guía de planificación, no una autorización automática para crear subagentes. Antes de cada oleada, el coordinador debe inspeccionar el diff y la estructura real; si el trabajo resultó pequeño o apareció solapamiento, debe conservarlo en el agente principal o ejecutarlo secuencialmente.
 
 Cada fase deberá restaurar dependencias cuando corresponda, compilar en `Release | x64` y ejecutar sus pruebas relacionadas desde la terminal antes de considerarse completa.
+
+## Fase 28 — Diagnóstico preciso, estabilidad y conservación de lotes
+
+**Implementación completada; aceptación del incidente original pendiente de reproducción.**
+
+28.1 incorpora subcausas e historial circular del calendario, correlación por intento/formulario y separación del último éxito. 28.2 elimina la comprobación fija de 250 ms y la aceptación de una sola lectura: disponibilidad, ventana continua de 600 ms, controles reemplazados y una corrección por formulario, compartida con BeforeSubmit. 28.3 conserva cada fila de un lote interrumpido mediante excepción tipada, recupera únicamente grupos nuevos y completos en Pending y muestra los IDs sin enviarlos por correo ni agregarlos al acumulador. Los conteos avanzan en el flujo principal, aunque falle una fila posterior. Se incluyen versiones/MVID por componente y versiones efectivas de navegador.
+
+La implementación se divide en cambios de Browser/Core/Diagnostics y coordinación/App, para que un fallo antes de Submit no borre aceptaciones anteriores. Se conservó la mejora previa de Favorites. La causa de MonthUnreadable no se declara resuelta. El margen temporal del punto 2 continúa pendiente y diferido; no se cambió versión ni se publicó.
+
+Release x64 compilado; 113 pruebas relacionadas distintas y cinco escenarios reales aprobados, sin fallos/omisiones en la validación final. Matriz por mes, exploración inicial fallida y límites: problemas.md, sección 11. Las pruebas reales solo leen, llenan/verifican y descartan formularios; no autorizan ni ejecutan creación o correo.

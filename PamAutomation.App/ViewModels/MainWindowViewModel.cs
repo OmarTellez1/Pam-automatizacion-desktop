@@ -52,6 +52,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
     private string outlookSmtpAddress = string.Empty;
     private readonly SemaphoreSlim settingsSaveGate = new(1, 1);
     private PamExecutionResult? lastExecutionResult;
+    private PamExecutionAttempt? lastAttempt;
     private FavoriteCollectionsState favoriteCollectionsState = new();
     private bool hasInteractivePamAccount;
 
@@ -451,6 +452,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
         if (!ValidateRequestAtExecutionBoundary(executionSettings, confirmationWasShown: true)) return;
 
         IsRunning = true;
+        lastAttempt = new PamExecutionAttempt(activeCollection.Accounts.Count, logger);
+        using IDisposable attemptScope = lastAttempt.Activate();
         logger.LogInformation("Real PAM execution started.");
         HasResult = false;
         StatusMessage = "Validando Favorites y Pending en segundo plano…";
@@ -492,6 +495,7 @@ public sealed partial class MainWindowViewModel : ObservableObject
                     .ConfigureAwait(true);
                 PresentResult(existingResult);
                 PresentExistingPendingMailOutcome(existingResult.MailDelivery);
+                lastAttempt.Finish("Succeeded");
                 return;
             }
 
@@ -508,20 +512,35 @@ public sealed partial class MainWindowViewModel : ObservableObject
                 StatusMessage = $"Ejecución completada. {AccumulatedCountText}. No se envió correo.";
             }
             else PresentResult(result);
+            lastAttempt.RecordCounts(result.ProcessedCount - result.ConflictCount, result.ConflictCount,
+                notAttempted: 0, requestIds: result.RequestIds.Count);
+            lastAttempt.Finish("Succeeded");
         }
         catch (Exception exception)
         {
             if (IsAccumulating)
             {
+                FinishAttempt(exception);
+                if (exception is PamRequestSubmissionException { PartialRun: not null })
+                {
+                    PresentError(exception);
+                    StatusMessage += " Se conservan los IDs anteriores del acumulado; este lote no se incorporó.";
+                    return;
+                }
                 logger.LogError(exception, "Accumulating PAM execution failed; previous IDs retained.");
                 HasResult = false;
                 StatusMessage = "La ejecución no aportó IDs al acumulado. Se conservan los anteriores. Pueden existir solicitudes creadas en Pending; revísalas antes de reintentar.";
                 dialogs?.ShowError(GetSafeErrorMessage(exception) + " " + StatusMessage);
             }
-            else PresentError(exception);
+            else
+            {
+                FinishAttempt(exception);
+                PresentError(exception);
+            }
         }
         finally
         {
+            if (lastAttempt.Capture().FinishedAtUtc is null) lastAttempt.Finish("Canceled");
             IsRunning = false;
         }
     }
@@ -910,13 +929,14 @@ public sealed partial class MainWindowViewModel : ObservableObject
     {
         logger.LogError(exception, "Application operation failed.");
         string message = GetSafeErrorMessage(exception);
-        if (exception is PamRequestSubmissionException { ProcessedCount: > 0 } partial)
+        if (exception is PamRequestSubmissionException { PartialRun: not null } partial)
         {
             HasResult = true;
-            HasRequestIds = false;
+            HasRequestIds = partial.RecoveredRequestIds.Count > 0;
             ResultTitle = "Automatización incompleta";
-            ResultSummary = $"{partial.ProcessedCount} Favorites rows alcanzaron un resultado conocido antes del error. Revisa Pending antes de reintentar.";
-            RequestIdsText = string.Empty;
+            PamRequestRunResult run = partial.PartialRun;
+            ResultSummary = $"Aceptadas por respuesta: {run.SubmittedCount}; verificadas en Pending: {run.PendingVerifiedCount}; conflictos: {run.ConflictCount}; rechazadas: {run.RejectedCount}; inciertas sin resolver: {run.UnresolvedCount}; sin respuesta reconocida: {run.UncertainCount}; fallos antes de Submit: {run.FailedBeforeSubmissionCount}; no intentadas: {run.NotAttemptedCount}. IDs recuperados: {partial.RecoveredRequestIds.Count}. Revisa Pending antes de reintentar. Este lote no se envió por correo ni se incorporó al acumulado.";
+            RequestIdsText = string.Join(Environment.NewLine, partial.RecoveredRequestIds);
         }
         else
         {
@@ -926,6 +946,20 @@ public sealed partial class MainWindowViewModel : ObservableObject
             ? message
             : message + " Si el problema continúa, usa Exportar diagnóstico y envía el archivo a soporte.";
         dialogs?.ShowError(StatusMessage);
+    }
+
+    private void FinishAttempt(Exception exception)
+    {
+        lastAttempt?.RecordFailureStage();
+        if (exception is PamRequestSubmissionException { PartialRun: not null } partial)
+        {
+            PamRequestRunResult run = partial.PartialRun;
+            lastAttempt?.RecordCounts(run.SubmittedCount, run.ConflictCount, run.RejectedCount,
+                run.UncertainCount, run.NotAttemptedCount, partial.RecoveredRequestIds.Count, run.FailedBeforeSubmissionCount,
+                run.PendingVerifiedCount, run.UnresolvedCount);
+        }
+        lastAttempt?.Finish(exception is OperationCanceledException or PamRequestSubmissionException { ErrorCode: PamRequestSubmissionErrorCode.Canceled }
+            ? "Canceled" : exception is PamRequestSubmissionException { PartialRun: not null } ? "Partial" : "Failed");
     }
 
     private void PresentConcurrentAccessError(Exception exception)
@@ -1020,7 +1054,8 @@ public sealed partial class MainWindowViewModel : ObservableObject
             AreCredentialsConfigured,
             IsRequestConfigured,
             IsMailConfigured,
-            execution);
+            execution)
+        { LastAttempt = lastAttempt?.Capture() };
     }
 
     private DateTimeOffset GetEcuadorNow() => timeProvider.GetUtcNow().ToOffset(TimeSpan.FromHours(-5));

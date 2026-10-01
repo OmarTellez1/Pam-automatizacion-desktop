@@ -50,6 +50,9 @@ public sealed class PamCalendarDateSelectorTests
             fixture.SelectAsync(new(2026, 10, 1), TestContext.CancellationToken));
         Assert.AreEqual(PamCalendarFailure.MonthTransitionTimeout, failure.Failure);
         Assert.AreEqual(0, fixture.NavigationCount);
+        Assert.IsNotNull(failure.Diagnostic);
+        Assert.IsTrue(failure.Diagnostic.History.Any(sample => sample.Condition == PamCalendarReadCondition.HeaderGridMismatch));
+        Assert.IsLessThanOrEqualTo(20, failure.Diagnostic.History.Count);
         Assert.AreEqual(0, fixture.SelectionCount);
     }
 
@@ -125,6 +128,18 @@ public sealed class PamCalendarDateSelectorTests
         PamCalendarSelectionException failure = await Assert.ThrowsExactlyAsync<PamCalendarSelectionException>(() =>
             fixture.SelectAsync(target, TestContext.CancellationToken));
         Assert.AreEqual(expected, failure.Failure);
+        Assert.IsNotNull(failure.Diagnostic);
+        if (scenario != "missing-navigation")
+        {
+            PamCalendarReadCondition expectedCondition = scenario switch
+            {
+                "disabled" => PamCalendarReadCondition.TargetDayDisabled,
+                "duplicate" => PamCalendarReadCondition.MultipleVisibleCalendars,
+                "unreadable" => PamCalendarReadCondition.DayLabelInvalid,
+                _ => PamCalendarReadCondition.CalendarNotVisible
+            };
+            Assert.IsTrue(failure.Diagnostic.History.Any(sample => sample.Condition == expectedCondition));
+        }
         Assert.AreEqual(0, fixture.SelectionCount);
         Assert.AreEqual(0, fixture.NavigationCount);
         Assert.AreEqual(0, fixture.SubmissionCount);
@@ -173,6 +188,41 @@ public sealed class PamCalendarDateSelectorTests
         Assert.AreEqual(1, fixture.NavigationCount);
         Assert.AreEqual(0, fixture.SelectionCount);
     }
+
+    [TestMethod]
+    [DataRow("header-missing", PamCalendarReadCondition.HeaderIncomplete)]
+    [DataRow("header-duplicate", PamCalendarReadCondition.HeaderAmbiguous)]
+    [DataRow("month-invalid", PamCalendarReadCondition.MonthValueInvalid)]
+    [DataRow("year-invalid", PamCalendarReadCondition.YearValueInvalid)]
+    [DataRow("grid-empty", PamCalendarReadCondition.GridEmpty)]
+    [DataRow("fallback-short", PamCalendarReadCondition.FallbackGridIncomplete)]
+    [Timeout(25_000)]
+    public async Task SelectAsync_InvalidMonthRead_ReportsSpecificConditionAndAttempt(string scenario, PamCalendarReadCondition condition)
+    {
+        await using Fixture fixture = await Fixture.CreateAsync(new(2026, 10, 1), TestContext.CancellationToken);
+        await fixture.ShowAsync();
+        string header = scenario == "fallback-short" ? "" :
+            "<select class='flatpickr-monthDropdown-months'><option value='" + (scenario == "month-invalid" ? "12" : "9") + "' selected>October</option></select>" +
+            (scenario == "header-missing" ? "" : "<input class='cur-year' value='" + (scenario == "year-invalid" ? "10000" : "2026") + "'>") +
+            (scenario == "header-duplicate" ? "<input class='cur-year' value='2026'>" : "");
+        string days = scenario == "grid-empty" ? "" : "<a class='flatpickr-day' aria-label='October 1, 2026'>1</a>";
+        await fixture.Page.SetContentAsync("<label>Start Date<input readonly></label><section class='flatpickr-calendar open'>" + header + days + "</section>");
+        var attempt = new PamAutomation.Core.Diagnostics.PamExecutionAttempt(6);
+        using IDisposable scope = attempt.Activate();
+        attempt.RecordStage("Form", 3);
+        var failure = await Assert.ThrowsExactlyAsync<PamCalendarSelectionException>(() => fixture.SelectAsync(new(2026, 11, 2), TestContext.CancellationToken));
+        Assert.AreEqual(PamCalendarFailure.MonthUnreadable, failure.Failure);
+        Assert.IsNotNull(failure.Diagnostic);
+        Assert.AreEqual(attempt.Capture().AttemptId, failure.Diagnostic.AttemptId);
+        Assert.AreEqual(3, failure.Diagnostic.FormOrdinal);
+        Assert.AreEqual(6, failure.Diagnostic.ExpectedCount);
+        Assert.IsTrue(failure.Diagnostic.History.Any(sample => sample.Condition == condition));
+        Assert.IsTrue(failure.Diagnostic.History.All(sample => sample.ElapsedMilliseconds >= 0 && sample.RemainingMilliseconds >= 0));
+        Assert.IsLessThanOrEqualTo(20, failure.Diagnostic.History.Count);
+        Assert.AreEqual(0, fixture.SelectionCount);
+        Assert.AreEqual(0, fixture.SubmissionCount);
+    }
+
 
     private static DateOnly Parse(string value) => DateOnly.ParseExact(value, "yyyy-MM-dd", CultureInfo.InvariantCulture);
 

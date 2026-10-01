@@ -52,6 +52,9 @@ internal sealed class PlaywrightManagedBrowser(IBrowser browser) : IManagedBrows
             ServiceWorkers = options.BlockServiceWorkers ? ServiceWorkerPolicy.Block : ServiceWorkerPolicy.Allow,
         }).ConfigureAwait(false);
 
+        Version.TryParse(browser.Version, out Version? edgeVersion);
+        PamAutomation.Core.Diagnostics.PamExecutionAttempt.Current?.RecordBrowserVersions(
+            edgeVersion, typeof(IPlaywright).Assembly.GetName().Version);
         return new PlaywrightManagedBrowserContext(context);
     }
 

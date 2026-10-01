@@ -16,7 +16,7 @@ public sealed record PamRequestRunResult
             throw new ArgumentException("The result list cannot contain null entries.", nameof(accounts));
         }
 
-        Accounts = accounts.ToArray();
+        Accounts = Array.AsReadOnly(accounts.ToArray());
     }
 
     /// <summary>Gets every per-row outcome.</summary>
@@ -27,6 +27,14 @@ public sealed record PamRequestRunResult
 
     /// <summary>Gets the number of recognized approved-access overlaps.</summary>
     public int ConflictCount => Accounts.Count(result => result.Status == PamRequestSubmissionStatus.ApprovedAccessOverlap);
+
+    public int UncertainCount => Accounts.Count(result => result.Status == PamRequestSubmissionStatus.Uncertain);
+    public int UnresolvedCount => Accounts.Count(result => result.Status == PamRequestSubmissionStatus.Uncertain && !result.ConfirmedInPending);
+    public int PendingVerifiedCount => Accounts.Count(result => result.ConfirmedInPending);
+    public int RejectedCount => Accounts.Count(result => result.Status == PamRequestSubmissionStatus.Rejected);
+    public int NotAttemptedCount => Accounts.Count(result => result.Status == PamRequestSubmissionStatus.NotAttempted);
+    public int FailedBeforeSubmissionCount => Accounts.Count(result => result.Status == PamRequestSubmissionStatus.FailedBeforeSubmission);
+    public bool IsComplete => SubmittedCount + ConflictCount == Accounts.Count;
 
     /// <inheritdoc />
     public override string ToString() =>

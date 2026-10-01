@@ -549,16 +549,23 @@ public sealed partial class MainWindowViewModelTests
         TestContext context = CreateIntegratedViewModel(confirm: true);
         context.Execution.Failure = new PamRequestSubmissionException(
             PamRequestSubmissionErrorCode.ReconciliationFailedAfterSubmission,
-            processedCount: 10);
+            processedCount: 10,
+            partialRun: new PamRequestRunResult(Enumerable.Range(1, 10).Select(index =>
+                new PamRequestAccountResult(new PamFavoriteAccount("fixture-system", "fixture-application", $"fixture-account-{index}"),
+                    PamRequestSubmissionStatus.Submitted, null) { ConfirmedInPending = index == 1 }).ToArray()),
+            recoveredRequestIds: ["7003"]);
         await context.ViewModel.InitializeAsync();
 
         await context.ViewModel.StartAutomationCommand.ExecuteAsync(null);
 
         Assert.IsTrue(context.ViewModel.HasResult);
         Assert.AreEqual("Automatización incompleta", context.ViewModel.ResultTitle);
-        Assert.Contains("10 Favorites rows", context.ViewModel.ResultSummary);
+        Assert.Contains("Aceptadas por respuesta: 10", context.ViewModel.ResultSummary);
+        Assert.Contains("verificadas en Pending: 1", context.ViewModel.ResultSummary);
+        Assert.IsTrue(context.ViewModel.HasRequestIds);
+        Assert.AreEqual("7003", context.ViewModel.RequestIdsText);
         Assert.Contains("Revisa Pending", context.ViewModel.StatusMessage);
-        Assert.Contains("utiliza los IDs existentes", context.ViewModel.StatusMessage);
+        Assert.Contains("Se conservan los resultados conocidos", context.ViewModel.StatusMessage);
     }
 
     [TestMethod]

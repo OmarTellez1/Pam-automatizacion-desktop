@@ -22,6 +22,8 @@ public interface IPendingReconciliationDiagnosticSink
 
     /// <summary>Records how many submissions PAM confirmed.</summary>
     void RecordSubmittedCount(int submittedCount);
+    /// <summary>Updates counts synchronously in the submission workflow, independently of UI progress.</summary>
+    void RecordSubmissionCounts(DiagnosticAttemptSummary counts) { }
 
     /// <summary>Appends one complete comparison attempt.</summary>
     void RecordAttempt(PendingComparisonAttemptDiagnostic attempt);

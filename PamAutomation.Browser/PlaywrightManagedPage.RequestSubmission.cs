@@ -33,66 +33,116 @@ internal sealed partial class PlaywrightManagedPage
             throw new InvalidOperationException("Se alcanzó el límite autorizado de Submit Request.");
         }
 
-        await PrepareRequestFormAsync(account, cancellationToken).ConfigureAwait(false);
-        await FillAndVerifyRequestFormAsync(form, cancellationToken).ConfigureAwait(false);
-        await CaptureAsync(captureDirectory, BeforeSubmitCaptureName, cancellationToken).ConfigureAwait(false);
-
-        ILocator submit = page.GetByRole(
-            AriaRole.Button,
-            new() { Name = PamRequestTestSelectors.SubmitRequest, Exact = true });
-        await RequireUniqueVisibleAsync(submit, "botón Submit Request", cancellationToken)
-            .ConfigureAwait(false);
-        await VerifyRequestFormAsync(
-            form,
-            PamRequestFormVerificationStage.BeforeSubmit,
-            cancellationToken).ConfigureAwait(false);
-        cancellationToken.ThrowIfCancellationRequested();
-
-        Interlocked.Increment(ref realSubmissionAttempts);
-        IResponse response;
         try
         {
-            response = await page.RunAndWaitForResponseAsync(
-                async () => await submit.ClickAsync().ConfigureAwait(false),
-                IsSubmissionResponse,
-                new PageRunAndWaitForResponseOptions
-                {
-                    Timeout = (float)PortalTimeout.TotalMilliseconds,
-                }).ConfigureAwait(false);
+            await PrepareRequestFormAsync(account, cancellationToken).ConfigureAwait(false);
+            await FillAndVerifyRequestFormAsync(form, cancellationToken).ConfigureAwait(false);
+            await CaptureAsync(captureDirectory, BeforeSubmitCaptureName, cancellationToken).ConfigureAwait(false);
+
+            ILocator submitForValidation = page.GetByRole(
+                AriaRole.Button,
+                new() { Name = PamRequestTestSelectors.SubmitRequest, Exact = true });
+            await RequireUniqueVisibleAsync(submitForValidation, "botón Submit Request", cancellationToken)
+                .ConfigureAwait(false);
+            await VerifyRequestFormAsync(
+                form,
+                PamRequestFormVerificationStage.BeforeSubmit,
+                cancellationToken).ConfigureAwait(false);
+            cancellationToken.ThrowIfCancellationRequested();
+
         }
-        catch (TimeoutException exception)
+        catch (Exception exception)
         {
-            ILocator invalidTime = page.GetByText(PamRequestTestSelectors.InvalidTimeExpression());
-            if (await IsAnyVisibleAsync(invalidTime).ConfigureAwait(false))
+            throw new PamRequestSubmissionException(exception is OperationCanceledException
+                ? PamRequestSubmissionErrorCode.Canceled : PamRequestSubmissionErrorCode.PortalUnavailable,
+                exception, submitMayHaveOccurred: false);
+        }
+        ILocator submit = page.GetByRole(AriaRole.Button, new() { Name = PamRequestTestSelectors.SubmitRequest, Exact = true });
+
+        Interlocked.Increment(ref realSubmissionAttempts);
+        PamAutomation.Core.Diagnostics.PamExecutionAttempt.Current?.RecordStage("Submit");
+        if (PamAutomation.Core.Diagnostics.PamExecutionAttempt.Current is { } attempt)
+        {
+            var counts = attempt.Capture();
+            attempt.RecordCounts(counts.AcceptedCount, counts.ConflictCount, counts.RejectedCount,
+                counts.UncertainCount + 1, Math.Max(0, counts.ExpectedCount - counts.FormOrdinal),
+                failedBeforeSubmission: counts.FailedBeforeSubmissionCount);
+        }
+        int postObserved = 0;
+        bool responseObserved = false;
+        EventHandler<IRequest> observePost = (_, request) =>
+        {
+            if (request.Method == "POST" && Uri.TryCreate(request.Url, UriKind.Absolute, out Uri? uri) &&
+                uri.AbsolutePath.EndsWith("/api/ps-portal/requests", StringComparison.OrdinalIgnoreCase))
+                Interlocked.Exchange(ref postObserved, 1);
+        };
+        page.Request += observePost;
+        try
+        {
+            IResponse response;
+            try
             {
-                throw new PamRequestSubmissionException(
-                    PamRequestSubmissionErrorCode.RequestRejected,
-                    exception);
+                response = await page.RunAndWaitForResponseAsync(
+                    async () => await submit.ClickAsync().ConfigureAwait(false),
+                    IsSubmissionResponse,
+                    new PageRunAndWaitForResponseOptions
+                    {
+                        Timeout = (float)PortalTimeout.TotalMilliseconds,
+                    }).ConfigureAwait(false);
+                responseObserved = true;
+            }
+            catch (TimeoutException exception)
+            {
+                ILocator invalidTime = page.GetByText(PamRequestTestSelectors.InvalidTimeExpression());
+                if (Volatile.Read(ref postObserved) == 0 && await IsAnyVisibleAsync(invalidTime).ConfigureAwait(false))
+                {
+                    throw new PamRequestSubmissionException(
+                        PamRequestSubmissionErrorCode.RequestRejected,
+                        exception,
+                        submitMayHaveOccurred: false, isKnownRejection: true);
+                }
+
+                throw;
             }
 
-            throw;
-        }
+            PamRequestPortalOutcome outcome;
+            if (response.Status is >= 200 and < 300)
+            {
+                outcome = PamRequestPortalOutcome.Submitted();
+            }
+            else
+            {
+                string payload = await response.TextAsync().ConfigureAwait(false);
+                outcome = PamSubmissionResponseClassifier.Classify(response.Status, payload);
+            }
 
-        PamRequestPortalOutcome outcome;
-        if (response.Status is >= 200 and < 300)
-        {
-            outcome = PamRequestPortalOutcome.Submitted();
-        }
-        else
-        {
-            string payload = await response.TextAsync().ConfigureAwait(false);
-            outcome = PamSubmissionResponseClassifier.Classify(response.Status, payload);
-        }
+            if (outcome.Status == PamRequestSubmissionStatus.ApprovedAccessOverlap)
+            {
+                try
+                {
+                    await CaptureAsync(captureDirectory, AfterSubmitCaptureName, cancellationToken).ConfigureAwait(false);
+                    await DiscardRequestFormAsync(cancellationToken).ConfigureAwait(false);
+                }
+                catch (Exception exception)
+                {
+                    throw new PamRequestSubmissionException(PamRequestSubmissionErrorCode.PortalUnavailable,
+                        exception, submitMayHaveOccurred: true, confirmedOutcome: outcome);
+                }
+                return outcome;
+            }
 
-        if (outcome.Status == PamRequestSubmissionStatus.ApprovedAccessOverlap)
-        {
-            await CaptureAsync(captureDirectory, AfterSubmitCaptureName, cancellationToken).ConfigureAwait(false);
-            await DiscardRequestFormAsync(cancellationToken).ConfigureAwait(false);
+            await CaptureAfterSubmissionIgnoringFailureAsync(captureDirectory).ConfigureAwait(false);
             return outcome;
         }
-
-        await CaptureAfterSubmissionIgnoringFailureAsync(captureDirectory).ConfigureAwait(false);
-        return outcome;
+        catch (Exception exception)
+        {
+            PamRequestSubmissionException? failure = exception as PamRequestSubmissionException;
+            throw new PamRequestSubmissionException(failure?.ErrorCode ?? PamRequestSubmissionErrorCode.PortalUnavailable,
+                exception, submitMayHaveOccurred: failure?.SubmitMayHaveOccurred ?? true,
+                confirmedOutcome: failure?.ConfirmedOutcome, isKnownRejection: failure?.IsKnownRejection ?? false)
+            { Evidence = new PamSubmissionEvidence(true, Volatile.Read(ref postObserved) != 0, responseObserved) };
+        }
+        finally { page.Request -= observePost; }
     }
 
     private static bool IsSubmissionResponse(IResponse response)

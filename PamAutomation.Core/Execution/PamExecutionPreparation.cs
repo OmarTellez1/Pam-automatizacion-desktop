@@ -23,7 +23,8 @@ public sealed record PamExecutionPreparation
         IReadOnlyList<string>? pendingRequestIdsBeforeSubmission = null,
         int exactPendingDuplicateCount = 0,
         IReadOnlyList<FavoriteAccountKey>? selectedAccounts = null,
-        IReadOnlyList<string>? reusablePendingRequestIds = null)
+        IReadOnlyList<string>? reusablePendingRequestIds = null,
+        PamAutomation.Core.Diagnostics.PamExecutionAttempt? attempt = null)
     {
         if (favoriteCount < 1)
         {
@@ -68,6 +69,7 @@ public sealed record PamExecutionPreparation
         }
 
         FavoriteCount = favoriteCount;
+        Attempt = attempt ?? PamAutomation.Core.Diagnostics.PamExecutionAttempt.Current ?? new(favoriteCount);
         Request = request with { };
         FinalAction = finalAction;
         PendingRequestIdsBeforeSubmission = Array.AsReadOnly(baselineIds);
@@ -77,6 +79,7 @@ public sealed record PamExecutionPreparation
     }
 
     public int FavoriteCount { get; }
+    public PamAutomation.Core.Diagnostics.PamExecutionAttempt Attempt { get; }
 
     public RequestSettings Request { get; }
 

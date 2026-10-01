@@ -43,6 +43,8 @@ public enum PamRequestFormReadFailure
     InvalidOperation,
     /// <summary>A portal read rejected an argument.</summary>
     Argument,
+    /// <summary>A required control is missing, ambiguous, disabled or not editable.</summary>
+    ControlUnavailable,
 }
 
 /// <summary>Contains only non-secret form values and the reason's length for diagnosis.</summary>
@@ -167,4 +169,13 @@ public sealed class PamRequestFormVerificationException : InvalidOperationExcept
 
     /// <summary>Gets the last complete portal read, or null if none succeeded.</summary>
     public PamRequestFormDiagnosticValues? Observed { get; }
+
+    /// <summary>Gets the longest uninterrupted matching observation streak.</summary>
+    public int ConsecutiveMatchCount { get; init; }
+    /// <summary>Gets the number of bounded corrections made for this form.</summary>
+    public int CorrectionCount { get; init; }
+    /// <summary>Gets the fields corrected, without retaining entered content.</summary>
+    public PamRequestFormMismatchField CorrectedFields { get; init; }
+    public PamRequestFormMismatchField UnavailableFields { get; init; }
+    public int ControlReplacementCount { get; init; }
 }
