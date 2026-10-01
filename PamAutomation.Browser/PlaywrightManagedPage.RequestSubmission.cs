@@ -33,8 +33,7 @@ internal sealed partial class PlaywrightManagedPage
             throw new InvalidOperationException("Se alcanzó el límite autorizado de Submit Request.");
         }
 
-        ILocator row = await FindFavoriteRowAsync(account, cancellationToken).ConfigureAwait(false);
-        await OpenRequestFormAsync(row, cancellationToken).ConfigureAwait(false);
+        await PrepareRequestFormAsync(account, cancellationToken).ConfigureAwait(false);
         await FillAndVerifyRequestFormAsync(form, cancellationToken).ConfigureAwait(false);
         await CaptureAsync(captureDirectory, BeforeSubmitCaptureName, cancellationToken).ConfigureAwait(false);
 

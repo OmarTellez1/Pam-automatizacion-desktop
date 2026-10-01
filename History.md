@@ -1,5 +1,13 @@
 # Historial — Pam Automation .NET
 
+## 1 de octubre de 2026 — Reutilización de Favorites antes de cada solicitud
+
+Se atendió primero el punto 4 solicitado: el adaptador volvía a cargar Accounts y seleccionar Favorites para cada cuenta. La nueva preparación comparte la ruta de prueba y producción, reutiliza la vista comprobada, busca desde la página actual y vuelve a resolver la identidad completa al hacer clic. Una recuperación desde Accounts queda limitada a navegación y apertura anteriores al llenado, con dos intentos en total y un presupuesto compartido de 60 segundos.
+
+La inspección real autorizada confirmó que el texto Favorites está dentro de un contenedor con clases text selected. Se usa ese estado junto con la URL, Browse by Category, filas visibles y ausencia del panel de formulario; no se deduce la categoría solo por existir una tabla. La validación y sus resultados se registran en el ajuste correspondiente de Fases.md. No se modifican versión, publicación, lógica de calendario, reconciliación ni correo.
+
+Resultado: Release x64 correcto y 49 pruebas aprobadas sin fallos ni omisiones. Las 15 regresiones locales cubren reutilización, paginación, identidades similares, reordenación, duplicados, ausencia, recuperación acotada y cancelación. En Edge visible se validaron y descartaron los 14 formularios reales; no hubo recargas innecesarias de Accounts y se observó exactamente una al volver desde Requests, salida provocada expresamente a mitad del recorrido. La integración completa tardó 69,5 segundos, con cero intentos de creación y sin Outlook. La opción RegexOptions inicialmente incompatible con Playwright fue corregida antes de la ejecución final. Permanece MSTEST0032 heredada.
+
 ## 30 de septiembre de 2026 — Seguimiento: selector nativo del mes
 
 El diagnóstico `pam-automation-diagnostic-20260930-213552` identifica `MonthUnreadable`, fecha objetivo 01/10/2026, cero cambios de mes y mes observado no disponible. El lote tenía 14 accesos y horario 00:00–08:00. El valor `submittedCount=0` del archivo de reconciliación no demuestra cero creaciones: la ejecución aún estaba en etapa Preflight y ese contador se actualiza al completar el lote. No se atribuye el fallo al TOTP ni a Pending.

@@ -18,6 +18,18 @@ public static class PamOperationTimingPolicy
     /// <summary>Maximum time to observe a PAM page becoming ready.</summary>
     public static TimeSpan PortalReadinessTimeout { get; } = TimeSpan.FromSeconds(60);
 
+    /// <summary>Shared budget for locating a favorite and opening its form, including one recovery.</summary>
+    public static TimeSpan FavoritesNavigationTimeout { get; } = TimeSpan.FromSeconds(60);
+
+    /// <summary>Maximum wait for one reversible Favorites navigation control.</summary>
+    public static TimeSpan FavoritesControlTimeout { get; } = TimeSpan.FromSeconds(10);
+
+    /// <summary>Brief allowance for the Favorites grid to reappear after a completed request.</summary>
+    public static TimeSpan FavoritesReuseTimeout { get; } = TimeSpan.FromSeconds(2);
+
+    /// <summary>One initial preparation and at most one fresh Accounts/Favorites recovery.</summary>
+    public const int FavoritesNavigationMaximumAttempts = 2;
+
     /// <summary>Interval between inexpensive readiness observations.</summary>
     public static TimeSpan ObservationInterval { get; } = TimeSpan.FromMilliseconds(200);
 

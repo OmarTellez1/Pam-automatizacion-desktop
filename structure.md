@@ -317,6 +317,7 @@ PamAutomation\
 │   ├── PlaywrightManagedPage.Favorites.cs
 │   ├── PlaywrightManagedPage.Pending.cs
 │   ├── PlaywrightManagedPage.RequestTest.cs
+│   ├── PlaywrightManagedPage.RequestNavigation.cs
 │   ├── PlaywrightManagedPage.RequestSubmission.cs
 │   ├── WindowsEdgePamPage.cs
 │   └── PlaywrightEngineFactory.cs
@@ -395,6 +396,8 @@ PamAutomation\
     │   ├── PamRealPendingMatchTests.cs
     │   ├── PamRealPendingTests.cs
     │   ├── PamRealRequestTestTests.cs
+    │   ├── PamFavoritesRequestNavigationTests.cs
+    │   ├── PamRealFavoritesNavigationTests.cs
     │   ├── PamCalendarDateSelectorTests.cs
     │   ├── PamRealCalendarSubmissionTests.cs
     │   ├── PamRealSingleRequestSubmissionTests.cs
@@ -539,7 +542,8 @@ Biblioteca para `net10.0-windows`. Referencia `PamAutomation.Core` e implementa 
 - `PamRequestTestPortalFactory` y `PamRequestTestPortal`: enlazan el contrato seguro de formularios con la misma página autenticada.
 - `PamRequestTestSelectors`: centraliza acciones, campos y el endpoint de creación que debe permanecer bloqueado.
 - `PamCalendarDateSelector`: selecciona fechas mediante la cabecera nativa de mes/año y una grilla coherente; elige directamente la opción de mes y usa flechas para cambios de año. Confirma el valor retenido. Comparte los presupuestos de `PamOperationTimingPolicy` y falla con metadata tipada de `PamCalendarSelectionException`, exportada sin texto libre del portal.
-- `PlaywrightManagedPage.RequestTest`: vuelve a validar cada identidad, llena el formulario y espera adaptativamente que todos sus valores se estabilicen antes de comprobarlo; captura una observación diagnóstica tipada si falla, después lo descarta y aborta cualquier intento de envío.
+- `PlaywrightManagedPage.RequestNavigation`: preparación compartida por prueba y producción; reutiliza Favorites seleccionado, busca desde la página actual, resuelve Access por identidad completa y permite una recuperación anterior al llenado. Los límites residen en PamOperationTimingPolicy.
+- `PlaywrightManagedPage.RequestTest`: usa la preparación compartida, llena el formulario y espera adaptativamente que todos sus valores se estabilicen antes de comprobarlo; captura una observación diagnóstica tipada si falla, después lo descarta y aborta cualquier intento de envío.
 - `PamRequestSubmissionPortalFactory` y `PamRequestSubmissionPortal`: exponen el contrato real únicamente sobre una sesión temporal propia de Browser.
 - `PlaywrightManagedPage.RequestSubmission`: reutiliza el llenado validado, vuelve a comprobar el formulario justo antes del clic y espera el `POST` de creación.
 - `PamSubmissionResponseClassifier`: reconoce solo respuestas 2xx y el conflicto de acceso aprobado conocido; rechaza el resto sin propagar payloads.
@@ -651,6 +655,8 @@ Contenido actual:
 - `Browser/PamFavoritesPortalTests.cs`: valida el adaptador de Favorites y el formato del paginador con dobles.
 - `Browser/PamRealFavoritesTests.cs`: integración opt-in de solo lectura que confirma cuentas completas sin mostrar sus valores.
 - `Browser/PamRequestTestPortalTests.cs`: valida el enlace del contrato seguro con un doble de página y rechaza sesiones ajenas.
+- `Browser/PamFavoritesRequestNavigationTests.cs`: regresiones locales con Edge visible para reutilización, recuperación, paginación, identidad exacta, reordenación, duplicados, ausencia y cancelación; bloquea cualquier POST.
+- `Browser/PamRealFavoritesNavigationTests.cs`: integración autorizada con formularios reales descartados; comprueba cero recargas innecesarias de Accounts, retorno desde Requests y cero intentos de creación.
 - `Browser/PamCalendarDateSelectorTests.cs`: regresiones opt-in con Edge visible y respuestas locales para cambios de mes/año, selector nativo con grilla parcial o atrasada, bisiestos, repintado lento, calendarios ocultos, fechas no disponibles, valores no retenidos y cancelación. `PamRealRequestTestTests` recorre todos los accesos en modo visible y headless, con creación bloqueada.
 - `Browser/PamRealCalendarSubmissionTests.cs`: prueba mutante separada y opt-in; exige autorización expresa para hasta tres solicitudes de cinco minutos, comprueba Pending antes de enviar, limita los intentos y reconcilia sus IDs sin repetir Submit ni usar Outlook.
 - `Browser/PamRealRequestTestTests.cs`: integración opt-in visible que valida y descarta todos los formularios y exige cero envíos.

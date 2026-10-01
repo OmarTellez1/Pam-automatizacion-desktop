@@ -1,5 +1,19 @@
 # Fases de desarrollo — Pam Automation .NET
 
+## Ajuste posterior — Navegación reutilizable de Favorites (1 de octubre de 2026)
+
+Implementa el punto 4 priorizado por el usuario, sin iniciar una fase numerada nueva. Browser extrae la preparación a PlaywrightManagedPage.RequestNavigation: comprueba la vista activa, busca primero en la página actual, verifica identidad exacta al resolver Access y recupera una sola vez navegación/apertura fallidas. Core centraliza los límites: 60 segundos compartidos, 10 por control y dos de observación del retorno a Favorites. No hay caché de filas ni persistencia nueva.
+
+La recuperación no incluye llenado, calendario ni Submit. Se mantienen los bloqueos de identidades ambiguas, la autorización, las verificaciones del formulario y la reconciliación. Los puntos 1 (respuesta de envío incierta), 2 (margen temporal) y 3 (estabilidad de hora) quedan pendientes; este ajuste no demuestra la resolución del MonthUnreadable intermitente del diagnóstico 20261001-050359.
+
+Validación reproducible, usando el runner integrado en Release x64:
+
+- Local: PAM_AUTOMATION_ALLOW_LOCAL_BROWSER_FAVORITES=LOCAL_ONLY; filtro FullyQualifiedName~PamFavoritesRequestNavigationTests. Edge visible, todas las rutas interceptadas con respuestas locales, sin red real ni JavaScript de prueba.
+- Contratos y servicios afectados: filtros PamRequestSubmissionServiceTests, PamRequestTestServiceTests, PamRequestSubmissionPortalTests y PamRequestTestPortalTests.
+- PAM real, solo con autorización expresa: PAM_AUTOMATION_ALLOW_REAL_REQUEST_FORMS=VALIDATE_AND_DISCARD; filtro FullyQualifiedName~PamRealFavoritesNavigationTests. Edge visible, credenciales protegidas, recorrido de Favorites y formularios descartados. Cuenta recargas de Accounts y exige cero intentos de POST; simula salir a Requests a mitad del recorrido para comprobar el retorno seguro.
+
+Resultado: compilación Release x64 correcta y 49 pruebas relacionadas aprobadas (33 de contratos/servicios, 15 casos locales de navegador y una integración real), cero fallos y cero omisiones. Permanece la advertencia heredada MSTEST0032. En PAM real se validaron y descartaron 14 formularios: cero recargas de Accounts entre formularios y exactamente una al salir deliberadamente a Requests a mitad del recorrido. La integración completa duró 69,5 segundos; no es una comparación de rendimiento equivalente con ejecuciones anteriores. Cero intentos de POST, cero solicitudes creadas y cero correos. Las primeras regresiones detectaron una opción RegexOptions no admitida por Playwright; se retiró antes de repetir satisfactoriamente la suite completa. Sin cambio de versión ni publicación; la prueba de envío real posterior a este ajuste queda fuera de esta validación.
+
 Este documento resume las fases implementadas, dónde se incorporó cada cambio y por qué fue necesario. El detalle cronológico permanece en `History.md` y la estructura física en `structure.md`.
 
 ## Fase 1 — Estructura base

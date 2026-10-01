@@ -1,5 +1,13 @@
 # Lógica prevista — Pam Automation .NET
 
+## Navegación de Favorites por solicitud — 1 de octubre de 2026
+
+La preparación compartida por prueba y ejecución reutiliza la vista únicamente con URL de Accounts, categoría Favorites seleccionada, Browse by Category y filas visibles, sin panel Submit Request abierto. Da hasta dos segundos al retorno del grid tras una operación completada. No conserva filas ni posiciones: relee un snapshot estable y localiza Access mediante las tres celdas exactas System + Application + Account, incluso si el orden cambia antes del clic.
+
+Busca primero en la página actual; si no encuentra la identidad, recorre las restantes con Next page y, al llegar al final, First page. Comprueba la categoría y la paginación durante la búsqueda. Una cuenta ausente puede deberse a una vista obsoleta o filtrada: permite recargar Accounts y Favorites una vez y exige encontrar la identidad exacta. Los duplicados observados bloquean sin elegir arbitrariamente.
+
+Los timeouts y errores del navegador al navegar o abrir el formulario admiten esa misma recuperación única. El presupuesto compartido es de 60 segundos y cada control tiene un límite de 10 segundos; la cancelación del usuario no se reintenta. La recuperación termina antes de llenar campos: errores de calendario, verificación del formulario, rechazos o respuestas inciertas de Submit no vuelven a ejecutar esta preparación automáticamente. La reconciliación actual no cambia.
+
 ## Estado
 
 Este documento describe la lógica objetivo de la aplicación nueva. Ya existen la estructura base, la configuración, el almacenamiento protegido de credenciales, TOTP, navegador automático restringido y oculto, acceso PAM interactivo visible, lectura de Favorites, solicitudes reales, validación segura de formularios, composición HTML saneada, Outlook clásico aislado y la coordinación del flujo PAM desde la interfaz.
