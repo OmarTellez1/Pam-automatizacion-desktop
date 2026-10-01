@@ -1,5 +1,21 @@
 # Historial — Pam Automation .NET
 
+## 30 de septiembre de 2026 — Seguimiento: selector nativo del mes
+
+El diagnóstico `pam-automation-diagnostic-20260930-213552` identifica `MonthUnreadable`, fecha objetivo 01/10/2026, cero cambios de mes y mes observado no disponible. El lote tenía 14 accesos y horario 00:00–08:00. El valor `submittedCount=0` del archivo de reconciliación no demuestra cero creaciones: la ejecución aún estaba en etapa Preflight y ese contador se actualiza al completar el lote. No se atribuye el fallo al TOTP ni a Pending.
+
+La primera corrección dependía de observar 28–31 días propios, desde el primero hasta el último. Las capturas del usuario mostraron el selector nativo de mes. La revisión usa ahora esa cabecera y su año, elige la opción por valor exacto y espera coherencia con la grilla antes del día. La prueba anterior sobre una sola cuenta no cubría toda la colección. El recorrido sin envío del código anterior pasó en los 14 accesos tanto visible como headless; por ello la condición transitoria exacta del fallo del usuario no quedó reproducida en vivo. Las nuevas regresiones modelan grilla parcial y cabecera adelantada respecto a los días; no se presenta esa simulación como captura del incidente.
+
+Validación final: compilación Release x64 correcta y 60 pruebas relacionadas aprobadas, cero fallos/omisiones. Las simulaciones detectaron una coincidencia indistinta entre etiqueta numérica y valor de opción; se corrigió mediante `SelectOptionValue.Value` explícito. También se estabilizó el repintado de las páginas locales esperando DOMContentLoaded. En PAM real, el código corregido validó y descartó los 14 accesos para 01/10/2026 00:00–08:00, tanto visible (102,2 s) como headless (94,1 s): 28 formularios. Con la autorización expresa del usuario, una prueba separada creó exactamente tres solicitudes de 00:00–00:05 del 01/10/2026 y recuperó sus tres IDs nuevos en Pending (36,8 s), sin repetir Submit ni abrir Outlook. Los IDs operativos se comunicaron al usuario y no se persisten en la documentación. Sin cambio de versión ni publicación. Permanece la advertencia heredada MSTEST0032.
+
+## 30 de septiembre de 2026 — Selección estable del calendario PAM
+
+- El diagnóstico `pam-automation-diagnostic-20260930-195922` ubicó dos fallos en `SelectStartDateAsync`, al preparar solicitudes para el 1 de octubre. La excepción genérica exportada no permite identificar retrospectivamente la condición exacta. El problema previo de TOTP fue corregido por el usuario y no forma parte de este cambio.
+- Se sustituyó el avance ciego al no encontrar el día por `PamCalendarDateSelector`: calendario visible único, mes completo estable, dirección calculada, una acción por transición y confirmación del valor retenido. Excluye días de meses adyacentes, calendarios ocultos y fechas deshabilitadas. Conserva la verificación integral previa a Submit.
+- `PamCalendarSelectionException` y el diagnóstico añaden categoría, fecha objetivo, mes observado y conteo de navegación, sin texto libre del portal ni secretos. Los límites están en `PamOperationTimingPolicy`.
+- Compilación Release x64 correcta; 57 pruebas relacionadas aprobadas, incluidas 16 regresiones con Edge visible y respuestas locales. Una primera ejecución detectó un timeout demasiado breve del clic de la simulación; se separó del presupuesto de lectura y la repetición completa pasó. La advertencia heredada MSTEST0032 se deja sin cambios.
+- Integración real expresamente autorizada: una prueba pasó en 26,7 segundos, confirmó fechas 01/10/2026 y 02/10/2026 de 11:00 a 19:00 y descartó ambos formularios. El adaptador bloqueó el endpoint de creación y verificó cero intentos. No hubo solicitudes ni correos reales. Sin cambio de versión ni publicación; la aceptación de un lote enviado corresponde a una ejecución operativa posterior.
+
 ## 27 de septiembre de 2026 — Ajuste visual del selector de acumulación
 
 - Corrección posterior al reporte de texto recortado: altura automática y mínimo de 64 DIP; estado deshabilitado gris explícito en fondo, borde, texto e interruptor. Outlook aparece gris durante acumulación incluso si estaba activado. Compilación Release x64 y tres pruebas WPF aprobadas, con comprobación de texto completo y colores.

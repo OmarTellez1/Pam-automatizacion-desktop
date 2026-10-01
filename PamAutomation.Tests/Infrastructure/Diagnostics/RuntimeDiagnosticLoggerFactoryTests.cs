@@ -11,6 +11,23 @@ namespace PamAutomation.Tests.Infrastructure.Diagnostics;
 public sealed class RuntimeDiagnosticLoggerFactoryTests
 {
     [TestMethod]
+    public void CaptureSnapshot_CalendarFailure_ExportsOnlyClassifiedDatesAndCount()
+    {
+        using var factory = new RuntimeDiagnosticLoggerFactory();
+        var failure = new PamCalendarSelectionException(PamCalendarFailure.MonthTransitionTimeout,
+            new DateOnly(2026, 10, 1), new DateOnly(2026, 9, 1), 1,
+            new InvalidOperationException("private-calendar-content"));
+        factory.CreateLogger("Test").LogError(new PamRequestSubmissionException(
+            PamRequestSubmissionErrorCode.PortalUnavailable, failure), "Submission failed.");
+        var snapshot = Assert.ContainsSingle(factory.CaptureSnapshot());
+        Assert.AreEqual("MonthTransitionTimeout", snapshot.Properties["CalendarFailure"]);
+        Assert.AreEqual("2026-10-01", snapshot.Properties["CalendarTargetDate"]);
+        Assert.AreEqual("2026-09", snapshot.Properties["CalendarObservedMonth"]);
+        Assert.AreEqual("1", snapshot.Properties["CalendarNavigationCount"]);
+        Assert.DoesNotContain("private-calendar-content", string.Join('|', snapshot.Properties.Values));
+    }
+
+    [TestMethod]
     public void CaptureSnapshot_StructuredSensitiveValues_KeepsOnlyAllowlistedProperties()
     {
         var now = new DateTimeOffset(2026, 9, 11, 16, 0, 0, TimeSpan.Zero);

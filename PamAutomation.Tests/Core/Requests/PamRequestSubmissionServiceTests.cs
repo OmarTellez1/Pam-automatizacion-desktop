@@ -16,6 +16,22 @@ namespace PamAutomation.Tests.Core.Requests;
 [TestCategory("Unit")]
 public sealed class PamRequestSubmissionServiceTests
 {
+    [TestMethod]
+    public void CalendarFailure_WrappersExplainAffectedFormWithoutExposingPortalDetails()
+    {
+        var calendar = new PamCalendarSelectionException(PamCalendarFailure.DateUnavailable,
+            new DateOnly(2026, 10, 1), new DateOnly(2026, 10, 1), 1,
+            new InvalidOperationException("private-portal-content"));
+        var submission = new PamRequestSubmissionException(PamRequestSubmissionErrorCode.PortalUnavailable, calendar, 1);
+        var test = new PamRequestTestException(PamRequestTestErrorCode.PortalUnavailable, calendar);
+        Assert.Contains("calendario PAM", submission.Message);
+        Assert.Contains("formulario afectado", submission.Message);
+        Assert.DoesNotContain("private-portal-content", submission.Message);
+        Assert.AreEqual(1, submission.ProcessedCount);
+        Assert.AreEqual(submission.Message, test.Message);
+        Assert.AreSame(calendar, submission.InnerException);
+    }
+
     private static readonly DateTimeOffset EcuadorNow =
         new(2026, 9, 10, 8, 0, 0, TimeSpan.FromHours(-5));
 

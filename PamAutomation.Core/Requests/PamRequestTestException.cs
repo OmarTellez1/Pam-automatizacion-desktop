@@ -5,7 +5,8 @@ public sealed class PamRequestTestException : Exception
 {
     /// <summary>Initializes a request test failure with a stable code.</summary>
     public PamRequestTestException(PamRequestTestErrorCode errorCode, Exception? innerException = null)
-        : base(GetMessage(errorCode), innerException)
+        : base(innerException is PamCalendarSelectionException calendarFailure
+            ? calendarFailure.Message : GetMessage(errorCode), innerException)
     {
         ErrorCode = errorCode;
     }

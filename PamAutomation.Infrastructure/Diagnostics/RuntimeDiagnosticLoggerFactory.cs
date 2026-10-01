@@ -110,6 +110,13 @@ public sealed partial class RuntimeDiagnosticLoggerFactory : ILoggerFactory, IDi
         var exceptionMetadata = new List<DiagnosticExceptionInfo>();
         for (Exception? current = exception; current is not null; current = current.InnerException)
         {
+            if (current is PamCalendarSelectionException calendarFailure)
+            {
+                properties["CalendarFailure"] = calendarFailure.Failure.ToString();
+                properties["CalendarTargetDate"] = calendarFailure.TargetDate.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+                properties["CalendarObservedMonth"] = calendarFailure.ObservedMonth?.ToString("yyyy-MM", CultureInfo.InvariantCulture) ?? "Unavailable";
+                properties["CalendarNavigationCount"] = calendarFailure.NavigationCount.ToString(CultureInfo.InvariantCulture);
+            }
             if (current is PamRequestFormVerificationException formFailure)
             {
                 CaptureFormVerification(properties, formFailure);

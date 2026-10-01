@@ -10,7 +10,8 @@ public sealed class PamRequestSubmissionException : Exception
         PamRequestSubmissionErrorCode errorCode,
         Exception? innerException = null,
         int processedCount = 0)
-        : base(GetMessage(errorCode), innerException)
+        : base(innerException is PamCalendarSelectionException calendarFailure
+            ? calendarFailure.Message : GetMessage(errorCode), innerException)
     {
         if (processedCount < 0) throw new ArgumentOutOfRangeException(nameof(processedCount));
         ErrorCode = errorCode;

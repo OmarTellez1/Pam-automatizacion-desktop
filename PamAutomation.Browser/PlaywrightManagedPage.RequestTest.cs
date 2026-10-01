@@ -9,7 +9,6 @@ namespace PamAutomation.Browser;
 
 internal sealed partial class PlaywrightManagedPage
 {
-    private const int MaximumCalendarAdvances = 120;
     private bool submissionBlockInstalled;
     private int blockedSubmissionAttempts;
 
@@ -365,51 +364,11 @@ internal sealed partial class PlaywrightManagedPage
         return string.Equals(actual, expected, comparison) ? mismatches : mismatches | field;
     }
 
-    private async Task SelectStartDateAsync(
+    private Task SelectStartDateAsync(
         ILocator startDate,
         DateOnly targetDate,
-        CancellationToken cancellationToken)
-    {
-        ILocator calendar = page.Locator(PamRequestTestSelectors.OpenCalendar);
-        bool calendarIsOpen = await IsAnyVisibleAsync(calendar).ConfigureAwait(false);
-        for (int attempt = 0; !calendarIsOpen && attempt < 4; attempt++)
-        {
-            await startDate.ClickAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
-            for (int sample = 0; sample < 8; sample++)
-            {
-                await Task.Delay(TimeSpan.FromMilliseconds(125), cancellationToken).ConfigureAwait(false);
-                if (await IsAnyVisibleAsync(calendar).ConfigureAwait(false))
-                {
-                    calendarIsOpen = true;
-                    break;
-                }
-            }
-        }
-
-        if (!calendarIsOpen)
-        {
-            throw new InvalidOperationException("El calendario PAM no se abrió después de cuatro intentos seguros.");
-        }
-
-        string targetLabel = targetDate.ToString("MMMM d, yyyy", CultureInfo.InvariantCulture);
-        for (int advance = 0; advance <= MaximumCalendarAdvances; advance++)
-        {
-            ILocator targetDay = calendar.Locator(
-                $".flatpickr-day[aria-label=\"{targetLabel}\"]:not(.flatpickr-disabled)");
-            if (await targetDay.CountAsync().WaitAsync(cancellationToken).ConfigureAwait(false) == 1 &&
-                await targetDay.IsVisibleAsync().WaitAsync(cancellationToken).ConfigureAwait(false))
-            {
-                await targetDay.ClickAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
-                return;
-            }
-
-            ILocator nextMonth = calendar.Locator(PamRequestTestSelectors.NextMonth);
-            await RequireUniqueVisibleAsync(nextMonth, "siguiente mes", cancellationToken).ConfigureAwait(false);
-            await nextMonth.ClickAsync().WaitAsync(cancellationToken).ConfigureAwait(false);
-        }
-
-        throw new InvalidOperationException("La fecha configurada excede el alcance seguro del calendario PAM.");
-    }
+        CancellationToken cancellationToken) =>
+        new PamCalendarDateSelector(page).SelectAsync(startDate, targetDate, cancellationToken);
 
     private async Task DiscardRequestFormAsync(CancellationToken cancellationToken)
     {

@@ -27,6 +27,12 @@ public static class PamOperationTimingPolicy
     /// <summary>Maximum time to wait for JavaScript-controlled request values to stabilize.</summary>
     public static TimeSpan FormStabilityTimeout { get; } = TimeSpan.FromSeconds(15);
 
+    /// <summary>Maximum time to observe a calendar month change or a selected date.</summary>
+    public static TimeSpan CalendarTransitionTimeout { get; } = TimeSpan.FromSeconds(8);
+
+    /// <summary>Overall calendar-selection budget, including opening and navigation.</summary>
+    public static TimeSpan CalendarSelectionTimeout { get; } = TimeSpan.FromSeconds(45);
+
     /// <summary>Maximum complete grid rescans when the portal item count changes mid-read.</summary>
     public const int GridScanMaximumAttempts = 5;
 

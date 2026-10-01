@@ -19,6 +19,7 @@ internal static partial class PamRequestTestSelectors
     public const string DiscardChanges = "Discard Changes";
     public const string OpenCalendar = ".flatpickr-calendar.open";
     public const string NextMonth = ".flatpickr-next-month";
+    public const string PreviousMonth = ".flatpickr-prev-month";
 
     [GeneratedRegex("/api/ps-portal/requests(?:\\?.*)?$", RegexOptions.IgnoreCase)]
     public static partial Regex SubmissionEndpointExpression();
