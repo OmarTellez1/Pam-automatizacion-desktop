@@ -1,5 +1,11 @@
 # Fases de desarrollo — Pam Automation .NET
 
+## Ajuste posterior — Apertura maximizada de Colecciones (19 de noviembre de 2026)
+
+`FavoritesCatalogWindow.xaml` establece el estado inicial maximizado. La comprobación WPF de primera apertura verifica el estado junto con los controles existentes. Se conserva el flujo de colecciones y el arreglo del calendario.
+
+Validación: Release x64 compilado y una prueba WPF visible aprobada, sin fallos ni omisiones (`results/collections-maximized/collections-maximized.trx`). Sin PAM/Outlook, cambio de versión ni publicación. Se mantiene la advertencia heredada MSTEST0032.
+
 ## Ajuste posterior — Script de publicación conservado en Git (19 de noviembre de 2026)
 
 Se recupera `Publish-Portable.ps1` del commit `626abbd` para RamaEstable, conservando el formato original EXE y dependencias. El script y `Directory.Build.targets` quedan como código fuente incluido en Git, con excepciones explícitas en `.gitignore` y un error de compilación si el script desaparece. La causa fue la ausencia de los commits que lo incorporaron en la base de main/RamaEstable; no una eliminación causada por el calendario. Integrar este ajuste en una rama antigua sigue siendo necesario para disponer allí del script y de su comprobación.

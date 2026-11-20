@@ -1,5 +1,7 @@
 # Lógica prevista — Pam Automation .NET
 
+La ventana de Colecciones inicia con `WindowState="Maximized"`; conserva los controles normales de Windows para restaurar, minimizar o cerrar.
+
 ## Herramienta de publicación versionada
 
 `Publish-Portable.ps1` forma parte del repositorio. Conserva el empaquetado original del perfil `Portable-x64`: EXE y dependencias juntos, con `.playwright` intacto y carpeta base incluida en el ZIP. Lee la versión del proyecto, ejecuta restauración/compilación/pruebas/publicación, comprueba dependencias y metadata y genera SHA-256 del ZIP. `-ReplaceExisting` solo sustituye los artefactos de esa versión dentro de `artifacts/publish/final`. No cambia versiones ni publica en GitHub.

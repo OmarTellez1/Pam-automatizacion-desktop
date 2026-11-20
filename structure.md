@@ -1,5 +1,7 @@
 # Estructura y arquitectura — Pam Automation .NET
 
+`PamAutomation.App/Views/FavoritesCatalogWindow.xaml` define la ventana de Colecciones, con apertura inicial maximizada. `PamAutomation.Tests/App/ConfigurationWindowSmokeTests.cs` valida ese estado en su prueba de primera apertura.
+
 ## Herramientas de publicación en la raíz
 
 - `Publish-Portable.ps1`: comando manual del usuario para restaurar, compilar Release x64, probar y generar la carpeta portable y ZIP con dependencias originales, metadata validada y SHA-256. No sube archivos a GitHub.

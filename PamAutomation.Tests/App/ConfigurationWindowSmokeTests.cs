@@ -377,6 +377,7 @@ public sealed class ConfigurationWindowSmokeTests
             Dispatcher.CurrentDispatcher.Invoke(() => { }, DispatcherPriority.ApplicationIdle);
 
             var emptyState = Assert.IsInstanceOfType<Border>(window.FindName("EmptyFavoritesState"));
+            Assert.AreEqual(WindowState.Maximized, window.WindowState);
             var list = Assert.IsInstanceOfType<ListBox>(window.FindName("FavoritesList"));
             var refresh = Assert.IsInstanceOfType<Button>(window.FindName("RefreshFavoritesButton"));
             Assert.IsNotNull(window.FindName("CreateCollectionButton"));

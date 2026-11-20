@@ -1,5 +1,9 @@
 # Historial — Pam Automation .NET
 
+## 19 de noviembre de 2026 — Colecciones maximizada en RamaEstable
+
+Se incorpora a la rama estable la apertura maximizada de `FavoritesCatalogWindow`, que antes solo existía en otras ramas. Se verifica con la prueba WPF de primera apertura y estado vacío. No se cambia versión ni empaquetado.
+
 ## 19 de noviembre de 2026 — Recuperación del script de publicación en RamaEstable
 
 La investigación confirmó que `Publish-Portable.ps1` entró en Git en `626abbd` (6 de octubre), presente en `fixNextMonth` y `fixRuns`, pero fuera de la ascendencia de `main` y `RamaEstable`. El último commit del calendario no lo eliminó: la base `08d27c4` nunca lo contenía. La exclusión local antigua había sido retirada; actualmente `info/exclude` y la configuración global no excluyen el script. Su uso local y su mención en README no garantizaban su inclusión en una rama.

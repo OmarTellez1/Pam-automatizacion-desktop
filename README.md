@@ -1,5 +1,7 @@
 # Pam Automation .NET
 
+La ventana `Colecciones` abre maximizada desde su primera apertura.
+
 `Publish-Portable.ps1` es parte del código versionado y se encuentra en la raíz. Se ejecuta manualmente con `./Publish-Portable.ps1 -ReplaceExisting` para restaurar, compilar Release x64, ejecutar pruebas y generar el portable y ZIP en `artifacts/publish/final`. No sube archivos a GitHub ni cambia la versión. Debe distribuirse la carpeta extraída completa, incluidas sus dependencias y `.playwright`.
 
 `Directory.Build.targets` detiene la compilación con un error claro si falta el script. Ambos archivos deben viajar juntos en los commits y merges; una rama antigua que todavía no los contiene necesita integrar el commit de restauración. No mantener el script solo como archivo local ni excluirlo mediante `info/exclude`. Puede comprobarse su inclusión con `git ls-files --error-unmatch Publish-Portable.ps1`.
