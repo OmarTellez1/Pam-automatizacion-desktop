@@ -1,5 +1,11 @@
 # Historial — Pam Automation .NET
 
+## 13 de noviembre de 2026 — Reapertura del calendario durante la lectura inicial
+
+El diagnóstico `20261113-215103` mostró `MonthUnreadable` en el quinto formulario para el 16 de noviembre: un calendario visible sin cabecera ni días dejó de detectarse unos 200 ms después. Se verificaron en Pending las cuatro solicitudes ya aceptadas; la quinta no llegó a Submit y las nueve restantes no se intentaron. El registro no determina por qué desapareció el calendario en PAM.
+
+Se incorporó una reapertura limitada al campo original y al presupuesto restante de la lectura inicial. El historial distingue intento, bloqueo y fallo; si se confirma el mes, queda el evento `CalendarReopened`. La transición de mes y el envío conservan sus reglas. La validación y el alcance pendientes en PAM real se detallan en Fases.md.
+
 ## 1 de octubre de 2026 — Reutilización de Favorites antes de cada solicitud
 
 Se atendió primero el punto 4 solicitado: el adaptador volvía a cargar Accounts y seleccionar Favorites para cada cuenta. La nueva preparación comparte la ruta de prueba y producción, reutiliza la vista comprobada, busca desde la página actual y vuelve a resolver la identidad completa al hacer clic. Una recuperación desde Accounts queda limitada a navegación y apertura anteriores al llenado, con dos intentos en total y un presupuesto compartido de 60 segundos.

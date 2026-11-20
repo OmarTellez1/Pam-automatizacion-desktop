@@ -4,7 +4,9 @@ using System.Text;
 using Microsoft.Playwright;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using PamAutomation.Browser;
+using PamAutomation.Core.Diagnostics;
 using PamAutomation.Core.Requests;
+using PamAutomation.Infrastructure.Diagnostics;
 
 namespace PamAutomation.Tests.Browser;
 
@@ -93,11 +95,14 @@ public sealed class PamCalendarDateSelectorTests
     }
 
     [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
     [Timeout(25_000)]
-    public async Task SelectAsync_NoOpNextMonth_StopsAfterOneClickAndReportsObservedMonth()
+    public async Task SelectAsync_MonthTransitionDoesNotComplete_StopsWithoutReopening(bool closeOnNavigation)
     {
         await using Fixture fixture = await Fixture.CreateAsync(new(2026, 9, 1), TestContext.CancellationToken);
         fixture.IgnoreNavigation = true;
+        fixture.CloseOnNavigation = closeOnNavigation;
         await fixture.ShowAsync();
         PamCalendarSelectionException failure = await Assert.ThrowsExactlyAsync<PamCalendarSelectionException>(() =>
             fixture.SelectAsync(new(2026, 10, 1), TestContext.CancellationToken));
@@ -106,6 +111,8 @@ public sealed class PamCalendarDateSelectorTests
         Assert.AreEqual(1, failure.NavigationCount);
         Assert.AreEqual(1, fixture.NavigationCount);
         Assert.AreEqual(0, fixture.SelectionCount);
+        Assert.IsNotNull(failure.Diagnostic);
+        Assert.IsFalse(failure.Diagnostic.History.Any(sample => sample.Condition == PamCalendarReadCondition.InitialReopenAttempted));
     }
 
     [TestMethod]
@@ -175,6 +182,69 @@ public sealed class PamCalendarDateSelectorTests
 
     [TestMethod]
     [Timeout(25_000)]
+    public async Task SelectAsync_InitialCalendarDisappears_ReopensAndSelectsDate()
+    {
+        CancellationToken token = TestContext.CancellationToken;
+        await using Fixture fixture = await Fixture.CreateAsync(new(2026, 11, 1), token);
+        await fixture.ShowCalendarPreviewAsync(canRecover: true);
+        using var logs = new RuntimeDiagnosticLoggerFactory();
+        using IDisposable attempt = new PamExecutionAttempt(1, logs.CreateLogger("CalendarTest")).Activate();
+        Task selection = fixture.SelectAsync(new(2026, 11, 16), token);
+        await fixture.DismissCalendarPreviewAsync(token);
+        await selection;
+
+        Assert.AreEqual("November 16, 2026", await fixture.Input.InputValueAsync());
+        Assert.AreEqual(1, fixture.SelectionCount);
+        Assert.AreEqual(0, fixture.NavigationCount);
+        Assert.AreEqual(0, fixture.SubmissionCount);
+        Assert.AreEqual(1, logs.CaptureSnapshot().Count(entry => entry.Properties.TryGetValue("Stage", out string? stage) && stage == "CalendarReopened"));
+    }
+
+    [TestMethod]
+    [Timeout(25_000)]
+    public async Task SelectAsync_InitialCalendarDisappearsAndDoesNotReturn_ReopensOnlyOnce()
+    {
+        CancellationToken token = TestContext.CancellationToken;
+        await using Fixture fixture = await Fixture.CreateAsync(new(2026, 11, 1), token);
+        await fixture.ShowCalendarPreviewAsync(canRecover: false);
+        Task selection = fixture.SelectAsync(new(2026, 11, 16), token);
+        await fixture.DismissCalendarPreviewAsync(token);
+        await Assertions.Expect(fixture.Input).ToBeFocusedAsync();
+        ILocator elsewhere = fixture.Page.Locator("#elsewhere");
+        await elsewhere.FocusAsync();
+        var failure = await Assert.ThrowsExactlyAsync<PamCalendarSelectionException>(() => selection);
+
+        Assert.AreEqual(PamCalendarFailure.MonthUnreadable, failure.Failure);
+        Assert.IsNotNull(failure.Diagnostic);
+        Assert.AreEqual(1, failure.Diagnostic.History.Count(sample => sample.Condition == PamCalendarReadCondition.InitialReopenAttempted));
+        Assert.IsTrue(failure.Diagnostic.History.Any(sample => sample.Condition == PamCalendarReadCondition.InitialReopenFailed));
+        await Assertions.Expect(elsewhere).ToBeFocusedAsync();
+        Assert.AreEqual(0, fixture.SelectionCount);
+        Assert.AreEqual(0, fixture.SubmissionCount);
+    }
+
+    [TestMethod]
+    [Timeout(25_000)]
+    public async Task SelectAsync_FormControlReplaced_DoesNotClickReplacement()
+    {
+        CancellationToken token = TestContext.CancellationToken;
+        await using Fixture fixture = await Fixture.CreateAsync(new(2026, 11, 1), token);
+        await fixture.ShowCalendarPreviewAsync(canRecover: true);
+        Task selection = fixture.SelectAsync(new(2026, 11, 16), token);
+        await Task.Delay(650, token);
+        await fixture.Page.SetContentAsync("<label>Start Date<input readonly></label>");
+        var failure = await Assert.ThrowsExactlyAsync<PamCalendarSelectionException>(() => selection);
+
+        Assert.AreEqual(PamCalendarFailure.MonthUnreadable, failure.Failure);
+        Assert.IsNotNull(failure.Diagnostic);
+        Assert.IsTrue(failure.Diagnostic.History.Any(sample => sample.Condition == PamCalendarReadCondition.InitialReopenBlocked));
+        await Assertions.Expect(fixture.Input).Not.ToBeFocusedAsync();
+        Assert.AreEqual(0, fixture.SelectionCount);
+        Assert.AreEqual(0, fixture.SubmissionCount);
+    }
+
+    [TestMethod]
+    [Timeout(25_000)]
     public async Task SelectAsync_CancellationDuringTransition_DoesNotNavigateAgain()
     {
         await using Fixture fixture = await Fixture.CreateAsync(new(2026, 9, 1), TestContext.CancellationToken);
@@ -236,6 +306,7 @@ public sealed class PamCalendarDateSelectorTests
         private string selected = string.Empty;
         public TimeSpan NavigationDelay { get; set; }
         public bool IgnoreNavigation { get; set; }
+        public bool CloseOnNavigation { get; set; }
         public bool IgnoreSelection { get; set; }
         public bool IncludeHiddenCalendar { get; set; }
         public bool DuplicateAdjacentDay { get; set; }
@@ -276,6 +347,29 @@ public sealed class PamCalendarDateSelectorTests
         public Task ShowAsync() => Page.GotoAsync("https://calendar.invalid/fixture");
         public Task SelectAsync(DateOnly target, CancellationToken token) => new PamCalendarDateSelector(Page).SelectAsync(Input, target, token);
 
+        public async Task ShowCalendarPreviewAsync(bool canRecover)
+        {
+            await ShowAsync();
+            // Keep the original input attached. Focus controls which widget is visible, with no script.
+            string css = "section.flatpickr-calendar {display:none} #preview:focus ~ #placeholder {display:block}" +
+                (canRecover ? " #date:focus ~ section.flatpickr-calendar:not(#placeholder), section.flatpickr-calendar:not(#placeholder):focus-within, section.flatpickr-calendar:not(#placeholder):active {display:block}" : "");
+            string markup = Html().Replace("</head>", $"<style>{css}</style></head>", StringComparison.Ordinal)
+                .Replace("<label>Start Date<input readonly", """
+                    <button id='preview'>Vista inicial</button><button id='elsewhere'>Otro control</button>
+                    <section id='placeholder' class='flatpickr-calendar open' style='min-height:20px'></section>
+                    <label for='date'>Start Date</label><input id='date' readonly
+                    """, StringComparison.Ordinal)
+                .Replace("'></label>", "'>", StringComparison.Ordinal);
+            await Page.SetContentAsync(markup);
+            await Page.Locator("#preview").FocusAsync();
+        }
+
+        public async Task DismissCalendarPreviewAsync(CancellationToken token)
+        {
+            await Task.Delay(650, token);
+            await Page.Locator("#elsewhere").FocusAsync();
+        }
+
         public async Task ObserveMonthSelectionAsync(DateOnly target, CancellationToken token)
         {
             await Assertions.Expect(Page.Locator("select.flatpickr-monthDropdown-months"))
@@ -308,6 +402,7 @@ public sealed class PamCalendarDateSelectorTests
             if (path.StartsWith("/month/", StringComparison.Ordinal))
             {
                 NavigationCount++;
+                if (CloseOnNavigation) ClosedCalendar = true;
                 if (!IgnoreNavigation) next = Parse(path[7..]);
                 if (NavigationDelay == TimeSpan.Zero && next.HasValue) month = next.Value;
             }

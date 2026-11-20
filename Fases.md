@@ -1,5 +1,11 @@
 # Fases de desarrollo — Pam Automation .NET
 
+## Ajuste posterior — Reapertura inicial del calendario (13 de noviembre de 2026)
+
+Browser recupera la desaparición temprana observada en el diagnóstico `20261113-215103`: un clic sobre el campo original si continúa disponible y el calendario sigue cerrado. Usa el plazo restante de la lectura inicial y mantiene los bloqueos de fecha, transiciones y Submit. Core añade condiciones diagnósticas seguras para distinguir intento, bloqueo y resultado. La causa interna de la desaparición en PAM real queda por confirmar.
+
+Release x64 compilado. Edge visible, páginas locales interceptadas y sin credenciales ni tráfico hacia PAM. En `results/calendar-initial-reopen/calendar-final.trx` aprobaron 27 de 29 casos, incluidos los cuatro casos nuevos: recuperación y fecha exacta, límite de una reapertura, bloqueo del campo reemplazado y desaparición después de cambiar de mes. Dos casos existentes de lectura inválida excedieron el tiempo de la prueba; ambos habían pasado en `calendar.trx`. Una corrida aislada posterior volvió a agotar el límite en los casos de lectura inválida, y una corrida adicional se interrumpió tras tiempos de espera en otros escenarios que habían pasado. La suite completa no queda certificada en una sola corrida. No se cambió versión ni se publicó.
+
 Guía de continuación: [problemas.md](problemas.md) documenta el diagnóstico pendiente del calendario, la estabilidad del formulario, la recuperación de lotes parciales y la correlación de logs, con clases y criterios de aceptación. Incluye Favorites como mejora verificada y el margen temporal como diferido. Su creación es documental y no completa una fase ni implementa esas propuestas.
 
 ## Ajuste posterior — Navegación reutilizable de Favorites (1 de octubre de 2026)

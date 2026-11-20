@@ -10,6 +10,8 @@ Validación de Favorites: Release x64 correcto, 49 pruebas relacionadas aprobada
 
 La selección del calendario PAM usa la cabecera nativa de mes y año y elige el mes solicitado directamente en el desplegable. Espera que los días correspondan a esa cabecera, selecciona el día habilitado y confirma el valor exacto retenido. Esta revisión del 30 de septiembre reemplaza la dependencia anterior de observar todos los días del mes, después del diagnóstico `20260930-213552` con `MonthUnreadable`. Las flechas quedan para cambios de año o compatibilidad sin cabecera; no se repiten envíos. El diagnóstico conserva fechas y conteos seguros. Los resultados de validación y los límites de la reproducción están en `Fases.md` y `History.md`.
 
+Si el calendario aparece y desaparece antes de leer el mes inicial, la aplicación puede reabrirlo una vez sobre el mismo campo de fecha, dentro del tiempo que ya queda para esa lectura. Si el campo cambió o el mes sigue sin poder confirmarse, el formulario se detiene antes de enviar. Esta recuperación no se aplica tras cambiar de mes o año.
+
 Validación del ajuste: compilación Release x64, 60 pruebas relacionadas aprobadas, 28 formularios reales descartados (14 accesos en visible y headless) y, con autorización expresa, tres solicitudes reales consecutivas de cinco minutos con sus tres Request ID recuperados. No se enviaron correos. La condición transitoria exacta del incidente no se reprodujo; la nueva ruta del calendario sí se verificó en el portal. Sin cambio de versión ni publicación: el ejecutable portable debe regenerarse para incorporar el ajuste.
 
 La raíz oficial del repositorio es `C:\pam automatizacion dotnet\PamAutomation`.

@@ -51,10 +51,7 @@ internal sealed class PamCalendarDateSelector(IPage page)
                 Observe(PamCalendarReadCondition.SelectionReverted);
             }
             ILocator calendar = page.Locator(PamRequestTestSelectors.OpenCalendar + ":visible");
-            stage = PamCalendarStage.Open;
-            await OpenAsync(calendar, startDate, token).ConfigureAwait(false);
-            stage = PamCalendarStage.ReadInitialMonth;
-            DateOnly month = await WaitForMonthAsync(calendar, null, token).ConfigureAwait(false);
+            DateOnly month = await ReadInitialMonthAsync(calendar, startDate, token).ConfigureAwait(false);
             DateOnly targetMonth = new(date.Year, date.Month, 1);
             int distance = (date.Year - month.Year) * 12 + date.Month - month.Month;
             if (Math.Abs(distance) > MaximumMonthChanges) throw Failure(PamCalendarFailure.NavigationLimit);
@@ -145,6 +142,52 @@ internal sealed class PamCalendarDateSelector(IPage page)
         }
     }
 
+    private async Task<DateOnly> ReadInitialMonthAsync(ILocator calendar, ILocator startDate, CancellationToken token)
+    {
+        // Keep the exact control: a locator alone could resolve to a replacement form after a redraw.
+        await using IElementHandle originalField = await startDate.ElementHandleAsync(new() { Timeout = ProbeTimeout })
+            .WaitAsync(token).ConfigureAwait(false);
+        stage = PamCalendarStage.Open;
+        await OpenAsync(calendar, startDate, token).ConfigureAwait(false);
+        stage = PamCalendarStage.ReadInitialMonth;
+        return await WaitForMonthAsync(calendar, null, token, ReopenAsync).ConfigureAwait(false);
+
+        async Task<bool> ReopenAsync(long deadline, CancellationToken callerToken)
+        {
+            long remaining = deadline - Environment.TickCount64;
+            if (remaining <= 0) return false;
+            using var recovery = CancellationTokenSource.CreateLinkedTokenSource(callerToken);
+            recovery.CancelAfter(TimeSpan.FromMilliseconds(remaining));
+            CancellationToken recoveryToken = recovery.Token;
+            try
+            {
+                if (!await originalField.IsVisibleAsync().WaitAsync(recoveryToken).ConfigureAwait(false) ||
+                    !await originalField.IsEnabledAsync().WaitAsync(recoveryToken).ConfigureAwait(false) ||
+                    await startDate.CountAsync().WaitAsync(recoveryToken).ConfigureAwait(false) != 1)
+                {
+                    Observe(PamCalendarReadCondition.InitialReopenBlocked);
+                    throw Failure(PamCalendarFailure.MonthUnreadable);
+                }
+
+                // The widget may reappear while checking the form; don't toggle an open calendar.
+                if (await OpenCountAsync(calendar, recoveryToken).ConfigureAwait(false) != 0) return false;
+                remaining = deadline - Environment.TickCount64;
+                if (remaining <= 0) return false;
+                recoveryToken.ThrowIfCancellationRequested();
+                Observe(PamCalendarReadCondition.InitialReopenAttempted);
+                await originalField.ClickAsync(new() { Timeout = Math.Min(ProbeTimeout, remaining) })
+                    .WaitAsync(recoveryToken).ConfigureAwait(false);
+                return true;
+            }
+            catch (Exception exception) when (exception is PlaywrightException or TimeoutException ||
+                exception is OperationCanceledException && !callerToken.IsCancellationRequested)
+            {
+                Observe(PamCalendarReadCondition.InitialReopenFailed);
+                throw Failure(PamCalendarFailure.MonthUnreadable, exception);
+            }
+        }
+    }
+
     private async Task OpenAsync(ILocator calendar, ILocator startDate, CancellationToken token)
     {
         for (int attempt = 0; attempt < 4; attempt++)
@@ -170,18 +213,22 @@ internal sealed class PamCalendarDateSelector(IPage page)
         return count;
     }
 
-    private async Task<DateOnly> WaitForMonthAsync(ILocator calendar, DateOnly? expected, CancellationToken token)
+    private async Task<DateOnly> WaitForMonthAsync(ILocator calendar, DateOnly? expected, CancellationToken token,
+        Func<long, CancellationToken, Task<bool>>? reopen = null)
     {
-        long started = Environment.TickCount64;
+        long deadline = Environment.TickCount64 + (long)StepTimeout.TotalMilliseconds;
         DateOnly? previous = null;
-        while (Environment.TickCount64 - started < StepTimeout.TotalMilliseconds)
+        bool reopened = false;
+        while (Environment.TickCount64 < deadline)
         {
             token.ThrowIfCancellationRequested();
             DateOnly? current = null;
+            bool disappeared = false;
             try
             {
                 if (await OpenCountAsync(calendar, token).ConfigureAwait(false) == 1)
                     current = await ReadMonthAsync(calendar, expected, token).ConfigureAwait(false);
+                else disappeared = true;
             }
             catch (PlaywrightException) { readFailureCount++; Observe(PamCalendarReadCondition.CalendarReadFailed); }
             catch (TimeoutException) { readFailureCount++; Observe(PamCalendarReadCondition.CalendarReadTimeout); }
@@ -190,12 +237,27 @@ internal sealed class PamCalendarDateSelector(IPage page)
                 observedMonth = current;
                 consecutiveMatches = expected is null || current == expected
                     ? current == previous ? consecutiveMatches + 1 : 1 : 0;
-                if (consecutiveMatches >= 2 && current == previous) return current.Value;
+                if (consecutiveMatches >= 2 && current == previous)
+                {
+                    if (reopened)
+                    {
+                        Observe(PamCalendarReadCondition.InitialMonthRecovered);
+                        PamExecutionAttempt.Current?.RecordStage("CalendarReopened");
+                        PamExecutionAttempt.Current?.RecordStage("Calendar");
+                    }
+                    return current.Value;
+                }
             }
             else consecutiveMatches = 0;
             previous = current;
+            if (disappeared && reopen is not null)
+            {
+                reopened = await reopen(deadline, token).ConfigureAwait(false);
+                reopen = null;
+            }
             await Task.Delay(PamOperationTimingPolicy.ObservationInterval, token).ConfigureAwait(false);
         }
+        if (reopened) Observe(PamCalendarReadCondition.InitialReopenFailed);
         throw Failure(expected is null ? PamCalendarFailure.MonthUnreadable : PamCalendarFailure.MonthTransitionTimeout);
     }
 

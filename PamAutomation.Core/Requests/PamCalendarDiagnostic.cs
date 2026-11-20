@@ -6,7 +6,8 @@ public enum PamCalendarReadCondition
     Valid, CalendarNotVisible, MultipleVisibleCalendars, HeaderIncomplete, HeaderAmbiguous,
     MonthValueInvalid, YearValueInvalid, GridEmpty, DayLabelInvalid, HeaderGridMismatch,
     FallbackGridIncomplete, CalendarReadTimeout, CalendarReadFailed, TargetDayMissing,
-    TargetDayDisabled, SelectionReverted, SelectionMismatch, UnexpectedMonth
+    TargetDayDisabled, SelectionReverted, SelectionMismatch, UnexpectedMonth,
+    InitialReopenAttempted, InitialReopenBlocked, InitialReopenFailed, InitialMonthRecovered
 }
 
 /// <summary>Calendar stages used in the bounded diagnostic history.</summary>
