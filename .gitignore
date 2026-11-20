@@ -14,3 +14,7 @@ img
 img
 tmp/
 output/
+
+# Release tooling is source code and must remain visible to Git.
+!/Publish-Portable.ps1
+!/Directory.Build.targets

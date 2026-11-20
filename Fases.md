@@ -1,5 +1,11 @@
 # Fases de desarrollo — Pam Automation .NET
 
+## Ajuste posterior — Script de publicación conservado en Git (19 de noviembre de 2026)
+
+Se recupera `Publish-Portable.ps1` del commit `626abbd` para RamaEstable, conservando el formato original EXE y dependencias. El script y `Directory.Build.targets` quedan como código fuente incluido en Git, con excepciones explícitas en `.gitignore` y un error de compilación si el script desaparece. La causa fue la ausencia de los commits que lo incorporaron en la base de main/RamaEstable; no una eliminación causada por el calendario. Integrar este ajuste en una rama antigua sigue siendo necesario para disponer allí del script y de su comprobación.
+
+Validación: compilación Release x64 correcta y contrato MSBuild comprobado con el script presente y temporalmente ausente; la ausencia devuelve el error previsto y el archivo se restaura inmediatamente. La copia se basa en el script original, con dependencias compatibles con `Portable-x64` y la versión vigente. No se ejecutó PowerShell, reservado al usuario por AGENTS.md, ni se generaron paquetes o publicaciones remotas. No se repitieron pruebas de navegador ajenas a este cambio. Permanece la advertencia heredada MSTEST0032.
+
 ## Ajuste posterior — Reapertura inicial del calendario (13 de noviembre de 2026)
 
 Browser recupera la desaparición temprana observada en el diagnóstico `20261113-215103`: un clic sobre el campo original si continúa disponible y el calendario sigue cerrado. Usa el plazo restante de la lectura inicial y mantiene los bloqueos de fecha, transiciones y Submit. Core añade condiciones diagnósticas seguras para distinguir intento, bloqueo y resultado. La causa interna de la desaparición en PAM real queda por confirmar.

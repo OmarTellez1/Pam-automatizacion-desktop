@@ -1,0 +1,8 @@
+<Project>
+  <Target Name="ValidatePortablePublishScript"
+          BeforeTargets="PrepareForBuild"
+          Condition="'$(DesignTimeBuild)' != 'true'">
+    <Error Condition="!Exists('$(MSBuildThisFileDirectory)Publish-Portable.ps1')"
+           Text="Falta Publish-Portable.ps1 en la raíz del repositorio. Restaura el archivo versionado desde Git antes de compilar." />
+  </Target>
+</Project>

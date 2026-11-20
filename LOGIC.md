@@ -1,5 +1,11 @@
 # Lógica prevista — Pam Automation .NET
 
+## Herramienta de publicación versionada
+
+`Publish-Portable.ps1` forma parte del repositorio. Conserva el empaquetado original del perfil `Portable-x64`: EXE y dependencias juntos, con `.playwright` intacto y carpeta base incluida en el ZIP. Lee la versión del proyecto, ejecuta restauración/compilación/pruebas/publicación, comprueba dependencias y metadata y genera SHA-256 del ZIP. `-ReplaceExisting` solo sustituye los artefactos de esa versión dentro de `artifacts/publish/final`. No cambia versiones ni publica en GitHub.
+
+`Directory.Build.targets` exige que el script exista antes de compilar, excepto en compilación de diseño. El script y este contrato deben integrarse juntos en otras ramas. Una rama anterior a su incorporación no hereda automáticamente estos archivos ni esa comprobación. El script es de uso manual del usuario; los agentes validan desde `dotnet` directamente según AGENTS.md.
+
 ## Navegación de Favorites por solicitud — 1 de octubre de 2026
 
 La preparación compartida por prueba y ejecución reutiliza la vista únicamente con URL de Accounts, categoría Favorites seleccionada, Browse by Category y filas visibles, sin panel Submit Request abierto. Da hasta dos segundos al retorno del grid tras una operación completada. No conserva filas ni posiciones: relee un snapshot estable y localiza Access mediante las tres celdas exactas System + Application + Account, incluso si el orden cambia antes del clic.

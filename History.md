@@ -1,5 +1,11 @@
 # Historial — Pam Automation .NET
 
+## 19 de noviembre de 2026 — Recuperación del script de publicación en RamaEstable
+
+La investigación confirmó que `Publish-Portable.ps1` entró en Git en `626abbd` (6 de octubre), presente en `fixNextMonth` y `fixRuns`, pero fuera de la ascendencia de `main` y `RamaEstable`. El último commit del calendario no lo eliminó: la base `08d27c4` nunca lo contenía. La exclusión local antigua había sido retirada; actualmente `info/exclude` y la configuración global no excluyen el script. Su uso local y su mención en README no garantizaban su inclusión en una rama.
+
+Se restaura en RamaEstable el script del empaquetado original, se añade una excepción explícita en `.gitignore` y una comprobación MSBuild que detiene la compilación si falta. Se guarda junto con la documentación en un commit local. Las ramas antiguas deben integrar ese commit: no se reescriben ni actualizan automáticamente. Sin cambio de versión ni publicación remota.
+
 ## 13 de noviembre de 2026 — Reapertura del calendario durante la lectura inicial
 
 El diagnóstico `20261113-215103` mostró `MonthUnreadable` en el quinto formulario para el 16 de noviembre: un calendario visible sin cabecera ni días dejó de detectarse unos 200 ms después. Se verificaron en Pending las cuatro solicitudes ya aceptadas; la quinta no llegó a Submit y las nueve restantes no se intentaron. El registro no determina por qué desapareció el calendario en PAM.

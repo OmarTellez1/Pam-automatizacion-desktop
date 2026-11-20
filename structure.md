@@ -1,5 +1,11 @@
 # Estructura y arquitectura — Pam Automation .NET
 
+## Herramientas de publicación en la raíz
+
+- `Publish-Portable.ps1`: comando manual del usuario para restaurar, compilar Release x64, probar y generar la carpeta portable y ZIP con dependencias originales, metadata validada y SHA-256. No sube archivos a GitHub.
+- `Directory.Build.targets`: contrato compartido por los proyectos que exige el script antes de compilar, excluyendo compilaciones de diseño. No ejecuta PowerShell ni automatizaciones PAM/Outlook.
+- `.gitignore`: excluye artefactos y mantiene visibles los dos archivos anteriores. El commit que los incorpora debe integrarse en las ramas donde se quiera publicar; las ramas antiguas conservan su propio contenido.
+
 ## Propósito
 
 Este documento describe:
